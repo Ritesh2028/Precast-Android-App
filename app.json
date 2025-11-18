@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Precast App",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/precast.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs access to camera to scan QR codes for payments."
+      },
+      "bundleIdentifier": "com.riteshrai628.mobile"
+    },
+    "android": {
+      "edgeToEdgeEnabled": true,
+      "package": "com.riteshrai628.mobile",
+      "permissions": [
+        "CAMERA"
+      ],
+      "icon": "./assets/precast.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/precast.png",
+        "backgroundColor": "#e8eff4"
+      },
+      "enableProguardInReleaseBuilds": true,
+      "enableShrinkResourcesInReleaseBuilds": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "888baaa5-6adb-447a-94ec-40fa9b1a7520"
+      }
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

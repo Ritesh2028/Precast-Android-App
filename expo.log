@@ -1,0 +1,14 @@
+Starting project at /Users/ritesh/Downloads/job-flow-inspector-main/mobile
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+The following packages should be updated for best compatibility with the installed expo version:
+  react-native@0.79.6 - expected version: 0.79.5
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8082
+Logs for your project will appear below.
+Web ./index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundling failed 755ms index.js (18 modules)
+Unable to resolve "react-native-web/dist/exports/StyleSheet" from "App.js"
+Web ./index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundling failed 49ms index.js (1 module)
+Unable to resolve "react-native-web/dist/exports/AppRegistry" from "node_modules/expo/src/launch/registerRootComponent.tsx"

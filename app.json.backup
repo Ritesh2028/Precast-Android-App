@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Precast App",
+    "slug": "mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/precast.png",
+    "userInterfaceStyle": "light",
+    "android": {
+      "edgeToEdgeEnabled": true,
+      "package": "com.riteshrai628.mobile",
+      "permissions": [
+        "CAMERA"
+      ],
+      "icon": "./assets/precast.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/precast.png",
+        "backgroundColor": "#e8eff4"
+      },
+      "enableProguardInReleaseBuilds": true,
+      "enableShrinkResourcesInReleaseBuilds": true
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

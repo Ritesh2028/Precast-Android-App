@@ -9,7 +9,6 @@ import {
   Alert,
   TextInput,
   Image,
-  ActionSheetIOS,
   Platform,
   Modal,
   Dimensions,

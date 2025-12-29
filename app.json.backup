@@ -22,6 +22,12 @@
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "df3780fe-f464-424c-876f-a1942635780a"
+      }
+    },
+    "owner": "ritesh_628"
   }
 }

@@ -1331,7 +1331,7 @@ const styles = StyleSheet.create({
   qcId: {
     fontSize: FontSizes.medium,
     fontWeight: FontWeights.bold,
-    color: BWTheme.textPrimary,
+    color: '#007AFF', // Blue color like hyperlink
     letterSpacing: 0.5,
   },
   statusBadge: {

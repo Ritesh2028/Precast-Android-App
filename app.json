@@ -20,13 +20,14 @@
       "enableProguardInReleaseBuilds": true,
       "enableShrinkResourcesInReleaseBuilds": true
     },
-    "extra": {
-      "eas": {
-        "projectId": "888baaa5-6adb-447a-94ec-40fa9b1a7520"
-      }
-    },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "df3780fe-f464-424c-876f-a1942635780a"
+      }
+    },
+    "owner": "ritesh_628"
   }
 }

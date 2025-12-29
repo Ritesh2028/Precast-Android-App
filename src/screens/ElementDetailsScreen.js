@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTokens } from '../services/tokenManager';
-import { logout } from '../services/authService';
+import { logout, validateSession, refreshSession } from '../services/authService';
 import { handle401Error, handleApiError } from '../services/errorHandler';
+import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { FontSizes, FontWeights } from '../styles/fonts';
@@ -82,67 +83,176 @@ const ElementDetailsScreen = ({ route, navigation }) => {
     return '#000000';
   };
 
+  const validateToken = (token) => {
+    if (!token) return false;
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    try {
+      const payload = JSON.parse(atob(parts[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      return payload.exp > currentTime;
+    } catch (error) {
+      console.log('[ElementDetailsScreen] Token validation error:', error);
+      return false;
+    }
+  };
+
   const fetchElementDetails = async (elementId) => {
     try {
       setLoading(true);
+      console.log('[ElementDetailsScreen] Fetching element details for:', elementId);
       
       const { accessToken } = await getTokens();
       
       if (!accessToken) {
+        console.log('[ElementDetailsScreen] No access token found');
         Alert.alert('Authentication Required', 'Please login to fetch element details.');
         setLoading(false);
         return null;
       }
+
+      // Validate session first to get session_id (same pattern as tasks API)
+      let tokenToUse = accessToken;
+      console.log('[ElementDetailsScreen] Validating session before API call...');
+      try {
+        const sessionResult = await validateSession();
+        console.log('[ElementDetailsScreen] Session validation response:', JSON.stringify(sessionResult, null, 2));
+        
+        if (sessionResult && sessionResult.session_id) {
+          // Use the validated session_id as the token
+          tokenToUse = sessionResult.session_id;
+          console.log('✅ [ElementDetailsScreen] Session validated, using session_id');
+        } else {
+          console.log('⚠️ [ElementDetailsScreen] Session validation returned no session_id, using original token');
+        }
+      } catch (validateError) {
+        console.log('❌ [ElementDetailsScreen] Session validation failed, using original token:', validateError);
+      }
+
+      const apiUrl = `${API_BASE_URL}/api/scan_element/${elementId}`;
+      console.log('[ElementDetailsScreen] Making API call:', apiUrl);
+
+      // Try with Bearer token first (standard format)
+      let headers = createAuthHeaders(tokenToUse, { useBearer: true });
+      console.log('[ElementDetailsScreen] Attempt 1: With Bearer token');
       
-      const apiUrl = `https://precast.blueinvent.com/api/scan_element/${elementId}`;
-      
-      const response = await fetch(apiUrl, {
+      let response = await fetch(apiUrl, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'User-Agent': 'PrecastApp/1.0',
-        },
+        headers: headers,
       });
-      
+
+      console.log('[ElementDetailsScreen] Response 1 - Status:', response.status);
+
+      // If 401, try without Bearer prefix (some APIs expect just the token)
+      if (response.status === 401) {
+        const responseText1 = await response.text().catch(() => '');
+        console.log('❌ [ElementDetailsScreen] 401 with Bearer token');
+        console.log('[ElementDetailsScreen] Response body:', responseText1);
+        console.log('[ElementDetailsScreen] Attempt 2: Without Bearer prefix...');
+        
+        headers = createAuthHeaders(tokenToUse, { useBearer: false });
+        response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: headers,
+        });
+        
+        console.log('[ElementDetailsScreen] Response 2 - Status:', response.status);
+      }
+
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ [ElementDetailsScreen] Element details fetched successfully');
         setElementData(data);
         setLoading(false);
         return data;
       } else {
-        const errorText = await response.text();
-        
-        if (response.status === 400 || response.status === 401 || response.status === 404) {
-          const altResponse = await fetch(apiUrl, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest',
-              'User-Agent': 'PrecastApp/1.0',
-            },
-          });
-          
-          if (altResponse.ok) {
-            const data = await altResponse.json();
-            setElementData(data);
+        // If still 401, try to refresh token and retry once
+        if (response.status === 401) {
+          try {
+            const { refreshToken } = await getTokens();
+            console.log('[ElementDetailsScreen] Refresh token available:', refreshToken ? 'Yes' : 'No');
+            
+            if (refreshToken) {
+              console.log('🔄 [ElementDetailsScreen] 401 error, attempting token refresh...');
+              const refreshResult = await refreshSession();
+              console.log('[ElementDetailsScreen] Token refresh response:', JSON.stringify(refreshResult, null, 2));
+              
+              if (refreshResult && (refreshResult.access_token || refreshResult.message)) {
+                // Get new token after refresh
+                const { accessToken: newAccessToken } = await getTokens();
+                let newToken = newAccessToken;
+                
+                // Validate new session
+                try {
+                  const newSessionResult = await validateSession();
+                  if (newSessionResult && newSessionResult.session_id) {
+                    newToken = newSessionResult.session_id;
+                    console.log('✅ [ElementDetailsScreen] New session validated, using session_id');
+                  }
+                } catch (validateError) {
+                  console.log('⚠️ [ElementDetailsScreen] New session validation failed, using access_token');
+                }
+                
+                console.log('🔄 [ElementDetailsScreen] Retrying with refreshed token...');
+                
+                // Retry with new token - try Bearer first
+                let retryHeaders = createAuthHeaders(newToken, { useBearer: true });
+                let retryResponse = await fetch(apiUrl, {
+                  method: 'GET',
+                  headers: retryHeaders,
+                });
+                
+                console.log('[ElementDetailsScreen] Retry Response 1 - Status:', retryResponse.status);
+                
+                // If still 401, try without Bearer
+                if (retryResponse.status === 401) {
+                  retryHeaders = createAuthHeaders(newToken, { useBearer: false });
+                  retryResponse = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: retryHeaders,
+                  });
+                  
+                  console.log('[ElementDetailsScreen] Retry Response 2 - Status:', retryResponse.status);
+                }
+                
+                if (retryResponse.ok) {
+                  const data = await retryResponse.json();
+                  console.log('✅ [ElementDetailsScreen] Element details fetched successfully after retry');
+                  setElementData(data);
+                  setLoading(false);
+                  return data;
+                } else {
+                  const errorInfo = await handleApiError(retryResponse, 'Element Details API');
+                  Alert.alert('Error', errorInfo.message);
+                  setLoading(false);
+                  return null;
+                }
+              } else {
+                throw new Error('Token refresh failed - no access token in response');
+              }
+            } else {
+              throw new Error('No refresh token available');
+            }
+          } catch (refreshError) {
+            console.error('❌ [ElementDetailsScreen] Token refresh failed:', refreshError);
+            Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+            await logout();
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
             setLoading(false);
-            return data;
-          } else {
-            const altErrorText = await altResponse.text();
-            throw new Error(altErrorText || `Request failed with status ${altResponse.status}`);
+            return null;
           }
         } else {
-          throw new Error(errorText || `Request failed with status ${response.status}`);
+          const errorInfo = await handleApiError(response, 'Element Details API');
+          Alert.alert('Error', errorInfo.message);
+          setLoading(false);
+          return null;
         }
       }
     } catch (error) {
-      console.error('Error fetching element details:', error);
-      
+      console.error('[ElementDetailsScreen] Error fetching element details:', error);
       setLoading(false);
       Alert.alert(
         'Error',
@@ -169,7 +279,7 @@ const ElementDetailsScreen = ({ route, navigation }) => {
       setDownloadingFile(fileName);
       
       const { accessToken } = await getTokens();
-      if (!token) {
+      if (!accessToken) {
         Alert.alert('Error', 'Authentication required. Please login again.');
         setDownloadingFile(null);
         return;

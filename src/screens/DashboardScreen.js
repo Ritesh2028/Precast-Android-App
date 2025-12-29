@@ -906,50 +906,148 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
                             return;
                           }
 
-                          if (!validateToken(accessToken)) {
-                            // Try to refresh token instead of logging out immediately
-                            const shouldContinue = await handle401Error(null, null, navigation);
-                            if (!shouldContinue) {
-                              return;
+                          // Validate session first to get session_id (same pattern as tasks API)
+                          let tokenToUse = accessToken;
+                          console.log('📱 [DashboardScreen] Element Details - Validating session before API call...');
+                          try {
+                            const sessionResult = await validateSession();
+                            console.log('📱 [DashboardScreen] Element Details - Session validation response:', JSON.stringify(sessionResult, null, 2));
+                            
+                            if (sessionResult && sessionResult.session_id) {
+                              // Use the validated session_id as the token
+                              tokenToUse = sessionResult.session_id;
+                              console.log('✅ [DashboardScreen] Element Details - Session validated, using session_id');
+                            } else {
+                              console.log('⚠️ [DashboardScreen] Element Details - Session validation returned no session_id, using original token');
                             }
+                          } catch (validateError) {
+                            console.log('❌ [DashboardScreen] Element Details - Session validation failed, using original token:', validateError);
                           }
 
                           const apiUrl = `${API_BASE_URL}/api/scan_element/${elementId}`;
-                          console.log('Fetching element details from:', apiUrl);
+                          console.log('📱 [DashboardScreen] Element Details - Fetching from:', apiUrl);
 
-                          const response = await fetch(apiUrl, {
+                          // Try with Bearer token first (standard format)
+                          let headers = createAuthHeaders(tokenToUse, { useBearer: true });
+                          console.log('📱 [DashboardScreen] Element Details - Attempt 1: With Bearer token');
+                          
+                          let response = await fetch(apiUrl, {
                             method: 'GET',
-                            headers: {
-                              'Authorization': `Bearer ${accessToken}`,
-                              'Content-Type': 'application/json',
-                              'Accept': 'application/json',
-                              'X-Requested-With': 'XMLHttpRequest',
-                              'User-Agent': 'PrecastApp/1.0',
-                            },
+                            headers: headers,
                           });
+
+                          console.log('📱 [DashboardScreen] Element Details - Response 1 - Status:', response.status);
+
+                          // If 401, try without Bearer prefix (some APIs expect just the token)
+                          if (response.status === 401) {
+                            const responseText1 = await response.text().catch(() => '');
+                            console.log('❌ [DashboardScreen] Element Details - 401 with Bearer token');
+                            console.log('📱 [DashboardScreen] Element Details - Response body:', responseText1);
+                            console.log('📱 [DashboardScreen] Element Details - Attempt 2: Without Bearer prefix...');
+                            
+                            headers = createAuthHeaders(tokenToUse, { useBearer: false });
+                            response = await fetch(apiUrl, {
+                              method: 'GET',
+                              headers: headers,
+                            });
+                            
+                            console.log('📱 [DashboardScreen] Element Details - Response 2 - Status:', response.status);
+                          }
 
                           if (response.ok) {
                             const elementData = await response.json();
-                            console.log('Element details fetched successfully:', elementData);
+                            console.log('✅ [DashboardScreen] Element Details - Fetched successfully');
                             // Navigate to ElementDetails screen with fetched data
                             navigation.navigate('ElementDetails', {
                               elementId: elementId,
                               elementData: elementData
                             });
                           } else {
-                            const errorInfo = await handleApiError(response, 'Element Details API');
+                            // If still 401, try to refresh token and retry once
                             if (response.status === 401) {
-                              const shouldRetry = await handle401Error(response, null, navigation);
-                              if (!shouldRetry) {
-                                Alert.alert('Error', 'Failed to fetch element details. Please try again.');
+                              try {
+                                const { refreshToken } = await getTokens();
+                                console.log('📱 [DashboardScreen] Element Details - Refresh token available:', refreshToken ? 'Yes' : 'No');
+                                
+                                if (refreshToken) {
+                                  console.log('🔄 [DashboardScreen] Element Details - 401 error, attempting token refresh...');
+                                  const refreshResult = await refreshSession();
+                                  console.log('📱 [DashboardScreen] Element Details - Token refresh response:', JSON.stringify(refreshResult, null, 2));
+                                  
+                                  if (refreshResult && (refreshResult.access_token || refreshResult.message)) {
+                                    // Get new token after refresh
+                                    const { accessToken: newAccessToken } = await getTokens();
+                                    let newToken = newAccessToken;
+                                    
+                                    // Validate new session
+                                    try {
+                                      const newSessionResult = await validateSession();
+                                      if (newSessionResult && newSessionResult.session_id) {
+                                        newToken = newSessionResult.session_id;
+                                        console.log('✅ [DashboardScreen] Element Details - New session validated, using session_id');
+                                      }
+                                    } catch (validateError) {
+                                      console.log('⚠️ [DashboardScreen] Element Details - New session validation failed, using access_token');
+                                    }
+                                    
+                                    console.log('🔄 [DashboardScreen] Element Details - Retrying with refreshed token...');
+                                    
+                                    // Retry with new token - try Bearer first
+                                    let retryHeaders = createAuthHeaders(newToken, { useBearer: true });
+                                    let retryResponse = await fetch(apiUrl, {
+                                      method: 'GET',
+                                      headers: retryHeaders,
+                                    });
+                                    
+                                    console.log('📱 [DashboardScreen] Element Details - Retry Response 1 - Status:', retryResponse.status);
+                                    
+                                    // If still 401, try without Bearer
+                                    if (retryResponse.status === 401) {
+                                      retryHeaders = createAuthHeaders(newToken, { useBearer: false });
+                                      retryResponse = await fetch(apiUrl, {
+                                        method: 'GET',
+                                        headers: retryHeaders,
+                                      });
+                                      
+                                      console.log('📱 [DashboardScreen] Element Details - Retry Response 2 - Status:', retryResponse.status);
+                                    }
+                                    
+                                    if (retryResponse.ok) {
+                                      const elementData = await retryResponse.json();
+                                      console.log('✅ [DashboardScreen] Element Details - Fetched successfully after retry');
+                                      navigation.navigate('ElementDetails', {
+                                        elementId: elementId,
+                                        elementData: elementData
+                                      });
+                                      return;
+                                    } else {
+                                      const errorInfo = await handleApiError(retryResponse, 'Element Details API');
+                                      Alert.alert('Error', errorInfo.message);
+                                    }
+                                  } else {
+                                    throw new Error('Token refresh failed - no access token in response');
+                                  }
+                                } else {
+                                  throw new Error('No refresh token available');
+                                }
+                              } catch (refreshError) {
+                                console.error('❌ [DashboardScreen] Element Details - Token refresh failed:', refreshError);
+                                Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+                                await logout();
+                                navigation.reset({
+                                  index: 0,
+                                  routes: [{ name: 'Login' }],
+                                });
                               }
                             } else {
+                              const errorInfo = await handleApiError(response, 'Element Details API');
                               Alert.alert('Error', errorInfo.message);
                             }
                           }
                         } catch (error) {
-                          console.log('Error fetching element details:', error);
-                          Alert.alert('Network Error', `Failed to fetch element details: ${error.message}`);
+                          console.error('[DashboardScreen] Element Details - Error:', error);
+                          const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
+                          Alert.alert('Network Error', `Failed to fetch element details: ${errorMessage}`);
                         }
                       }}
                       activeOpacity={0.7}
@@ -1047,51 +1145,148 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
                         return;
                       }
 
-                      if (!validateToken(accessToken)) {
-                        // Try to refresh token instead of logging out immediately
-                        const shouldContinue = await handle401Error(null, null, navigation);
-                        if (!shouldContinue) {
-                          return;
+                      // Validate session first to get session_id (same pattern as tasks API)
+                      let tokenToUse = accessToken;
+                      console.log('📱 [DashboardScreen] Element Details (Menu) - Validating session before API call...');
+                      try {
+                        const sessionResult = await validateSession();
+                        console.log('📱 [DashboardScreen] Element Details (Menu) - Session validation response:', JSON.stringify(sessionResult, null, 2));
+                        
+                        if (sessionResult && sessionResult.session_id) {
+                          // Use the validated session_id as the token
+                          tokenToUse = sessionResult.session_id;
+                          console.log('✅ [DashboardScreen] Element Details (Menu) - Session validated, using session_id');
+                        } else {
+                          console.log('⚠️ [DashboardScreen] Element Details (Menu) - Session validation returned no session_id, using original token');
                         }
+                      } catch (validateError) {
+                        console.log('❌ [DashboardScreen] Element Details (Menu) - Session validation failed, using original token:', validateError);
                       }
 
-                          const apiUrl = `${API_BASE_URL}/api/scan_element/${elementId}`;
-                      console.log('Fetching element details from:', apiUrl);
+                      const apiUrl = `${API_BASE_URL}/api/scan_element/${elementId}`;
+                      console.log('📱 [DashboardScreen] Element Details (Menu) - Fetching from:', apiUrl);
 
-                      const response = await fetch(apiUrl, {
+                      // Try with Bearer token first (standard format)
+                      let headers = createAuthHeaders(tokenToUse, { useBearer: true });
+                      console.log('📱 [DashboardScreen] Element Details (Menu) - Attempt 1: With Bearer token');
+                      
+                      let response = await fetch(apiUrl, {
                         method: 'GET',
-                        headers: {
-                          'Authorization': `Bearer ${accessToken}`,
-                          'Content-Type': 'application/json',
-                          'Accept': 'application/json',
-                          'X-Requested-With': 'XMLHttpRequest',
-                          'User-Agent': 'PrecastApp/1.0',
-                        },
+                        headers: headers,
                       });
+
+                      console.log('📱 [DashboardScreen] Element Details (Menu) - Response 1 - Status:', response.status);
+
+                      // If 401, try without Bearer prefix (some APIs expect just the token)
+                      if (response.status === 401) {
+                        const responseText1 = await response.text().catch(() => '');
+                        console.log('❌ [DashboardScreen] Element Details (Menu) - 401 with Bearer token');
+                        console.log('📱 [DashboardScreen] Element Details (Menu) - Response body:', responseText1);
+                        console.log('📱 [DashboardScreen] Element Details (Menu) - Attempt 2: Without Bearer prefix...');
+                        
+                        headers = createAuthHeaders(tokenToUse, { useBearer: false });
+                        response = await fetch(apiUrl, {
+                          method: 'GET',
+                          headers: headers,
+                        });
+                        
+                        console.log('📱 [DashboardScreen] Element Details (Menu) - Response 2 - Status:', response.status);
+                      }
 
                       if (response.ok) {
                         const elementData = await response.json();
-                        console.log('Element details fetched successfully:', elementData);
+                        console.log('✅ [DashboardScreen] Element Details (Menu) - Fetched successfully');
                         // Navigate to ElementDetails screen with fetched data
                         navigation.navigate('ElementDetails', {
                           elementId: elementId,
                           elementData: elementData
                         });
                       } else {
-                        const errorText = await response.text();
-                        const errorInfo = await handleApiError(response, 'Element Details API');
+                        // If still 401, try to refresh token and retry once
                         if (response.status === 401) {
-                          const shouldRetry = await handle401Error(response, null, navigation);
-                          if (!shouldRetry) {
-                            Alert.alert('Error', 'Failed to fetch element details. Please try again.');
+                          try {
+                            const { refreshToken } = await getTokens();
+                            console.log('📱 [DashboardScreen] Element Details (Menu) - Refresh token available:', refreshToken ? 'Yes' : 'No');
+                            
+                            if (refreshToken) {
+                              console.log('🔄 [DashboardScreen] Element Details (Menu) - 401 error, attempting token refresh...');
+                              const refreshResult = await refreshSession();
+                              console.log('📱 [DashboardScreen] Element Details (Menu) - Token refresh response:', JSON.stringify(refreshResult, null, 2));
+                              
+                              if (refreshResult && (refreshResult.access_token || refreshResult.message)) {
+                                // Get new token after refresh
+                                const { accessToken: newAccessToken } = await getTokens();
+                                let newToken = newAccessToken;
+                                
+                                // Validate new session
+                                try {
+                                  const newSessionResult = await validateSession();
+                                  if (newSessionResult && newSessionResult.session_id) {
+                                    newToken = newSessionResult.session_id;
+                                    console.log('✅ [DashboardScreen] Element Details (Menu) - New session validated, using session_id');
+                                  }
+                                } catch (validateError) {
+                                  console.log('⚠️ [DashboardScreen] Element Details (Menu) - New session validation failed, using access_token');
+                                }
+                                
+                                console.log('🔄 [DashboardScreen] Element Details (Menu) - Retrying with refreshed token...');
+                                
+                                // Retry with new token - try Bearer first
+                                let retryHeaders = createAuthHeaders(newToken, { useBearer: true });
+                                let retryResponse = await fetch(apiUrl, {
+                                  method: 'GET',
+                                  headers: retryHeaders,
+                                });
+                                
+                                console.log('📱 [DashboardScreen] Element Details (Menu) - Retry Response 1 - Status:', retryResponse.status);
+                                
+                                // If still 401, try without Bearer
+                                if (retryResponse.status === 401) {
+                                  retryHeaders = createAuthHeaders(newToken, { useBearer: false });
+                                  retryResponse = await fetch(apiUrl, {
+                                    method: 'GET',
+                                    headers: retryHeaders,
+                                  });
+                                  
+                                  console.log('📱 [DashboardScreen] Element Details (Menu) - Retry Response 2 - Status:', retryResponse.status);
+                                }
+                                
+                                if (retryResponse.ok) {
+                                  const elementData = await retryResponse.json();
+                                  console.log('✅ [DashboardScreen] Element Details (Menu) - Fetched successfully after retry');
+                                  navigation.navigate('ElementDetails', {
+                                    elementId: elementId,
+                                    elementData: elementData
+                                  });
+                                  return;
+                                } else {
+                                  const errorInfo = await handleApiError(retryResponse, 'Element Details API');
+                                  Alert.alert('Error', errorInfo.message);
+                                }
+                              } else {
+                                throw new Error('Token refresh failed - no access token in response');
+                              }
+                            } else {
+                              throw new Error('No refresh token available');
+                            }
+                          } catch (refreshError) {
+                            console.error('❌ [DashboardScreen] Element Details (Menu) - Token refresh failed:', refreshError);
+                            Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+                            await logout();
+                            navigation.reset({
+                              index: 0,
+                              routes: [{ name: 'Login' }],
+                            });
                           }
                         } else {
+                          const errorInfo = await handleApiError(response, 'Element Details API');
                           Alert.alert('Error', errorInfo.message);
                         }
                       }
                     } catch (error) {
-                      console.log('Error fetching element details:', error);
-                      Alert.alert('Network Error', `Failed to fetch element details: ${error.message}`);
+                      console.error('[DashboardScreen] Element Details (Menu) - Error:', error);
+                      const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
+                      Alert.alert('Network Error', `Failed to fetch element details: ${errorMessage}`);
                     }
                   }
                 }}
@@ -1119,7 +1314,7 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
                         return;
                       }
 
-                      if (!validateToken(accessToken)) {
+                      if (!validateTokenLocally(accessToken)) {
                         Alert.alert('Session Expired', 'Your session has expired. Please login again.');
                         await logout();
                         navigation.reset({
@@ -1469,7 +1664,7 @@ const styles = StyleSheet.create({
   },
   elementText: {
     fontSize: FontSizes.small,
-    color: Colors.textPrimary,
+    color: '#007AFF', // Blue color like hyperlink
     textAlign: 'center',
   },
   assignedText: {

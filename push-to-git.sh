@@ -60,21 +60,43 @@ echo -e "${GREEN}📤 Pushing to GitHub...${NC}"
 # Check if remote exists
 if git remote | grep -q "^origin$"; then
     # Push to origin
-    if git push origin "$CURRENT_BRANCH"; then
+    PUSH_OUTPUT=$(git push origin "$CURRENT_BRANCH" 2>&1)
+    PUSH_EXIT_CODE=$?
+    
+    if [ $PUSH_EXIT_CODE -eq 0 ]; then
         echo ""
         echo -e "${GREEN}✅ Successfully pushed to GitHub!${NC}"
         echo -e "${GREEN}🌐 Branch: ${CURRENT_BRANCH}${NC}"
     else
         echo ""
-        echo -e "${RED}❌ Push failed. You may need to:${NC}"
-        echo -e "${YELLOW}   1. Set up remote: git remote add origin <your-repo-url>${NC}"
-        echo -e "${YELLOW}   2. Or pull first: git pull origin ${CURRENT_BRANCH}${NC}"
+        if echo "$PUSH_OUTPUT" | grep -q "could not read Username\|Authentication failed\|Device not configured"; then
+            echo -e "${RED}❌ Authentication required${NC}"
+            echo ""
+            echo -e "${YELLOW}💡 To fix authentication, choose one:${NC}"
+            echo -e "${YELLOW}   1. Use SSH (recommended):${NC}"
+            echo -e "${YELLOW}      git remote set-url origin git@github.com:Ritesh2028/Precast-Android-App.git${NC}"
+            echo ""
+            echo -e "${YELLOW}   2. Use Personal Access Token:${NC}"
+            echo -e "${YELLOW}      - Go to GitHub Settings > Developer settings > Personal access tokens${NC}"
+            echo -e "${YELLOW}      - Create a token with 'repo' permissions${NC}"
+            echo -e "${YELLOW}      - Use token as password when prompted${NC}"
+            echo ""
+            echo -e "${YELLOW}   3. Use GitHub CLI:${NC}"
+            echo -e "${YELLOW}      gh auth login${NC}"
+        else
+            echo -e "${RED}❌ Push failed:${NC}"
+            echo "$PUSH_OUTPUT"
+            echo ""
+            echo -e "${YELLOW}💡 You may need to:${NC}"
+            echo -e "${YELLOW}   1. Pull first: git pull origin ${CURRENT_BRANCH}${NC}"
+            echo -e "${YELLOW}   2. Check your internet connection${NC}"
+        fi
         exit 1
     fi
 else
     echo -e "${RED}❌ No remote 'origin' configured${NC}"
     echo -e "${YELLOW}💡 To set up remote, run:${NC}"
-    echo -e "${YELLOW}   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git${NC}"
+    echo -e "${YELLOW}   git remote add origin https://github.com/Ritesh2028/Precast-Android-App.git${NC}"
     exit 1
 fi
 

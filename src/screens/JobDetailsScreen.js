@@ -74,8 +74,8 @@ const JobDetailsScreen = ({ route, navigation }) => {
         // Try to refresh token instead of logging out immediately
         const shouldContinue = await handle401Error(null, null, navigation);
         if (!shouldContinue) {
-          setIsCompleting(false);
-          return;
+        setIsCompleting(false);
+        return;
         }
       }
 

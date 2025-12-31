@@ -89,7 +89,7 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
           // Try to refresh token instead of logging out immediately
           const shouldContinue = await handle401Error(null, null, navigation);
           if (!shouldContinue) {
-            return;
+          return;
           }
         }
         const apiUrl = `${API_BASE_URL}/api/get_user`;

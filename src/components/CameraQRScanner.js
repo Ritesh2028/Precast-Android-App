@@ -15,6 +15,10 @@ import { PinchGestureHandler, State, GestureHandlerRootView } from 'react-native
 import { Camera, CameraView } from 'expo-camera';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
+import { getTokens } from '../services/tokenManager';
+import { validateSession, refreshSession } from '../services/authService';
+import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
+import { handleApiError, handle401Error } from '../services/errorHandler';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,6 +34,8 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation }) => {
   const [qrDetected, setQrDetected] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
   const [detectedData, setDetectedData] = useState('');
+  const [hasPaperId, setHasPaperId] = useState(false);
+  const [isValidQR, setIsValidQR] = useState(true);
   const baseZoomRef = React.useRef(0);
   const [outerCornerAnim] = useState(new Animated.Value(0));
   const [innerCornerAnim] = useState(new Animated.Value(0));
@@ -69,6 +75,8 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation }) => {
       setScanned(false);
       setQrDetected(false);
       setShowActionModal(false);
+      setHasPaperId(false);
+      setIsValidQR(true);
       setZoomLevel(0);
       baseZoomRef.current = 0;
       startScanLineAnimation();
@@ -111,6 +119,67 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation }) => {
       setScanned(true);
       setQrDetected(true);
       setDetectedData(data);
+      
+      // Parse QR code data to check for paper_id and is_valid
+      const qrData = parseQRCodeData(data);
+      
+      if (qrData) {
+        // First, check if is_valid is explicitly true
+        // If is_valid is not true (false, null, undefined, or missing), show error
+        if (qrData.is_valid !== true) {
+          setIsValidQR(false);
+          setHasPaperId(false);
+          Alert.alert(
+            'Invalid QR Code',
+            'This QR code is invalid. Please scan a valid QR code.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setScanned(false);
+                  setQrDetected(false);
+                  setHasPaperId(false);
+                  setIsValidQR(true);
+                }
+              }
+            ]
+          );
+          return;
+        }
+        
+        // If is_valid is true, then check for paper_id
+        setIsValidQR(true);
+        
+        // Check if paper_id exists
+        if (qrData.paper_id) {
+          setHasPaperId(true);
+        } else {
+          // paper_id is null or undefined in QR code JSON - disable button
+          setHasPaperId(false);
+        }
+      } else {
+        // If QR code is not JSON format, we can't find is_valid
+        // Show error as per requirement: "if you not find show error invalid qr code"
+        setIsValidQR(false);
+        setHasPaperId(false);
+        Alert.alert(
+          'Invalid QR Code',
+          'This QR code format is invalid. Please scan a valid QR code with is_valid field.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setScanned(false);
+                setQrDetected(false);
+                setHasPaperId(false);
+                setIsValidQR(true);
+              }
+            }
+          ]
+        );
+        return;
+      }
+      
       setShowActionModal(true);
     }
   };
@@ -207,6 +276,403 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation }) => {
     } else {
       // Fallback: use onScan callback
       onScan(detectedData);
+    }
+  };
+
+  // Parse QR code data as JSON and extract paper_id, id, and is_valid
+  const parseQRCodeData = (data) => {
+    if (!data) return null;
+    try {
+      const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+      if (parsed && typeof parsed === 'object') {
+        return {
+          paper_id: parsed.paper_id,
+          id: parsed.id,
+          element_id: parsed.id || parsed.element_id,
+          is_valid: parsed.is_valid,
+          raw: parsed,
+        };
+      }
+    } catch (error) {
+      console.log('[CameraQRScanner] QR code data is not JSON, will extract from API');
+    }
+    return null;
+  };
+
+  // Handle Task button press - fetch element details and navigate to Questions screen
+  const handleTaskPress = async () => {
+    if (!navigation) {
+      Alert.alert('Error', 'Navigation not available');
+      return;
+    }
+
+    setShowActionModal(false);
+    
+    try {
+      // First, try to parse QR code as JSON to get paper_id directly
+      const qrData = parseQRCodeData(detectedData);
+      console.log('[CameraQRScanner] Parsed QR code data:', JSON.stringify(qrData, null, 2));
+      
+      let paperId = null;
+      let elementId = null;
+      let taskId = null;
+      let projectId = null;
+      let stageId = null;
+      let activityId = null;
+
+      // If QR code contains JSON with paper_id, use it directly
+      if (qrData && qrData.paper_id) {
+        paperId = qrData.paper_id;
+        elementId = qrData.element_id || qrData.id;
+        taskId = qrData.id || qrData.task_id;
+        
+        console.log('[CameraQRScanner] Using paper_id from QR code JSON:', paperId);
+        console.log('[CameraQRScanner] Element ID from QR code:', elementId);
+        
+        // Check if QR code is valid (if is_valid field exists)
+        if (qrData.is_valid !== undefined && !qrData.is_valid) {
+          Alert.alert('Invalid QR Code', 'This QR code is marked as invalid. Cannot proceed with questions.');
+          onClose();
+          return;
+        }
+        
+        // If we have paper_id from QR code, we can navigate directly
+        // But we might still want to fetch element details for other IDs
+        if (paperId && elementId) {
+          const { accessToken } = await getTokens();
+          if (!accessToken) {
+            Alert.alert('Authentication Required', 'Please login to proceed with task.');
+            onClose();
+            return;
+          }
+
+          // Try to fetch element details to get additional IDs (project_id, stage_id, etc.)
+          try {
+            let tokenToUse = accessToken;
+            try {
+              const sessionResult = await validateSession();
+              if (sessionResult && sessionResult.session_id) {
+                tokenToUse = sessionResult.session_id;
+              }
+            } catch (validateError) {
+              console.log('[CameraQRScanner] Session validation failed, using original token');
+            }
+
+            const apiUrl = `${API_BASE_URL}/api/scan_element/${elementId}`;
+            console.log('[CameraQRScanner] Fetching element details for additional IDs:', apiUrl);
+
+            let headers = createAuthHeaders(tokenToUse, { useBearer: true });
+            let response = await fetch(apiUrl, {
+              method: 'GET',
+              headers: headers,
+            });
+
+            if (response.status === 401) {
+              headers = createAuthHeaders(tokenToUse, { useBearer: false });
+              response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: headers,
+              });
+            }
+
+            if (response.ok) {
+              const elementData = await response.json();
+              taskId = elementData?.id || elementData?.task_id || taskId || elementId;
+              projectId = elementData?.project_id || elementData?.project?.id;
+              stageId = elementData?.stage_id || elementData?.stage?.id;
+              activityId = elementData?.activity_id || taskId;
+            }
+          } catch (apiError) {
+            console.log('[CameraQRScanner] Could not fetch element details, using QR code data only:', apiError);
+            // Continue with QR code data only
+          }
+
+          onClose();
+          navigation.navigate('Questions', { 
+            paperId: paperId,
+            taskId: taskId || elementId,
+            projectId: projectId,
+            stageId: stageId,
+            activityId: activityId || taskId || elementId,
+          });
+          return;
+        }
+      }
+
+      // Fallback: Extract element ID and fetch from API (original behavior)
+      elementId = qrData?.element_id || qrData?.id || extractElementId(detectedData);
+      if (!elementId) {
+        Alert.alert('Error', 'Could not extract element ID from QR code');
+        return;
+      }
+
+      const { accessToken } = await getTokens();
+      if (!accessToken) {
+        Alert.alert('Authentication Required', 'Please login to proceed with task.');
+        onClose();
+        return;
+      }
+
+      // Validate session first to get session_id (same pattern as other API calls)
+      let tokenToUse = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          tokenToUse = sessionResult.session_id;
+        }
+      } catch (validateError) {
+        console.log('[CameraQRScanner] Session validation failed, using original token');
+      }
+
+      const apiUrl = `${API_BASE_URL}/api/scan_element/${elementId}`;
+      console.log('[CameraQRScanner] Fetching element details for task:', apiUrl);
+
+      // Try with Bearer token first
+      let headers = createAuthHeaders(tokenToUse, { useBearer: true });
+      let response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: headers,
+      });
+
+      // If 401, try without Bearer prefix
+      if (response.status === 401) {
+        headers = createAuthHeaders(tokenToUse, { useBearer: false });
+        response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: headers,
+        });
+      }
+
+      if (response.ok) {
+        const elementData = await response.json();
+        console.log('[CameraQRScanner] Element details fetched successfully');
+        console.log('[CameraQRScanner] Full element data:', JSON.stringify(elementData, null, 2));
+        
+        // Extract paper_id from various possible locations in the response
+        let paperId = 
+          elementData?.paper_id || 
+          elementData?.paper?.id || 
+          elementData?.paper?.paper_id ||
+          elementData?.qc_paper_id ||
+          elementData?.qc_paper?.id ||
+          elementData?.qc_paper?.paper_id ||
+          (elementData?.paper && typeof elementData.paper === 'object' && elementData.paper.id) ||
+          (elementData?.paper && typeof elementData.paper === 'number' && elementData.paper);
+        
+        console.log('[CameraQRScanner] Extracted paper_id:', paperId);
+        console.log('[CameraQRScanner] Available keys in elementData:', Object.keys(elementData || {}));
+        
+        // If paper_id is not found, try QR code JSON first, then tasks API as fallback
+        if (!paperId) {
+          // First, try to get paper_id from QR code JSON
+          const qrData = parseQRCodeData(detectedData);
+          if (qrData && qrData.paper_id) {
+            paperId = qrData.paper_id;
+            console.log('[CameraQRScanner] Found paper_id from QR code JSON:', paperId);
+          } else {
+            // If not in QR code, try tasks API
+            console.log('[CameraQRScanner] Paper ID not found in element data or QR code, trying tasks API as fallback...');
+            try {
+              const tasksApiUrl = `${API_BASE_URL}/api/app/tasks?element_id=${elementId}`;
+              let tasksHeaders = createAuthHeaders(tokenToUse, { useBearer: true });
+              let tasksResponse = await fetch(tasksApiUrl, {
+                method: 'GET',
+                headers: tasksHeaders,
+              });
+              
+              if (tasksResponse.status === 401) {
+                tasksHeaders = createAuthHeaders(tokenToUse, { useBearer: false });
+                tasksResponse = await fetch(tasksApiUrl, {
+                  method: 'GET',
+                  headers: tasksHeaders,
+                });
+              }
+              
+              if (tasksResponse.ok) {
+                const tasksData = await tasksResponse.json();
+                const tasks = tasksData.tasks || [];
+                // Find task matching this element_id
+                const matchingTask = tasks.find(task => 
+                  task.element_id === elementId || 
+                  String(task.element_id) === String(elementId)
+                );
+                
+                if (matchingTask) {
+                  paperId = matchingTask.paper_id || matchingTask.paper?.id;
+                  console.log('[CameraQRScanner] Found paper_id from tasks API:', paperId);
+                }
+              }
+            } catch (fallbackError) {
+              console.error('[CameraQRScanner] Fallback tasks API call failed:', fallbackError);
+            }
+          }
+        }
+        
+        if (!paperId) {
+          console.error('[CameraQRScanner] Paper ID not found. Element data structure:', JSON.stringify(elementData, null, 2));
+          Alert.alert(
+            'Error', 
+            'Paper ID not found in element data. Cannot proceed with questions.\n\nPlease contact support if this issue persists.'
+          );
+          onClose();
+          return;
+        }
+
+        // Get additional IDs needed for submission
+        const taskId = elementData?.id || elementData?.task_id || elementId;
+        const projectId = elementData?.project_id || elementData?.project?.id;
+        const stageId = elementData?.stage_id || elementData?.stage?.id;
+        const activityId = elementData?.activity_id || taskId;
+
+        onClose();
+        
+        // Navigate to QuestionsScreen with all necessary data
+        navigation.navigate('Questions', { 
+          paperId: paperId,
+          taskId: taskId,
+          projectId: projectId,
+          stageId: stageId,
+          activityId: activityId,
+        });
+      } else {
+        // If still 401, try to refresh token and retry once
+        if (response.status === 401) {
+          try {
+            const { refreshToken } = await getTokens();
+            if (refreshToken) {
+              const refreshResult = await refreshSession();
+              if (refreshResult && (refreshResult.access_token || refreshResult.message)) {
+                const { accessToken: newAccessToken } = await getTokens();
+                let newToken = newAccessToken;
+                
+                // Validate new session
+                try {
+                  const newSessionResult = await validateSession();
+                  if (newSessionResult && newSessionResult.session_id) {
+                    newToken = newSessionResult.session_id;
+                  }
+                } catch (validateError) {
+                  console.log('[CameraQRScanner] New session validation failed');
+                }
+                
+                // Retry with new token
+                let retryHeaders = createAuthHeaders(newToken, { useBearer: true });
+                let retryResponse = await fetch(apiUrl, {
+                  method: 'GET',
+                  headers: retryHeaders,
+                });
+                
+                if (retryResponse.status === 401) {
+                  retryHeaders = createAuthHeaders(newToken, { useBearer: false });
+                  retryResponse = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: retryHeaders,
+                  });
+                }
+                
+                if (retryResponse.ok) {
+                  const elementData = await retryResponse.json();
+                  console.log('[CameraQRScanner] Retry - Full element data:', JSON.stringify(elementData, null, 2));
+                  
+                  // Extract paper_id from various possible locations in the response
+                  let paperId = 
+                    elementData?.paper_id || 
+                    elementData?.paper?.id || 
+                    elementData?.paper?.paper_id ||
+                    elementData?.qc_paper_id ||
+                    elementData?.qc_paper?.id ||
+                    elementData?.qc_paper?.paper_id ||
+                    (elementData?.paper && typeof elementData.paper === 'object' && elementData.paper.id) ||
+                    (elementData?.paper && typeof elementData.paper === 'number' && elementData.paper);
+                  
+                  console.log('[CameraQRScanner] Retry - Extracted paper_id:', paperId);
+                  
+                  // If paper_id is not found, try QR code JSON first, then tasks API as fallback
+                  if (!paperId) {
+                    // First, try to get paper_id from QR code JSON
+                    const qrData = parseQRCodeData(detectedData);
+                    if (qrData && qrData.paper_id) {
+                      paperId = qrData.paper_id;
+                      console.log('[CameraQRScanner] Retry - Found paper_id from QR code JSON:', paperId);
+                    } else {
+                      // If not in QR code, try tasks API
+                      console.log('[CameraQRScanner] Retry - Paper ID not found in element data or QR code, trying tasks API as fallback...');
+                      try {
+                        const tasksApiUrl = `${API_BASE_URL}/api/app/tasks?element_id=${elementId}`;
+                        let tasksHeaders = createAuthHeaders(newToken, { useBearer: true });
+                        let tasksResponse = await fetch(tasksApiUrl, {
+                          method: 'GET',
+                          headers: tasksHeaders,
+                        });
+                        
+                        if (tasksResponse.status === 401) {
+                          tasksHeaders = createAuthHeaders(newToken, { useBearer: false });
+                          tasksResponse = await fetch(tasksApiUrl, {
+                            method: 'GET',
+                            headers: tasksHeaders,
+                          });
+                        }
+                        
+                        if (tasksResponse.ok) {
+                          const tasksData = await tasksResponse.json();
+                          const tasks = tasksData.tasks || [];
+                          // Find task matching this element_id
+                          const matchingTask = tasks.find(task => 
+                            task.element_id === elementId || 
+                            String(task.element_id) === String(elementId)
+                          );
+                          
+                          if (matchingTask) {
+                            paperId = matchingTask.paper_id || matchingTask.paper?.id;
+                            console.log('[CameraQRScanner] Retry - Found paper_id from tasks API:', paperId);
+                          }
+                        }
+                      } catch (fallbackError) {
+                        console.error('[CameraQRScanner] Retry - Fallback tasks API call failed:', fallbackError);
+                      }
+                    }
+                  }
+                  
+                  if (!paperId) {
+                    console.error('[CameraQRScanner] Retry - Paper ID not found. Element data structure:', JSON.stringify(elementData, null, 2));
+                    Alert.alert(
+                      'Error', 
+                      'Paper ID not found in element data. Cannot proceed with questions.\n\nPlease contact support if this issue persists.'
+                    );
+                    onClose();
+                    return;
+                  }
+
+                  const taskId = elementData?.id || elementData?.task_id || elementId;
+                  const projectId = elementData?.project_id || elementData?.project?.id;
+                  const stageId = elementData?.stage_id || elementData?.stage?.id;
+                  const activityId = elementData?.activity_id || taskId;
+
+                  onClose();
+                  navigation.navigate('Questions', { 
+                    paperId: paperId,
+                    taskId: taskId,
+                    projectId: projectId,
+                    stageId: stageId,
+                    activityId: activityId,
+                  });
+                  return;
+                }
+              }
+            }
+          } catch (refreshError) {
+            console.error('[CameraQRScanner] Token refresh failed:', refreshError);
+          }
+        }
+        
+        const errorInfo = await handleApiError(response, 'Element Details API');
+        Alert.alert('Error', errorInfo.message || 'Failed to fetch element details');
+        onClose();
+      }
+    } catch (error) {
+      console.error('[CameraQRScanner] Error fetching element details:', error);
+      Alert.alert('Network Error', `Failed to fetch element details: ${error.message}`);
+      onClose();
     }
   };
 
@@ -440,17 +906,23 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation }) => {
                   ]}
                   onPress={handleDetailsPress}
                 >
-                  <Text style={styles.actionButtonText}>📋 Details</Text>
+                  <Text style={styles.actionButtonText}>Element Details</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.taskButton]}
-                  onPress={() => {
-                    setShowActionModal(false);
-                    onScan(detectedData);
-                    onClose();
-                  }}
+                  style={[
+                    styles.actionButton, 
+                    styles.taskButton,
+                    (!hasPaperId || !isValidQR) && styles.taskButtonDisabled
+                  ]}
+                  onPress={handleTaskPress}
+                  disabled={!hasPaperId || !isValidQR}
                 >
-                  <Text style={styles.actionButtonText}>✅ Task</Text>
+                  <Text style={[
+                    styles.actionButtonText,
+                    (!hasPaperId || !isValidQR) && styles.actionButtonTextDisabled
+                  ]}>
+                    QC Begin
+                  </Text>
                 </TouchableOpacity>
               </View>
               <TouchableOpacity
@@ -459,6 +931,8 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation }) => {
                   setShowActionModal(false);
                   setQrDetected(false);
                   setScanned(false);
+                  setHasPaperId(false);
+                  setIsValidQR(true);
                 }}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
@@ -850,10 +1324,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#34C759',
     marginLeft: 10,
   },
+  taskButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+    opacity: 0.6,
+  },
   actionButtonText: {
     color: 'white',
     fontSize: FontSizes.regular,
     fontWeight: FontWeights.bold,
+  },
+  actionButtonTextDisabled: {
+    color: '#999999',
   },
   debugContainer: {
     position: 'absolute',

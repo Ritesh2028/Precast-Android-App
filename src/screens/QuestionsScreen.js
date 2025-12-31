@@ -731,31 +731,7 @@ const QuestionsScreen = ({ route, navigation }) => {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Paper Header */}
-        <View style={styles.paperHeader}>
-          <View style={styles.paperHeaderContent}>
-            <View style={styles.paperHeaderText}>
-              <Text style={styles.paperTitle}>QC Questions</Text>
-              <Text style={styles.paperSubtitle}>
-                Please answer the following questions to proceed.
-              </Text>
-            </View>
-            {/* Bird's Eye View Button */}
-            <TouchableOpacity
-              style={styles.birdsEyeViewButton}
-              onPress={() => {
-                setBirdsEyeViewVisible(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Image 
-                source={require('../icons/show.png')} 
-                style={styles.birdsEyeViewIcon} 
-                resizeMode="contain" 
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
+        
 
         {/* Questions List */}
         {paperData.questions && paperData.questions.length > 0 ? (
@@ -934,12 +910,8 @@ const QuestionsScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         )}
 
-        {/* Footer */}
-        <View style={styles.paperFooter}>
-          <Text style={styles.footerText}>
-            Please review all your answers before submitting.
-          </Text>
-        </View>
+       
+        
       </ScrollView>
 
       {/* Bird's Eye View Modal */}

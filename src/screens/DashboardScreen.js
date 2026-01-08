@@ -879,12 +879,12 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
         <View style={styles.chartHeader}>
           <Text style={styles.chartTitle}>QC Jobs Status Distribution</Text>
         </View>
-        <View style={styles.pieChartContainer}>
-          <PieChart 
-            data={pieChartData}
+      <View style={styles.pieChartContainer}>
+        <PieChart 
+          data={pieChartData}
             title=""
             size={300}
-          />
+        />
         </View>
       </View>
 

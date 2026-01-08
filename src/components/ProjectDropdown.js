@@ -104,9 +104,9 @@ const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation, include
           let transformedProjects = projectsData.filter(project => !project.suspend); // Only show non-suspended projects
           if (includeAllOption) {
             transformedProjects = [
-              { project_id: 'all', name: 'All Projects', suspend: false },
+            { project_id: 'all', name: 'All Projects', suspend: false },
               ...transformedProjects,
-            ];
+          ];
           }
           
           setProjects(transformedProjects);

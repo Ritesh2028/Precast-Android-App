@@ -139,32 +139,32 @@ const LoginScreen = ({ navigation }) => {
       // Helper function to handle successful login
       const handleSuccessfulLogin = async (responseData) => {
         // Check if user has role access (case-insensitive)
-        // Try multiple possible role fields: role, role_name, user_role
-        const userRole = (
-          responseData?.role || 
-          responseData?.role_name || 
-          responseData?.user_role ||
-          ''
-        ).toString().toLowerCase().trim();
+      // Try multiple possible role fields: role, role_name, user_role
+      const userRole = (
+        responseData?.role || 
+        responseData?.role_name || 
+        responseData?.user_role ||
+        ''
+      ).toString().toLowerCase().trim();
 
-        console.log('📱 [LoginScreen] User role detected:', userRole);
+      console.log('📱 [LoginScreen] User role detected:', userRole);
         console.log('📱 [LoginScreen] Full role data from response:', {
           role: responseData?.role,
           role_name: responseData?.role_name,
           user_role: responseData?.user_role,
           normalized: userRole
         });
-
-        // Small delay before navigation to ensure state is ready
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
+      
+      // Small delay before navigation to ensure state is ready
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
         // Check role and navigate to appropriate screen
         if (!userRole) {
           // No role found, navigate to WebView screen
           console.log('📱 [LoginScreen] No role found, navigating to WebView');
-          navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
-          return;
-        }
+        navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+        return;
+      }
 
         // Check for QA/QC role (case-insensitive, handle variations)
         const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc' || userRole === 'qa qc';
@@ -200,10 +200,10 @@ const LoginScreen = ({ navigation }) => {
           (userRole.includes('dispatch') && (userRole.includes('manager') || userRole.includes('managaer')));
 
         if (isQAQC) {
-          // User has QA/QC role, navigate to Dashboard
-          console.log('📱 [LoginScreen] User has QA/QC role, navigating to Dashboard');
-          navigation.replace('Dashboard');
-          console.log('✅ [LoginScreen] Navigation to Dashboard initiated');
+      // User has QA/QC role, navigate to Dashboard
+      console.log('📱 [LoginScreen] User has QA/QC role, navigating to Dashboard');
+      navigation.replace('Dashboard');
+      console.log('✅ [LoginScreen] Navigation to Dashboard initiated');
         } else if (isErectionManager) {
           // User has ErectionManager role, navigate to ErectionManagerScreen
           console.log('📱 [LoginScreen] User has ErectionManager role, navigating to ErectionManagerScreen');

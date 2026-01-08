@@ -86,8 +86,8 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
 
   useEffect(() => {
     if (paperId) {
-      loadQuestions();
-      requestPermissions();
+    loadQuestions();
+    requestPermissions();
     } else {
       setLoading(false);
       setPaperData(null);

@@ -29,6 +29,9 @@ import { handle401Error, handleApiError } from '../services/errorHandler';
 import BirdsEyeViewModal from '../components/BirdsEyeViewModal';
 import BottomNavigation from '../components/BottomNavigation';
 import ProjectDropdown from '../components/ProjectDropdown';
+import { DateFilter } from '../components/DateFilter';
+import LineChart from '../components/LineChart';
+import TowerFloorEditor from '../components/TowerFloorEditor';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -63,8 +66,33 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [erectionLogs, setErectionLogs] = useState([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [erectionReceivingLogs, setErectionReceivingLogs] = useState([]);
+  const [loadingReceivingLogs, setLoadingReceivingLogs] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [orderDetailModalVisible, setOrderDetailModalVisible] = useState(false);
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [logDetailModalVisible, setLogDetailModalVisible] = useState(false);
+  const [selectedElement, setSelectedElement] = useState(null);
+  const [elementDetailModalVisible, setElementDetailModalVisible] = useState(false);
   const [erectionElements, setErectionElements] = useState([]);
   const [loadingElements, setLoadingElements] = useState(false);
+  const [productionChartData, setProductionChartData] = useState([]);
+  const [loadingChart, setLoadingChart] = useState(false);
+  const [currentFilterType, setCurrentFilterType] = useState('monthly');
+  const [currentFilter, setCurrentFilter] = useState(() => ({
+    type: 'monthly',
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+  }));
+  const [showCreateRequest, setShowCreateRequest] = useState(false);
+  const [submittingRequest, setSubmittingRequest] = useState(false);
+  // Removed taskSection state - both sections will be shown together
+  const [pendingDispatchOrders, setPendingDispatchOrders] = useState([]);
+  const [loadingDispatchOrders, setLoadingDispatchOrders] = useState(false);
+  const [selectedDispatchItems, setSelectedDispatchItems] = useState([]);
+  const [receiveComments, setReceiveComments] = useState('');
+  const [receiveModalVisible, setReceiveModalVisible] = useState(false);
+  const [submittingReceive, setSubmittingReceive] = useState(false);
   
   const statusOptions = ['Completed', 'In Progress'];
   
@@ -118,7 +146,14 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   // Reload dashboard when project changes
   useEffect(() => {
     if (!paperId && selectedProjectId) {
+      const filter = {
+        type: currentFilterType,
+        year: new Date().getFullYear(),
+        month: new Date().getMonth() + 1,
+      };
+      loadProductionReports(filter);
       loadErectionLogs();
+      loadErectionReceivingLogs();
       loadErectionElements();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -282,13 +317,177 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     }
   };
 
+  // Load erection receiving logs (dispatch orders)
+  const loadErectionReceivingLogs = async () => {
+    const projectId = selectedProjectId;
+    
+    if (!projectId) {
+      setErectionReceivingLogs([]);
+      return;
+    }
+
+    setLoadingReceivingLogs(true);
+
+    try {
+      const { accessToken } = await getTokens();
+      if (!accessToken) {
+        return;
+      }
+
+      // Validate session
+      let currentToken = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          currentToken = sessionResult.session_id;
+        }
+      } catch (validateError) {
+        console.log('⚠️ [ErectionManagerScreen] Session validation failed');
+      }
+
+      const receivingLogsUrl = `${API_BASE_URL}/api/dispatch_order/${projectId}`;
+      console.log('📱 [ErectionManagerScreen] Fetching erection receiving logs from:', receivingLogsUrl);
+
+      // Try with Bearer token first
+      let headersWithBearer = createAuthHeaders(currentToken, { useBearer: true });
+      console.log('📱 [ErectionManagerScreen] Erection Receiving Logs API - Attempt 1: With Bearer token');
+
+      let response = await fetch(receivingLogsUrl, { headers: headersWithBearer });
+      console.log('📱 [ErectionManagerScreen] Erection Receiving Logs Response 1 - Status:', response.status);
+
+      // If 401, try without Bearer prefix
+      if (response.status === 401) {
+        console.log('❌ [ErectionManagerScreen] Erection Receiving Logs API returned 401 with Bearer, trying without...');
+        const headersWithoutBearer = createAuthHeaders(currentToken, { useBearer: false });
+        console.log('📱 [ErectionManagerScreen] Erection Receiving Logs API - Attempt 2: Without Bearer prefix');
+        response = await fetch(receivingLogsUrl, { headers: headersWithoutBearer });
+        console.log('📱 [ErectionManagerScreen] Erection Receiving Logs Response 2 - Status:', response.status);
+      }
+
+      if (response.ok) {
+        const receivingLogsData = await response.json();
+        console.log('✅ [ErectionManagerScreen] Erection receiving logs loaded successfully');
+        if (Array.isArray(receivingLogsData)) {
+          setErectionReceivingLogs(receivingLogsData);
+        } else if (Array.isArray(receivingLogsData?.data)) {
+          setErectionReceivingLogs(receivingLogsData.data);
+        } else {
+          setErectionReceivingLogs([]);
+        }
+      } else {
+        const errorText = await response.text().catch(() => '');
+        console.log('❌ [ErectionManagerScreen] Erection Receiving Logs API Error');
+        console.log('📱 [ErectionManagerScreen] Error status:', response.status);
+        console.log('📱 [ErectionManagerScreen] Error response:', errorText);
+        setErectionReceivingLogs([]);
+      }
+    } catch (error) {
+      console.log('❌ [ErectionManagerScreen] Error loading erection receiving logs:', error);
+      setErectionReceivingLogs([]);
+    } finally {
+      setLoadingReceivingLogs(false);
+    }
+  };
+
+  // Load production reports for line chart
+  const loadProductionReports = async (filter) => {
+    const projectId = selectedProjectId;
+    
+    if (!projectId) {
+      setProductionChartData([]);
+      return;
+    }
+
+    setLoadingChart(true);
+    setCurrentFilterType(filter.type);
+
+    try {
+      const { accessToken } = await getTokens();
+      if (!accessToken) {
+        return;
+      }
+
+      // Validate session
+      let currentToken = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          currentToken = sessionResult.session_id;
+        }
+      } catch (validateError) {
+        console.log('⚠️ [ErectionManagerScreen] Session validation failed');
+      }
+
+      let productionUrl = `${API_BASE_URL}/api/production_reports/${projectId}?type=${filter.type}&year=${filter.year}`;
+
+      if (filter.month) {
+        productionUrl += `&month=${filter.month}`;
+      }
+
+      if (filter.type === 'weekly' && filter.date) {
+        const day = filter.date.getDate();
+        productionUrl += `&date=${day}`;
+      }
+
+      console.log('📱 [ErectionManagerScreen] Fetching production reports from:', productionUrl);
+
+      // Try with Bearer token first
+      let headersWithBearer = createAuthHeaders(currentToken, { useBearer: true });
+      console.log('📱 [ErectionManagerScreen] Production Reports API - Attempt 1: With Bearer token');
+
+      let response = await fetch(productionUrl, { headers: headersWithBearer });
+      console.log('📱 [ErectionManagerScreen] Production Reports Response 1 - Status:', response.status);
+
+      // If 401, try without Bearer prefix
+      if (response.status === 401) {
+        console.log('❌ [ErectionManagerScreen] Production Reports API returned 401 with Bearer, trying without...');
+        const headersWithoutBearer = createAuthHeaders(currentToken, { useBearer: false });
+        console.log('📱 [ErectionManagerScreen] Production Reports API - Attempt 2: Without Bearer prefix');
+        response = await fetch(productionUrl, { headers: headersWithoutBearer });
+        console.log('📱 [ErectionManagerScreen] Production Reports Response 2 - Status:', response.status);
+      }
+
+      if (response.ok) {
+        const productionData = await response.json();
+        console.log('✅ [ErectionManagerScreen] Production reports loaded successfully');
+        if (Array.isArray(productionData)) {
+          setProductionChartData(productionData);
+        } else if (Array.isArray(productionData?.data)) {
+          setProductionChartData(productionData.data);
+        } else {
+          setProductionChartData([]);
+        }
+      } else {
+        const errorText = await response.text().catch(() => '');
+        console.log('❌ [ErectionManagerScreen] Production Reports API Error');
+        console.log('📱 [ErectionManagerScreen] Error status:', response.status);
+        console.log('📱 [ErectionManagerScreen] Error response:', errorText);
+        setProductionChartData([]);
+      }
+    } catch (error) {
+      console.log('❌ [ErectionManagerScreen] Error loading production reports:', error);
+      setProductionChartData([]);
+    } finally {
+      setLoadingChart(false);
+    }
+  };
+
+  // Handle date filter change
+  const handleDateFilterChange = (filter) => {
+    setCurrentFilterType(filter.type);
+    setCurrentFilter(filter);
+    loadProductionReports(filter);
+  };
+
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
       if (!paperId) {
         // Refresh dashboard data for current project
         if (selectedProjectId) {
+          await loadProductionReports(currentFilter);
           await loadErectionLogs();
+          await loadErectionReceivingLogs();
           await loadErectionElements();
         }
       } else {
@@ -739,16 +938,19 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
       if (currentRoute !== 'ErectionManager') {
         navigation.navigate('ErectionManager');
       }
+      // Reset showCreateRequest when switching to home
+      setShowCreateRequest(false);
     } else if (tabId === 'task') {
-      // Task tab: Navigate to Scan screen for QR code scanning
-      if (currentRoute !== 'Scan') {
-        navigation.navigate('Scan');
-      }
+      // Task tab: Show Create Request section (don't navigate)
+      // Stay on current screen and show the Create Request UI
+      setShowCreateRequest(true);
     } else if (tabId === 'me') {
       // Me tab: Navigate to UserProfile
       if (currentRoute !== 'UserProfile') {
         navigation.navigate('UserProfile');
       }
+      // Reset showCreateRequest when switching to me
+      setShowCreateRequest(false);
     }
   }, [navigation]);
 
@@ -933,6 +1135,239 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     }
   };
 
+  // Handle save erection request
+  const handleSaveErectionRequest = async (allBlocks) => {
+    setSubmittingRequest(true);
+    try {
+      const { accessToken } = await getTokens();
+      if (!accessToken) {
+        Alert.alert('Authentication Required', 'Please login to create request.');
+        return;
+      }
+
+      // Validate session
+      let currentToken = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          currentToken = sessionResult.session_id;
+        }
+      } catch (validateError) {
+        console.log('Session validation failed');
+      }
+
+      const url = `${API_BASE_URL}/api/stock_erection`;
+      const headers = {
+        ...createAuthHeaders(currentToken, { useBearer: true }),
+        'Content-Type': 'application/json',
+      };
+
+      let response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(allBlocks),
+      });
+
+      if (response.status === 401) {
+        const headersWithoutBearer = {
+          ...createAuthHeaders(currentToken, { useBearer: false }),
+          'Content-Type': 'application/json',
+        };
+        response = await fetch(url, {
+          method: 'POST',
+          headers: headersWithoutBearer,
+          body: JSON.stringify(allBlocks),
+        });
+      }
+
+      if (response.ok) {
+        Alert.alert('Success', 'Erection request created successfully!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowCreateRequest(false);
+              // Optionally refresh data or navigate
+            },
+          },
+        ]);
+      } else {
+        const errorText = await response.text();
+        console.log('Error creating erection request:', errorText);
+        Alert.alert('Error', 'Failed to create erection request. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating erection request:', error);
+      Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
+
+  // Load pending dispatch orders for receiving
+  const loadPendingDispatchOrders = async () => {
+    const projectId = selectedProjectId || route.params?.projectId;
+    
+    if (!projectId) {
+      setPendingDispatchOrders([]);
+      return;
+    }
+
+    setLoadingDispatchOrders(true);
+
+    try {
+      const { accessToken } = await getTokens();
+      if (!accessToken) {
+        return;
+      }
+
+      // Validate session
+      let currentToken = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          currentToken = sessionResult.session_id;
+        }
+      } catch (validateError) {
+        console.log('Session validation failed');
+      }
+
+      const url = `${API_BASE_URL}/api/dispatch_order/${projectId}`;
+      const headers = createAuthHeaders(currentToken, { useBearer: true });
+      
+      let response = await fetch(url, { headers });
+      
+      if (response.status === 401) {
+        const headersWithoutBearer = createAuthHeaders(currentToken, { useBearer: false });
+        response = await fetch(url, { headers: headersWithoutBearer });
+      }
+
+      if (response.ok) {
+        const responseData = await response.json();
+        // Filter for pending/accepted orders that haven't been received
+        const pending = Array.isArray(responseData) 
+          ? responseData.filter(order => order.current_status === 'Accepted' || order.current_status === 'Pending')
+          : [];
+        setPendingDispatchOrders(pending);
+      } else {
+        setPendingDispatchOrders([]);
+      }
+    } catch (err) {
+      console.error('Error loading dispatch orders:', err);
+      setPendingDispatchOrders([]);
+    } finally {
+      setLoadingDispatchOrders(false);
+    }
+  };
+
+  // Load dispatch orders when task tab is active
+  useEffect(() => {
+    if (activeTab === 'task') {
+      loadPendingDispatchOrders();
+    }
+  }, [activeTab, selectedProjectId]);
+
+  // Toggle item selection
+  const toggleDispatchItemSelection = (item, orderId) => {
+    const itemKey = `${orderId}_${item.element_id}`;
+    setSelectedDispatchItems(prev => {
+      const exists = prev.find(i => `${i.orderId}_${i.element_id}` === itemKey);
+      if (exists) {
+        return prev.filter(i => `${i.orderId}_${i.element_id}` !== itemKey);
+      } else {
+        return [...prev, { ...item, orderId }];
+      }
+    });
+  };
+
+  // Handle marking dispatch items as received
+  const handleMarkAsReceived = async () => {
+    if (!receiveComments.trim()) {
+      Alert.alert('Error', 'Please enter comments before marking items as received.');
+      return;
+    }
+
+    if (selectedDispatchItems.length === 0) {
+      Alert.alert('Error', 'Please select at least one item to mark as received.');
+      return;
+    }
+
+    setSubmittingReceive(true);
+    try {
+      const { accessToken } = await getTokens();
+      if (!accessToken) {
+        Alert.alert('Authentication Required', 'Please login to mark items as received.');
+        return;
+      }
+
+      // Validate session
+      let currentToken = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          currentToken = sessionResult.session_id;
+        }
+      } catch (validateError) {
+        console.log('Session validation failed');
+      }
+
+      const projectId = selectedProjectId || route.params?.projectId;
+      const elementIds = selectedDispatchItems.map(item => item.element_id);
+
+      const url = `${API_BASE_URL}/api/erection_stock/update_when_erected`;
+      const headers = {
+        ...createAuthHeaders(currentToken, { useBearer: true }),
+        'Content-Type': 'application/json',
+      };
+
+      const requestBody = {
+        element_ids: elementIds,
+        project_id: Number(projectId),
+        comments: receiveComments.trim(),
+      };
+
+      let response = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.status === 401) {
+        const headersWithoutBearer = {
+          ...createAuthHeaders(currentToken, { useBearer: false }),
+          'Content-Type': 'application/json',
+        };
+        response = await fetch(url, {
+          method: 'PUT',
+          headers: headersWithoutBearer,
+          body: JSON.stringify(requestBody),
+        });
+      }
+
+      if (response.ok) {
+        Alert.alert('Success', 'Items marked as received successfully!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              setReceiveModalVisible(false);
+              setReceiveComments('');
+              setSelectedDispatchItems([]);
+              loadPendingDispatchOrders();
+            },
+          },
+        ]);
+      } else {
+        const errorText = await response.text();
+        console.log('Error marking items as received:', errorText);
+        Alert.alert('Error', 'Failed to mark items as received. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error marking items as received:', error);
+      Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
+      setSubmittingReceive(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -967,23 +1402,198 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
             />
           }
         >
-          {/* Header */}
-          <View style={styles.dashboardHeader}>
-            <Text style={styles.dashboardTitle}>Erection Manager</Text>
-          </View>
+          {/* Show Create Request and Receive Dispatch when task tab is active */}
+          {activeTab === 'task' ? (
+            <View style={styles.taskSectionContainer}>
+              {/* Create Request Section */}
+              <View style={styles.createRequestSection}>
+                <View style={styles.createRequestHeader}>
+                  <Text style={styles.createRequestTitle}>Create Request</Text>
+                </View>
+                <View style={styles.createRequestContent}>
+                  <TowerFloorEditor
+                    projectId={selectedProjectId || projectId}
+                    onSave={handleSaveErectionRequest}
+                  />
+                </View>
+              </View>
 
-          {/* Project Dropdown */}
-          <View style={styles.projectDropdownWrapper}>
-            <ProjectDropdown
-              selectedProject={
-                typeof selectedProject === 'string'
-                  ? selectedProject
-                  : selectedProject?.name || 'All Projects'
-              }
-              onProjectSelect={handleProjectSelect}
-              navigation={navigation}
-              includeAllOption={false}
-            />
+              {/* Receive Dispatch Section */}
+              <View style={styles.receiveDispatchSection}>
+                <View style={styles.receiveDispatchHeader}>
+                  <Text style={styles.receiveDispatchTitle}>Receive Dispatch</Text>
+                </View>
+                {loadingDispatchOrders ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={styles.loadingText}>Loading dispatch orders...</Text>
+                  </View>
+                ) : pendingDispatchOrders.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No pending dispatch orders</Text>
+                  </View>
+                ) : (
+                  <View style={styles.dispatchOrdersContainer}>
+                    {pendingDispatchOrders.map((order) => (
+                      <View key={order.id} style={styles.dispatchOrderCard}>
+                        <View style={styles.dispatchOrderHeader}>
+                          <View style={styles.dispatchOrderHeaderLeft}>
+                            <Text style={styles.dispatchOrderId}>
+                              {order.dispatch_order_id || 'N/A'}
+                            </Text>
+                            <Text style={styles.dispatchOrderDate}>
+                              {order.dispatch_date 
+                                ? new Date(order.dispatch_date).toLocaleDateString()
+                                : 'N/A'}
+                            </Text>
+                          </View>
+                          <View style={[
+                            styles.dispatchStatusBadge,
+                            order.current_status === 'Accepted' && styles.dispatchStatusBadgeAccepted,
+                            order.current_status === 'Pending' && styles.dispatchStatusBadgePending,
+                          ]}>
+                            <Text style={[
+                              styles.dispatchStatusBadgeText,
+                              order.current_status === 'Accepted' && styles.dispatchStatusBadgeTextAccepted,
+                              order.current_status === 'Pending' && styles.dispatchStatusBadgeTextPending,
+                            ]}>
+                              {order.current_status || 'N/A'}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.dispatchOrderDetails}>
+                          <View style={styles.dispatchDetailRow}>
+                            <Text style={styles.dispatchDetailLabel}>Project:</Text>
+                            <Text style={styles.dispatchDetailValue}>{order.project_name || 'N/A'}</Text>
+                          </View>
+                          <View style={styles.dispatchDetailRow}>
+                            <Text style={styles.dispatchDetailLabel}>Driver:</Text>
+                            <Text style={styles.dispatchDetailValue}>{order.driver_name || 'N/A'}</Text>
+                          </View>
+                        </View>
+
+                        {order.items && order.items.length > 0 && (
+                          <View style={styles.dispatchItemsContainer}>
+                            <Text style={styles.dispatchItemsTitle}>
+                              Items ({order.items.length})
+                            </Text>
+                            {order.items.map((item, index) => {
+                              const itemKey = `${order.id}_${item.element_id}`;
+                              const isSelected = selectedDispatchItems.some(
+                                i => `${i.orderId}_${i.element_id}` === itemKey
+                              );
+                              return (
+                                <TouchableOpacity
+                                  key={index}
+                                  style={[
+                                    styles.dispatchItemCard,
+                                    isSelected && styles.dispatchItemCardSelected
+                                  ]}
+                                  onPress={() => toggleDispatchItemSelection(item, order.id)}
+                                  activeOpacity={0.7}
+                                >
+                                  <View style={styles.dispatchItemCheckbox}>
+                                    <View style={[
+                                      styles.checkbox,
+                                      isSelected && styles.checkboxSelected
+                                    ]}>
+                                      {isSelected && <Text style={styles.checkboxCheck}>✓</Text>}
+                                    </View>
+                                  </View>
+                                  <View style={styles.dispatchItemDetails}>
+                                    <Text style={styles.dispatchItemName}>
+                                      {item.element_type_name || 'N/A'}
+                                    </Text>
+                                    <Text style={styles.dispatchItemInfo}>
+                                      Element ID: {item.element_id || 'N/A'}
+                                    </Text>
+                                    <Text style={styles.dispatchItemInfo}>
+                                      Type: {item.element_type || 'N/A'} | Weight: {item.weight || '0'} kg
+                                    </Text>
+                                  </View>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {selectedDispatchItems.length > 0 && (
+                  <View style={styles.receiveActionBar}>
+                    <Text style={styles.selectedItemsCount}>
+                      {selectedDispatchItems.length} item(s) selected
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.receiveButton}
+                      onPress={() => setReceiveModalVisible(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.receiveButtonText}>
+                        Mark as Received
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : (
+            <>
+              {/* Header */}
+             
+
+              {/* Project Dropdown */}
+              <View style={styles.projectDropdownWrapper}>
+                <ProjectDropdown
+                  selectedProject={
+                    typeof selectedProject === 'string'
+                      ? selectedProject
+                      : selectedProject?.name || 'All Projects'
+                  }
+                  onProjectSelect={handleProjectSelect}
+                  navigation={navigation}
+                  includeAllOption={false}
+                />
+              </View>
+
+              {/* Date Filter */}
+              <View style={styles.dateFilterWrapper}>
+                <DateFilter
+                  onChange={handleDateFilterChange}
+                  startDate={new Date(2023, 0, 1)}
+                />
+              </View>
+
+              {/* Production Overview Chart */}
+          <View style={styles.chartCard}>
+            <View style={styles.chartHeader}>
+              <Text style={styles.chartTitle}>Production Overview</Text>
+            </View>
+            <View style={styles.chartContainer}>
+              {loadingChart ? (
+                <View style={styles.chartLoadingContainer}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                  <Text style={styles.loadingText}>Loading...</Text>
+                </View>
+              ) : (
+                <LineChart
+                  data={productionChartData}
+                  height={280}
+                  showLegend={true}
+                  lines={[
+                    { key: 'casted', label: 'Casted', color: '#8B5CF6' },
+                    { key: 'erected', label: 'Erected', color: '#10B981' },
+                    { key: 'planned', label: 'Planned', color: '#F59E42' },
+                    { key: 'stockyard', label: 'Stockyard', color: '#697565' },
+                    { key: 'dispatch', label: 'Dispatch', color: '#4B70F5' },
+                  ]}
+                  hideCheckouts={false}
+                />
+              )}
+            </View>
           </View>
 
           {/* Erection Request Log Section */}
@@ -1008,7 +1618,15 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                   showsVerticalScrollIndicator={true}
                 >
                   {erectionLogs.map((log) => (
-                    <View key={log.id} style={styles.logCard}>
+                    <TouchableOpacity
+                      key={log.id}
+                      style={styles.logCard}
+                      onPress={() => {
+                        setSelectedLog(log);
+                        setLogDetailModalVisible(true);
+                      }}
+                      activeOpacity={0.7}
+                    >
                       <View style={styles.logCardHeader}>
                         <Text style={styles.logElementName}>
                           {log.element_type_name || 'N/A'} - {log.tower_name || 'N/A'}
@@ -1048,14 +1666,92 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                               : 'N/A'}
                           </Text>
                         </View>
-                        {log.comments && (
+                        <View style={styles.logDetailRow}>
+                          <Text style={styles.logDetailLabel}></Text>
+                          <Text style={[styles.logDetailValue, styles.clickableHint, styles.arrowIcon]}>→</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          </View>
+
+          {/* Erection Receiving Log Section */}
+          <View style={styles.chartCard}>
+            <View style={styles.chartHeader}>
+              <Text style={styles.chartTitle}>Erection Receiving Log</Text>
+            </View>
+            <View style={styles.logsContainer}>
+              {loadingReceivingLogs ? (
+                <View style={styles.chartLoadingContainer}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                  <Text style={styles.loadingText}>Loading receiving logs...</Text>
+                </View>
+              ) : erectionReceivingLogs.length === 0 ? (
+                <View style={styles.chartLoadingContainer}>
+                  <Text style={styles.noDataText}>No receiving logs available</Text>
+                </View>
+              ) : (
+                <ScrollView 
+                  style={styles.logsScrollView}
+                  nestedScrollEnabled={true}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {erectionReceivingLogs.map((order) => (
+                    <TouchableOpacity
+                      key={order.id}
+                      style={styles.logCard}
+                      onPress={() => {
+                        setSelectedOrder(order);
+                        setOrderDetailModalVisible(true);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.logCardHeader}>
+                        <Text style={styles.logElementName}>
+                          {order.dispatch_order_id || 'N/A'}
+                        </Text>
+                        <View style={[
+                          styles.statusBadge,
+                          order.current_status === 'Accepted' && styles.statusBadgeApproved,
+                          order.current_status === 'Pending' && styles.statusBadgePending,
+                        ]}>
+                          <Text style={[
+                            styles.statusBadgeText,
+                            order.current_status === 'Accepted' && styles.statusBadgeTextApproved,
+                            order.current_status === 'Pending' && styles.statusBadgeTextPending,
+                          ]}>
+                            {order.current_status || 'N/A'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.logDetails}>
+                        <View style={styles.logDetailRow}>
+                          <Text style={styles.logDetailLabel}>Project:</Text>
+                          <Text style={styles.logDetailValue}>{order.project_name || 'N/A'}</Text>
+                        </View>
+                        <View style={styles.logDetailRow}>
+                          <Text style={styles.logDetailLabel}>Dispatch Date:</Text>
+                          <Text style={styles.logDetailValue}>
+                            {order.dispatch_date 
+                              ? new Date(order.dispatch_date).toLocaleString() 
+                              : 'N/A'}
+                          </Text>
+                        </View>
+                        <View style={styles.logDetailRow}>
+                          <Text style={styles.logDetailLabel}>Driver Name:</Text>
+                          <Text style={styles.logDetailValue}>{order.driver_name || 'N/A'}</Text>
+                        </View>
+                        {order.items && order.items.length > 0 && (
                           <View style={styles.logDetailRow}>
-                            <Text style={styles.logDetailLabel}>Comments:</Text>
-                            <Text style={styles.logDetailValue}>{log.comments}</Text>
+                            <Text style={styles.logDetailLabel}>Items ({order.items.length}):</Text>
+                            <Text style={[styles.logDetailValue, styles.clickableHint, styles.arrowIcon]}>→</Text>
                           </View>
                         )}
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </ScrollView>
               )}
@@ -1084,7 +1780,15 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                   showsVerticalScrollIndicator={true}
                 >
                   {erectionElements.map((element) => (
-                    <View key={element.id} style={styles.elementCard}>
+                    <TouchableOpacity
+                      key={element.id}
+                      style={styles.elementCard}
+                      onPress={() => {
+                        setSelectedElement(element);
+                        setElementDetailModalVisible(true);
+                      }}
+                      activeOpacity={0.7}
+                    >
                       <View style={styles.elementCardHeader}>
                         <Text style={styles.elementName}>
                           {element.element_type_name || 'N/A'} - {element.tower_name || 'N/A'}
@@ -1116,28 +1820,469 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                             {element.approved_status ? 'Approved' : 'Not Approved'}
                           </Text>
                         </View>
-                        {element.action_approve_reject && (
-                          <View style={styles.elementDetailRow}>
-                            <Text style={styles.elementDetailLabel}>Action Date:</Text>
-                            <Text style={styles.elementDetailValue}>
-                              {new Date(element.action_approve_reject).toLocaleString()}
-                            </Text>
-                          </View>
-                        )}
-                        {element.comments && (
-                          <View style={styles.elementDetailRow}>
-                            <Text style={styles.elementDetailLabel}>Comments:</Text>
-                            <Text style={styles.elementDetailValue}>{element.comments}</Text>
-                          </View>
-                        )}
+                        <View style={styles.elementDetailRow}>
+                          <Text style={styles.elementDetailLabel}></Text>
+                          <Text style={[styles.elementDetailValue, styles.clickableHint, styles.arrowIcon]}>→</Text>
+                        </View>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </ScrollView>
               )}
             </View>
           </View>
+            </>
+          )}
         </ScrollView>
+
+        {/* Order Detail Modal */}
+        <Modal
+          visible={orderDetailModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
+            setOrderDetailModalVisible(false);
+            setSelectedOrder(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Dispatch Order Details</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setOrderDetailModalVisible(false);
+                    setSelectedOrder(null);
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={true}>
+                {selectedOrder && (
+                  <>
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>Order Information</Text>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Order ID:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedOrder.dispatch_order_id || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Project:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedOrder.project_name || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Status:</Text>
+                        <View style={[
+                          styles.statusBadge,
+                          selectedOrder.current_status === 'Accepted' && styles.statusBadgeApproved,
+                          selectedOrder.current_status === 'Pending' && styles.statusBadgePending,
+                        ]}>
+                          <Text style={[
+                            styles.statusBadgeText,
+                            selectedOrder.current_status === 'Accepted' && styles.statusBadgeTextApproved,
+                            selectedOrder.current_status === 'Pending' && styles.statusBadgeTextPending,
+                          ]}>
+                            {selectedOrder.current_status || 'N/A'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Dispatch Date:</Text>
+                        <Text style={styles.modalDetailValue}>
+                          {selectedOrder.dispatch_date 
+                            ? new Date(selectedOrder.dispatch_date).toLocaleString() 
+                            : 'N/A'}
+                        </Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Driver Name:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedOrder.driver_name || 'N/A'}</Text>
+                      </View>
+                      {selectedOrder.vehicle_id && (
+                        <View style={styles.modalDetailRow}>
+                          <Text style={styles.modalDetailLabel}>Vehicle ID:</Text>
+                          <Text style={styles.modalDetailValue}>{selectedOrder.vehicle_id}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {selectedOrder.items && selectedOrder.items.length > 0 && (
+                      <View style={styles.modalSection}>
+                        <Text style={styles.modalSectionTitle}>Items ({selectedOrder.items.length})</Text>
+                        {selectedOrder.items.map((item, index) => (
+                          <View key={index} style={styles.modalItemCard}>
+                            <View style={styles.modalItemHeader}>
+                              <Text style={styles.modalItemNumber}>Item {index + 1}</Text>
+                            </View>
+                            <View style={styles.modalItemDetails}>
+                              <View style={styles.modalDetailRow}>
+                                <Text style={styles.modalDetailLabel}>Element Type Name:</Text>
+                                <Text style={styles.modalDetailValue}>{item.element_type_name || 'N/A'}</Text>
+                              </View>
+                              <View style={styles.modalDetailRow}>
+                                <Text style={styles.modalDetailLabel}>Element Type:</Text>
+                                <Text style={styles.modalDetailValue}>{item.element_type || 'N/A'}</Text>
+                              </View>
+                              <View style={styles.modalDetailRow}>
+                                <Text style={styles.modalDetailLabel}>Element ID:</Text>
+                                <Text style={styles.modalDetailValue}>{item.element_id || 'N/A'}</Text>
+                              </View>
+                              {item.weight && (
+                                <View style={styles.modalDetailRow}>
+                                  <Text style={styles.modalDetailLabel}>Weight:</Text>
+                                  <Text style={styles.modalDetailValue}>{item.weight.toFixed(2)} kg</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Erection Request Log Detail Modal */}
+        <Modal
+          visible={logDetailModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
+            setLogDetailModalVisible(false);
+            setSelectedLog(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Erection Request Log Details</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setLogDetailModalVisible(false);
+                    setSelectedLog(null);
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={true}>
+                {selectedLog && (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>Log Information</Text>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>ID:</Text>
+                      <Text style={styles.modalDetailValue}>{selectedLog.id || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Stock Erected ID:</Text>
+                      <Text style={styles.modalDetailValue}>{selectedLog.stock_erected_id || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Element ID:</Text>
+                      <Text style={styles.modalDetailValue}>{selectedLog.element_id || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Element Type Name:</Text>
+                      <Text style={styles.modalDetailValue}>{selectedLog.element_type_name || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Element Type ID:</Text>
+                      <Text style={styles.modalDetailValue}>{selectedLog.element_type_id || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Tower Name:</Text>
+                      <Text style={styles.modalDetailValue}>{selectedLog.tower_name || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Floor Name:</Text>
+                      <Text style={styles.modalDetailValue}>{selectedLog.floor_name || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Status:</Text>
+                      <View style={[
+                        styles.statusBadge,
+                        selectedLog.status === 'Erected' && styles.statusBadgeErected,
+                        selectedLog.status === 'Approved' && styles.statusBadgeApproved,
+                        selectedLog.status === 'Received' && styles.statusBadgeReceived,
+                        selectedLog.status === 'Pending' && styles.statusBadgePending,
+                      ]}>
+                        <Text style={[
+                          styles.statusBadgeText,
+                          selectedLog.status === 'Erected' && styles.statusBadgeTextErected,
+                          selectedLog.status === 'Approved' && styles.statusBadgeTextApproved,
+                          selectedLog.status === 'Received' && styles.statusBadgeTextReceived,
+                          selectedLog.status === 'Pending' && styles.statusBadgeTextPending,
+                        ]}>
+                          {selectedLog.status || 'N/A'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Acted By:</Text>
+                      <Text style={styles.modalDetailValue}>{selectedLog.acted_by_name || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Acted By ID:</Text>
+                      <Text style={styles.modalDetailValue}>{selectedLog.acted_by || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.modalDetailRow}>
+                      <Text style={styles.modalDetailLabel}>Action At:</Text>
+                      <Text style={styles.modalDetailValue}>
+                        {selectedLog.Action_at 
+                          ? new Date(selectedLog.Action_at).toLocaleString() 
+                          : 'N/A'}
+                      </Text>
+                    </View>
+                    {selectedLog.comments && (
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Comments:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedLog.comments}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Erection Element Detail Modal */}
+        <Modal
+          visible={elementDetailModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
+            setElementDetailModalVisible(false);
+            setSelectedElement(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Erection Element Details</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setElementDetailModalVisible(false);
+                    setSelectedElement(null);
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={true}>
+                {selectedElement && (
+                  <>
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>Element Information</Text>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>ID:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.id || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Precast Stock ID:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.precast_stock_id || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Element ID:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.element_id || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Element Type:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.element_type || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Element Type Name:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.element_type_name || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Element Type ID:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.element_type_id || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Tower Name:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.tower_name || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Floor Name:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.floor_name || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Floor ID:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.floor_id || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Project ID:</Text>
+                        <Text style={styles.modalDetailValue}>{selectedElement.project_id || 'N/A'}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>Status Information</Text>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Erected:</Text>
+                        <View style={[
+                          styles.erectedBadge,
+                          selectedElement.erected && styles.erectedBadgeActive
+                        ]}>
+                          <Text style={[
+                            styles.erectedBadgeText,
+                            selectedElement.erected && styles.erectedBadgeTextActive
+                          ]}>
+                            {selectedElement.erected ? 'Yes' : 'No'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Approved Status:</Text>
+                        <Text style={styles.modalDetailValue}>
+                          {selectedElement.approved_status ? 'Approved' : 'Not Approved'}
+                        </Text>
+                      </View>
+                      <View style={styles.modalDetailRow}>
+                        <Text style={styles.modalDetailLabel}>Disable:</Text>
+                        <Text style={styles.modalDetailValue}>
+                          {selectedElement.deceble ? 'Yes' : 'No'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>Date Information</Text>
+                      {selectedElement.order_at && (
+                        <View style={styles.modalDetailRow}>
+                          <Text style={styles.modalDetailLabel}>Order At:</Text>
+                          <Text style={styles.modalDetailValue}>
+                            {selectedElement.order_at !== '0000-01-01T00:00:00Z' && selectedElement.order_at !== '0000-01-01T09:17:48.505298Z'
+                              ? new Date(selectedElement.order_at).toLocaleString()
+                              : 'N/A'}
+                          </Text>
+                        </View>
+                      )}
+                      {selectedElement.action_approve_reject && (
+                        <View style={styles.modalDetailRow}>
+                          <Text style={styles.modalDetailLabel}>Action Approve/Reject Date:</Text>
+                          <Text style={styles.modalDetailValue}>
+                            {new Date(selectedElement.action_approve_reject).toLocaleString()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {selectedElement.comments && (
+                      <View style={styles.modalSection}>
+                        <Text style={styles.modalSectionTitle}>Comments</Text>
+                        <View style={styles.modalDetailRow}>
+                          <Text style={styles.modalDetailValue}>{selectedElement.comments}</Text>
+                        </View>
+                      </View>
+                    )}
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Receive Dispatch Modal */}
+        <Modal
+          visible={receiveModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
+            setReceiveModalVisible(false);
+            setReceiveComments('');
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.receiveModalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Mark as Received</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setReceiveModalVisible(false);
+                    setReceiveComments('');
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={true}>
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>
+                    {selectedDispatchItems.length === 1
+                      ? `Mark item as received`
+                      : `Mark ${selectedDispatchItems.length} items as received`}
+                  </Text>
+                  
+                  <View style={styles.commentsInputContainer}>
+                    <Text style={styles.commentsLabel}>Comments *</Text>
+                    <TextInput
+                      style={styles.commentsInput}
+                      placeholder="Enter comments for receiving items..."
+                      placeholderTextColor={Colors.textSecondary}
+                      multiline
+                      numberOfLines={4}
+                      value={receiveComments}
+                      onChangeText={setReceiveComments}
+                      textAlignVertical="top"
+                    />
+                  </View>
+
+                  <View style={styles.selectedItemsList}>
+                    <Text style={styles.selectedItemsListTitle}>Selected Items:</Text>
+                    {selectedDispatchItems.map((item, index) => (
+                      <View key={index} style={styles.selectedItemRow}>
+                        <Text style={styles.selectedItemText}>
+                          {item.element_type_name || 'N/A'} (ID: {item.element_id || 'N/A'})
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => {
+                    setReceiveModalVisible(false);
+                    setReceiveComments('');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalSubmitButton,
+                    (!receiveComments.trim() || submittingReceive) && styles.modalSubmitButtonDisabled
+                  ]}
+                  onPress={handleMarkAsReceived}
+                  disabled={!receiveComments.trim() || submittingReceive}
+                  activeOpacity={0.7}
+                >
+                  {submittingReceive ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalSubmitButtonText}>Mark as Received</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {!hideBottomNav && (
           <BottomNavigation
@@ -1172,7 +2317,30 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        
+        {/* Create Request Section */}
+        <View style={styles.createRequestSection}>
+          <View style={styles.createRequestHeader}>
+            <Text style={styles.createRequestTitle}>Create Request</Text>
+            <TouchableOpacity
+              style={styles.toggleButton}
+              onPress={() => setShowCreateRequest(!showCreateRequest)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.toggleButtonText}>
+                {showCreateRequest ? 'Hide' : 'Show'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {showCreateRequest && (
+            <View style={styles.createRequestContent}>
+              <TowerFloorEditor
+                projectId={projectId}
+                onSave={handleSaveErectionRequest}
+              />
+            </View>
+          )}
+        </View>
 
         {/* Questions List */}
         {paperData.questions && paperData.questions.length > 0 ? (
@@ -1846,6 +3014,9 @@ const styles = StyleSheet.create({
   projectDropdownWrapper: {
     marginBottom: 12,
   },
+  dateFilterWrapper: {
+    marginBottom: 12,
+  },
   chartCard: {
     backgroundColor: BWTheme.card,
     borderRadius: 12,
@@ -1869,6 +3040,12 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.medium,
     fontWeight: FontWeights.bold,
     color: BWTheme.textPrimary,
+  },
+  chartContainer: {
+    width: '100%',
+    minHeight: 280,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   chartLoadingContainer: {
     minHeight: 200,
@@ -1902,6 +3079,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
+    borderLeftWidth: 3,
+    borderLeftColor: '#007AFF',
   },
   logCardHeader: {
     flexDirection: 'row',
@@ -1979,6 +3158,454 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
+  itemsContainer: {
+    flex: 1,
+    marginTop: 4,
+  },
+  itemRow: {
+    paddingVertical: 4,
+    paddingLeft: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: BWTheme.border,
+    marginBottom: 4,
+  },
+  itemText: {
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.regular,
+    color: BWTheme.textPrimary,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: BWTheme.background,
+    borderRadius: 16,
+    width: '100%',
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: BWTheme.border,
+  },
+  modalTitle: {
+    fontSize: FontSizes.large,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: BWTheme.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: 20,
+    color: BWTheme.textPrimary,
+    fontWeight: FontWeights.bold,
+  },
+  modalScrollView: {
+    maxHeight: '80%',
+  },
+  modalSection: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: BWTheme.border,
+  },
+  modalSectionTitle: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 16,
+  },
+  modalDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    paddingVertical: 4,
+  },
+  modalDetailLabel: {
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.medium,
+    color: BWTheme.textSecondary,
+    flex: 1,
+  },
+  modalDetailValue: {
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.regular,
+    color: BWTheme.textPrimary,
+    flex: 1,
+    textAlign: 'right',
+  },
+  modalItemCard: {
+    backgroundColor: BWTheme.card,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  modalItemHeader: {
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: BWTheme.border,
+  },
+  modalItemNumber: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+  },
+  modalItemDetails: {
+    gap: 8,
+  },
+  clickableHint: {
+    color: '#007AFF',
+    fontStyle: 'italic',
+  },
+  arrowIcon: {
+    fontSize: 20,
+    fontWeight: FontWeights.bold,
+    textAlign: 'right',
+  },
+  createRequestSection: {
+    backgroundColor: BWTheme.card,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  createRequestHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  createRequestTitle: {
+    fontSize: FontSizes.large,
+    fontWeight: FontWeights.bold,
+    color: '#8B5CF6',
+    textTransform: 'capitalize',
+  },
+  toggleButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+  },
+  toggleButtonText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.medium,
+  },
+  createRequestContent: {
+    marginTop: 12,
+  },
+  taskSectionContainer: {
+    flex: 1,
+  },
+  receiveDispatchSection: {
+    marginTop: 24,
+    backgroundColor: BWTheme.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  receiveDispatchHeader: {
+    marginBottom: 16,
+  },
+  receiveDispatchTitle: {
+    fontSize: FontSizes.large,
+    fontWeight: FontWeights.bold,
+    color: '#8B5CF6',
+    textTransform: 'capitalize',
+  },
+  dispatchOrdersContainer: {
+    // Removed maxHeight to allow full scrolling in parent ScrollView
+  },
+  dispatchOrderCard: {
+    backgroundColor: BWTheme.background,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  dispatchOrderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  dispatchOrderHeaderLeft: {
+    flex: 1,
+  },
+  dispatchOrderId: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 4,
+  },
+  dispatchOrderDate: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+  },
+  dispatchStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: BWTheme.surface,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  dispatchStatusBadgeAccepted: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+  },
+  dispatchStatusBadgePending: {
+    backgroundColor: '#FFF3E0',
+    borderColor: '#FF9800',
+  },
+  dispatchStatusBadgeText: {
+    fontSize: FontSizes.extraSmall,
+    fontWeight: FontWeights.semiBold,
+    color: BWTheme.textSecondary,
+  },
+  dispatchStatusBadgeTextAccepted: {
+    color: '#4CAF50',
+  },
+  dispatchStatusBadgeTextPending: {
+    color: '#FF9800',
+  },
+  dispatchOrderDetails: {
+    marginBottom: 12,
+    gap: 6,
+  },
+  dispatchDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dispatchDetailLabel: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    fontWeight: FontWeights.medium,
+  },
+  dispatchDetailValue: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+    fontWeight: FontWeights.regular,
+  },
+  dispatchItemsContainer: {
+    marginTop: 8,
+  },
+  dispatchItemsTitle: {
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 8,
+  },
+  dispatchItemCard: {
+    flexDirection: 'row',
+    backgroundColor: BWTheme.surface,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    alignItems: 'center',
+  },
+  dispatchItemCardSelected: {
+    borderColor: '#007AFF',
+    backgroundColor: '#F0F7FF',
+  },
+  dispatchItemCheckbox: {
+    marginRight: 12,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: BWTheme.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BWTheme.background,
+  },
+  checkboxSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  checkboxCheck: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.bold,
+  },
+  dispatchItemDetails: {
+    flex: 1,
+  },
+  dispatchItemName: {
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 4,
+  },
+  dispatchItemInfo: {
+    fontSize: FontSizes.extraSmall,
+    color: BWTheme.textSecondary,
+    marginBottom: 2,
+  },
+  receiveActionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: BWTheme.border,
+    marginTop: 12,
+  },
+  selectedItemsCount: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    fontWeight: FontWeights.medium,
+  },
+  receiveButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#34C759',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  receiveButtonText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.bold,
+  },
+  receiveModalContent: {
+    backgroundColor: BWTheme.background,
+    borderRadius: 12,
+    width: '90%',
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  commentsInputContainer: {
+    marginTop: 16,
+  },
+  commentsLabel: {
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.medium,
+    color: BWTheme.textSecondary,
+    marginBottom: 8,
+  },
+  commentsInput: {
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: FontSizes.regular,
+    color: BWTheme.textPrimary,
+    backgroundColor: BWTheme.surface,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  selectedItemsList: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: BWTheme.surface,
+    borderRadius: 8,
+  },
+  selectedItemsListTitle: {
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 8,
+  },
+  selectedItemRow: {
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: BWTheme.border,
+  },
+  selectedItemText: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: BWTheme.border,
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: BWTheme.surface,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  modalCancelButtonText: {
+    color: BWTheme.textPrimary,
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.medium,
+  },
+  modalSubmitButton: {
+    flex: 1,
+    paddingVertical: 12,
+    backgroundColor: '#34C759',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSubmitButtonDisabled: {
+    opacity: 0.6,
+  },
+  modalSubmitButtonText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.bold,
+  },
   elementsContainer: {
     width: '100%',
     maxHeight: 400,
@@ -2001,6 +3628,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
+    borderLeftWidth: 3,
+    borderLeftColor: '#007AFF',
   },
   elementCardHeader: {
     flexDirection: 'row',

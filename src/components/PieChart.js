@@ -24,21 +24,31 @@ const PieChart = ({
   const animatedValue = useRef(new Animated.Value(0)).current;
 
   // Donut chart configuration (responsive to screen width)
-  const maxChartWidth = Math.floor(width * 0.42);
+  const maxChartWidth = Math.floor(width * 0.9); // allow chart to use almost full width on mobile
   const chartSize = Math.min(Math.max(140, size), maxChartWidth);
   const strokeWidth = Math.max(16, Math.floor(chartSize * 0.12));
-  const radius = (chartSize - strokeWidth) / 2;
+  // Reduce effective radius so the donut ring is smaller inside the card
+  const effectiveSize = chartSize * 0.75;
+  const radius = (effectiveSize - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
   // Layout responsiveness to avoid overlap
   const isNarrow = width < 380;
 
-  // Enhanced colors with gradients
+  // Enhanced colors with gradients - extended palette for more element types
   const enhancedColors = [
-    { color: '#FF9500', gradient: ['#FF9500', '#FFB84D'] },
-    { color: '#34C759', gradient: ['#34C759', '#5DD679'] },
-    { color: '#FF3B30', gradient: ['#FF3B30', '#FF6B6B'] },
-    { color: '#8E8E93', gradient: ['#8E8E93', '#B0B0B5'] },
+    { color: '#34C759', gradient: ['#34C759', '#5DD679'] }, // Green
+    { color: '#FF3B30', gradient: ['#FF3B30', '#FF6B6B'] }, // Red
+    { color: '#FF9500', gradient: ['#FF9500', '#FFB84D'] }, // Orange
+    { color: '#8E8E93', gradient: ['#8E8E93', '#B0B0B5'] }, // Grey
+    { color: '#007AFF', gradient: ['#007AFF', '#5AC8FA'] }, // Blue
+    { color: '#AF52DE', gradient: ['#AF52DE', '#D0A5F5'] }, // Purple
+    { color: '#FF2D55', gradient: ['#FF2D55', '#FF6B9D'] }, // Pink
+    { color: '#5856D6', gradient: ['#5856D6', '#8E8EF0'] }, // Indigo
+    { color: '#FF9500', gradient: ['#FF9500', '#FFB84D'] }, // Orange (duplicate for more types)
+    { color: '#34C759', gradient: ['#34C759', '#5DD679'] }, // Green (duplicate)
+    { color: '#FF3B30', gradient: ['#FF3B30', '#FF6B6B'] }, // Red (duplicate)
+    { color: '#8E8E93', gradient: ['#8E8E93', '#B0B0B5'] }, // Grey (duplicate)
   ];
 
   useEffect(() => {
@@ -53,9 +63,9 @@ const PieChart = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{title}</Text>
-      <View style={[styles.chartContainer, isNarrow && styles.chartContainerStack]}>
-        <View style={[styles.donutWrapper, isNarrow && { marginRight: 0 }]}>
+      {title ? <Text style={styles.title}>{title}</Text> : null}
+      <View style={styles.chartContainer}>
+        <View style={styles.donutWrapper}>
           <Svg width={chartSize} height={chartSize}>
             <Defs>
               {enhancedColors.map((colorData, index) => (
@@ -83,19 +93,22 @@ const PieChart = ({
                 const dashOffset = circumference * (1 - cumulativePortion);
                 cumulativePortion += portion;
                 const colorData = enhancedColors[index % enhancedColors.length];
+                // Use item.color if provided, otherwise use enhancedColors
+                const itemColor = item.color || colorData.color;
+                const colorIndex = index % enhancedColors.length;
                 return (
                   <Circle
                     key={index}
                     cx={chartSize / 2}
                     cy={chartSize / 2}
                     r={radius}
-                    stroke={`url(#gradient-${index % enhancedColors.length})`}
+                    stroke={item.color ? itemColor : `url(#gradient-${colorIndex})`}
                     strokeWidth={strokeWidth}
                     strokeDasharray={dashArray}
                     strokeDashoffset={dashOffset}
                     strokeLinecap="butt"
                     fill="transparent"
-                    opacity={index === highlightedIndex ? 1 : 0.85}
+                    opacity={index === highlightedIndex ? 1 : 0.9}
                   />
                 );
               })}
@@ -103,7 +116,7 @@ const PieChart = ({
           </Svg>
           <View style={[ 
             styles.centerLabelContainer,
-            { width: chartSize * 0.5, height: chartSize * 0.5, borderRadius: (chartSize * 0.5) / 2 }
+            { width: effectiveSize * 0.45, height: effectiveSize * 0.45, borderRadius: (effectiveSize * 0.45) / 2 }
           ]}>
             <Text style={styles.centerLabel}>
               {centerValueMode === 'percentage' && total > 0
@@ -112,28 +125,28 @@ const PieChart = ({
             </Text>
             <Text style={styles.centerSubLabel}>
               {centerValueMode === 'percentage' 
-                ? (data?.[highlightedIndex]?.label || '')
+                ? (data?.[highlightedIndex]?.label || data?.[highlightedIndex]?.element_type || '')
                 : 'Total Jobs'}
             </Text>
           </View>
         </View>
-        <View style={[styles.legend, isNarrow && styles.legendStack]}>
+        <View style={styles.legend}>
           {data.map((item, index) => {
             const percentage = total === 0 ? '0.0' : ((item.value / total) * 100).toFixed(0);
             const colorData = enhancedColors[index % enhancedColors.length];
             const isHighlighted = index === highlightedIndex;
             return (
-              <View key={index} style={[styles.legendItem, isNarrow && styles.legendItemStack, isHighlighted && { borderColor: '#d6dee6' }]}>
-                <View style={[styles.legendColor, { backgroundColor: item.color }]}>
-                  <View style={[styles.legendColorInner, { backgroundColor: colorData.gradient[1] }]} />
+              <View key={index} style={[styles.legendItem, isNarrow && styles.legendItemStack, isHighlighted && { borderColor: '#d6dee6', backgroundColor: '#F0F7FF' }]}>
+                <View style={[styles.legendColor, { backgroundColor: item.color || colorData.color }]}>
+                  <View style={[styles.legendColorInner, { backgroundColor: item.color || colorData.gradient[1] }]} />
                 </View>
                 {legendStyle === 'compact' ? (
                   <Text style={styles.legendLabel}>{`${item.label}: ${percentage}%`}</Text>
                 ) : (
                   <View style={styles.legendContent}>
-                    <Text style={styles.legendLabel}>{item.label}</Text>
+                    <Text style={styles.legendLabel} numberOfLines={1}>{item.label || item.element_type || `Type ${index + 1}`}</Text>
                     <View style={styles.legendValueContainer}>
-                      <Text style={styles.legendValue}>{item.value}</Text>
+                      <Text style={styles.legendValue}>{item.value || item.count || 0}</Text>
                       <Text style={styles.legendPercentage}>({percentage}%)</Text>
                     </View>
                   </View>
@@ -151,7 +164,8 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.card,
     borderRadius: 20,
-    padding: 28,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -164,7 +178,7 @@ const styles = StyleSheet.create({
     borderColor: '#f0f0f0',
   },
   title: {
-    fontSize: FontSizes.large,
+    fontSize: FontSizes.large + 2,
     fontWeight: FontWeights.bold,
     color: Colors.textPrimary,
     marginBottom: 24,
@@ -172,17 +186,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   chartContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  chartContainerStack: {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
   },
   donutWrapper: {
-    marginRight: 16,
+    marginBottom: 8,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -205,44 +214,51 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   centerLabel: {
-    fontSize: FontSizes.extraLarge,
+    fontSize: 28,
     fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
+    color: '#1A1A1A',
     marginBottom: 4,
+    letterSpacing: 0.5,
   },
   centerSubLabel: {
     fontSize: FontSizes.small,
-    color: Colors.textSecondary,
-    fontWeight: FontWeights.medium,
+    color: '#4A4A4A',
+    fontWeight: FontWeights.semiBold,
+    letterSpacing: 0.2,
   },
   legend: {
-    marginLeft: 8,
-    flex: 1,
-    minWidth: 120,
-    flexGrow: 1,
-    flexShrink: 1,
-  },
-  legendStack: {
-    marginLeft: 0,
-    marginTop: 12,
+    marginTop: 2,
     width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    width: '48%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: '#E0E0E0',
+    minHeight: 40,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   legendColor: {
     width: 16,
     height: 16,
     borderRadius: 8,
-    marginRight: 12,
+    marginRight: 10,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -250,9 +266,11 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   legendColorInner: {
     width: 8,
@@ -263,20 +281,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   legendLabel: {
+    // Match line chart legend text size
     fontSize: FontSizes.small,
-    color: Colors.textPrimary,
-    fontWeight: FontWeights.semiBold,
+    color: Colors.textSecondary,
+    fontWeight: FontWeights.medium,
     marginBottom: 2,
   },
   legendValueContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
+    gap: 6,
   },
   legendValue: {
+    // Same base size as line chart legend for numeric value
     fontSize: FontSizes.small,
     color: Colors.textSecondary,
     fontWeight: FontWeights.bold,
-    marginRight: 4,
   },
   legendPercentage: {
     fontSize: FontSizes.extraSmall,

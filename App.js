@@ -14,10 +14,12 @@ import MainTabs from './src/screens/MainTabs';
 import JobDetailsScreen from './src/screens/JobDetailsScreen';
 import ElementDetailsScreen from './src/screens/ElementDetailsScreen';
 import QCStatusScreen from './src/screens/QCStatusScreen';
-import QCResponseScreen from './src/screens/QCResponseScreen';
 import UserProfileScreen from './src/screens/UserProfileScreen';
 import QRScannerScreen from './src/screens/QRScannerScreen';
 import QuestionsScreen from './src/screens/QuestionsScreen';
+import StockManagerScreen from './src/screens/StockManagerScreen';
+import ErectionManagerScreen from './src/screens/ErectionManagerScreen';
+import DispatchManagerScreen from './src/screens/DispatchManagerScreen';
 import WebViewScreen from './src/screens/WebViewScreen';
 
 const Stack = createStackNavigator();
@@ -80,11 +82,6 @@ export default function App() {
             options={{ title: 'QC Status' }}
           />
           <Stack.Screen 
-            name="QCResponse" 
-            component={QCResponseScreen}
-            options={{ title: 'QC Response' }}
-          />
-          <Stack.Screen 
             name="UserProfile" 
             component={UserProfileScreen}
             options={{ title: 'Profile' }}
@@ -98,6 +95,21 @@ export default function App() {
             name="Questions" 
             component={QuestionsScreen}
             options={{ title: 'Questions' }}
+          />
+          <Stack.Screen 
+            name="StockManager" 
+            component={StockManagerScreen}
+            options={{ title: 'Stock Manager' }}
+          />
+          <Stack.Screen 
+            name="ErectionManager" 
+            component={ErectionManagerScreen}
+            options={{ title: 'Erection Manager' }}
+          />
+          <Stack.Screen 
+            name="DispatchManager" 
+            component={DispatchManagerScreen}
+            options={{ title: 'Dispatch Manager' }}
           />
           <Stack.Screen 
             name="WebView" 

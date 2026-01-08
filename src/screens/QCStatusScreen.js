@@ -40,6 +40,67 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
   const [towerFloorFilter, setTowerFloorFilter] = useState({ tower: null, floor: null });
   const [birdsEyeViewVisible, setBirdsEyeViewVisible] = useState(false);
 
+  // Check user role on mount - redirect if not QA/QC
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.role_name) {
+          const userRole = sessionResult.role_name.toString().toLowerCase().trim();
+          const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc' || userRole === 'qa qc';
+          
+          if (!isQAQC) {
+            // User is not QA/QC, redirect to appropriate screen
+            console.log('📱 [QCStatusScreen] User is not QA/QC, redirecting...');
+            console.log('📱 [QCStatusScreen] User role:', userRole);
+            
+            // Check which manager role
+            const isStockManager = 
+              userRole === 'stockmanager' || 
+              userRole === 'stock_manager' || 
+              userRole === 'stock manager' ||
+              userRole === 'stockmanger' ||
+              userRole === 'stock managaer' ||
+              userRole === 'stockmanagaer' ||
+              (userRole.includes('stock') && (userRole.includes('manager') || userRole.includes('managaer')));
+            
+            const isErectionManager = 
+              userRole === 'erectionmanager' || 
+              userRole === 'erection_manager' || 
+              userRole === 'erection manager' ||
+              userRole === 'erectionmanger' ||
+              userRole === 'erection managaer' ||
+              userRole === 'erectionmanagaer' ||
+              (userRole.includes('erection') && (userRole.includes('manager') || userRole.includes('managaer')));
+            
+            const isDispatchManager = 
+              userRole === 'dispatchmanager' || 
+              userRole === 'dispatch_manager' || 
+              userRole === 'dispatch manager' ||
+              userRole === 'dispatchmanger' ||
+              userRole === 'dispatch managaer' ||
+              userRole === 'dispatchmanagaer' ||
+              (userRole.includes('dispatch') && (userRole.includes('manager') || userRole.includes('managaer')));
+            
+            if (isStockManager) {
+              navigation.replace('StockManager');
+            } else if (isErectionManager) {
+              navigation.replace('ErectionManager');
+            } else if (isDispatchManager) {
+              navigation.replace('DispatchManager');
+            } else {
+              navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+            }
+          }
+        }
+      } catch (error) {
+        console.log('❌ [QCStatusScreen] Error checking user role:', error);
+      }
+    };
+    
+    checkUserRole();
+  }, [navigation]);
+
   const validateToken = (token) => {
     if (!token) return false;
     const parts = token.split('.');

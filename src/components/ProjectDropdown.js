@@ -16,11 +16,12 @@ import { getTokens } from '../services/tokenManager';
 import { logout } from '../services/authService';
 import { createAuthHeaders } from '../config/apiConfig';
 
-const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation }) => {
+const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation, includeAllOption = true }) => {
   const [projects, setProjects] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [dropdownAnimation] = useState(new Animated.Value(0));
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -99,14 +100,26 @@ const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation }) => {
           console.log('✅ [ProjectDropdown] Projects API Success!');
           console.log('📱 [ProjectDropdown] Projects loaded successfully:', JSON.stringify(projectsData, null, 2));
           
-          // Transform API data to include "All Projects" option and filter out suspended projects
-          const transformedProjects = [
-            { project_id: 'all', name: 'All Projects', suspend: false },
-            ...projectsData.filter(project => !project.suspend) // Only show non-suspended projects
-          ];
+          // Transform API data and optionally include \"All Projects\" option; filter out suspended projects
+          let transformedProjects = projectsData.filter(project => !project.suspend); // Only show non-suspended projects
+          if (includeAllOption) {
+            transformedProjects = [
+              { project_id: 'all', name: 'All Projects', suspend: false },
+              ...transformedProjects,
+            ];
+          }
           
           setProjects(transformedProjects);
           setProjectsLoading(false);
+
+          // For screens like StockManager where we don't show "All Projects",
+          // automatically select the first available project once, so a project is always selected.
+          if (!includeAllOption && !hasAutoSelected && transformedProjects.length > 0) {
+            if (typeof onProjectSelect === 'function') {
+              onProjectSelect(transformedProjects[0]);
+            }
+            setHasAutoSelected(true);
+          }
         } else {
           const errorText = await response.text();
           console.log('❌ [ProjectDropdown] Projects API Error');
@@ -118,13 +131,13 @@ const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation }) => {
             console.log('⚠️ [ProjectDropdown] 401 Authentication Error from Projects API - token may need refresh, but continuing with app');
             // Don't logout immediately - let token refresh service handle it
             // Just show empty projects list and let user continue
-            setProjects([{ project_id: 'all', name: 'All Projects', suspend: false }]);
+            setProjects(includeAllOption ? [{ project_id: 'all', name: 'All Projects', suspend: false }] : []);
             setProjectsLoading(false);
             // Token refresh service will handle token refresh automatically
           } else {
             console.log(`❌ [ProjectDropdown] Projects API Error Status: ${response.status}`);
-            // For other errors, just show empty projects list
-            setProjects([{ project_id: 'all', name: 'All Projects', suspend: false }]);
+            // For other errors, just show empty projects list (or only All Projects if allowed)
+            setProjects(includeAllOption ? [{ project_id: 'all', name: 'All Projects', suspend: false }] : []);
             setProjectsLoading(false);
           }
         }

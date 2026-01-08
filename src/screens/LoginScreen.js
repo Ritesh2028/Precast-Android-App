@@ -16,6 +16,7 @@ import {
   Image,
 } from 'react-native';
 import Logo from '../components/Logo';
+import DeviceLimitModal from '../components/DeviceLimitModal';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
 import { API_BASE_URL } from '../config/apiConfig';
@@ -50,6 +51,9 @@ const LoginScreen = ({ navigation }) => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [showDeviceLimitModal, setShowDeviceLimitModal] = useState(false);
+  const [deviceLimitData, setDeviceLimitData] = useState(null);
+  const [pendingLoginCredentials, setPendingLoginCredentials] = useState(null);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -131,45 +135,138 @@ const LoginScreen = ({ navigation }) => {
       const ip = await getPublicIp();
 
       console.log('📱 [LoginScreen] Attempting login...');
-      const responseData = await loginRequest({ email: trimmedEmail, password: trimmedPassword, ip });
-
-      console.log('📱 [LoginScreen] Login response data:', JSON.stringify(responseData, null, 2));
-
-      // Check if user has QA/QC role access (case-insensitive)
-      // Try multiple possible role fields: role, role_name, user_role
-      const userRole = (
-        responseData?.role || 
-        responseData?.role_name || 
-        responseData?.user_role ||
-        ''
-      ).toString().toLowerCase().trim();
-
-      console.log('📱 [LoginScreen] User role detected:', userRole);
-
-      // Check if role is QA/QC (case-insensitive, handle variations)
-      const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc';
       
-      // Small delay before navigation to ensure state is ready
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      if (!userRole || !isQAQC) {
-        // User doesn't have QA/QC role, navigate to WebView screen
-        console.log('📱 [LoginScreen] User role is not QA/QC, navigating to WebView');
-        console.log('📱 [LoginScreen] User role value:', userRole);
-        console.log('📱 [LoginScreen] isQAQC:', isQAQC);
+      // Helper function to handle successful login
+      const handleSuccessfulLogin = async (responseData) => {
+        // Check if user has role access (case-insensitive)
+        // Try multiple possible role fields: role, role_name, user_role
+        const userRole = (
+          responseData?.role || 
+          responseData?.role_name || 
+          responseData?.user_role ||
+          ''
+        ).toString().toLowerCase().trim();
+
+        console.log('📱 [LoginScreen] User role detected:', userRole);
+        console.log('📱 [LoginScreen] Full role data from response:', {
+          role: responseData?.role,
+          role_name: responseData?.role_name,
+          user_role: responseData?.user_role,
+          normalized: userRole
+        });
+
+        // Small delay before navigation to ensure state is ready
+        await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Use replace for simpler navigation
-        console.log('🔄 [LoginScreen] Navigating to WebView with URL:', 'https://precast.blueinvent.com/');
-        navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
-        console.log('✅ [LoginScreen] Navigation to WebView initiated');
-        return;
-      }
+        // Check role and navigate to appropriate screen
+        if (!userRole) {
+          // No role found, navigate to WebView screen
+          console.log('📱 [LoginScreen] No role found, navigating to WebView');
+          navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+          return;
+        }
 
-      // User has QA/QC role, navigate to Dashboard
-      console.log('📱 [LoginScreen] User has QA/QC role, navigating to Dashboard');
-      navigation.replace('Dashboard');
-      console.log('✅ [LoginScreen] Navigation to Dashboard initiated');
+        // Check for QA/QC role (case-insensitive, handle variations)
+        const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc' || userRole === 'qa qc';
+        
+        // Check for ErectionManager role (handle various formats and typos)
+        const isErectionManager = 
+          userRole === 'erectionmanager' || 
+          userRole === 'erection_manager' || 
+          userRole === 'erection manager' ||
+          userRole === 'erectionmanger' || // Common typo
+          userRole === 'erection managaer' || // API typo: "managaer" instead of "manager"
+          userRole === 'erectionmanagaer' ||
+          (userRole.includes('erection') && (userRole.includes('manager') || userRole.includes('managaer')));
+        
+        // Check for StockManager role (handle various formats and typos)
+        const isStockManager = 
+          userRole === 'stockmanager' || 
+          userRole === 'stock_manager' || 
+          userRole === 'stock manager' ||
+          userRole === 'stockmanger' || // Common typo
+          userRole === 'stock managaer' || // API typo: "managaer" instead of "manager"
+          userRole === 'stockmanagaer' ||
+          (userRole.includes('stock') && (userRole.includes('manager') || userRole.includes('managaer')));
+        
+        // Check for DispatchManager role (handle various formats and typos)
+        const isDispatchManager = 
+          userRole === 'dispatchmanager' || 
+          userRole === 'dispatch_manager' || 
+          userRole === 'dispatch manager' ||
+          userRole === 'dispatchmanger' || // Common typo
+          userRole === 'dispatch managaer' || // API typo: "managaer" instead of "manager"
+          userRole === 'dispatchmanagaer' ||
+          (userRole.includes('dispatch') && (userRole.includes('manager') || userRole.includes('managaer')));
+
+        if (isQAQC) {
+          // User has QA/QC role, navigate to Dashboard
+          console.log('📱 [LoginScreen] User has QA/QC role, navigating to Dashboard');
+          navigation.replace('Dashboard');
+          console.log('✅ [LoginScreen] Navigation to Dashboard initiated');
+        } else if (isErectionManager) {
+          // User has ErectionManager role, navigate to ErectionManagerScreen
+          console.log('📱 [LoginScreen] User has ErectionManager role, navigating to ErectionManagerScreen');
+          navigation.replace('ErectionManager');
+          console.log('✅ [LoginScreen] Navigation to ErectionManagerScreen initiated');
+        } else if (isStockManager) {
+          // User has StockManager role, navigate to StockManagerScreen
+          console.log('📱 [LoginScreen] User has StockManager role, navigating to StockManagerScreen');
+          console.log('📱 [LoginScreen] Detected role value:', userRole);
+          navigation.replace('StockManager');
+          console.log('✅ [LoginScreen] Navigation to StockManagerScreen initiated');
+        } else if (isDispatchManager) {
+          // User has DispatchManager role, navigate to DispatchManagerScreen
+          console.log('📱 [LoginScreen] User has DispatchManager role, navigating to DispatchManagerScreen');
+          navigation.replace('DispatchManager');
+          console.log('✅ [LoginScreen] Navigation to DispatchManagerScreen initiated');
+        } else {
+          // User doesn't have any recognized role, navigate to WebView screen
+          console.log('📱 [LoginScreen] User role is not recognized, navigating to WebView');
+          console.log('📱 [LoginScreen] User role value:', userRole);
+          navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+          console.log('✅ [LoginScreen] Navigation to WebView initiated');
+        }
+      };
+      
+      try {
+        const responseData = await loginRequest({ email: trimmedEmail, password: trimmedPassword, ip });
+        console.log('📱 [LoginScreen] Login response data:', JSON.stringify(responseData, null, 2));
+        
+        // Check if login was successful (has access_token)
+        if (!responseData?.access_token) {
+          throw new Error('Login failed: No access token received');
+        }
+        
+        // Continue with normal login flow
+        await handleSuccessfulLogin(responseData);
+      } catch (loginError) {
+        // Check if this is a device limit error
+        const errorResponse = loginError?.response?.data || loginError?.data || {};
+        
+        if (errorResponse.requires_logout === true && errorResponse.active_devices) {
+          console.log('📱 [LoginScreen] Device limit reached, showing modal');
+          setDeviceLimitData({
+            activeDevices: errorResponse.active_devices,
+            maxDevices: errorResponse.max_devices || 3,
+            currentDevices: errorResponse.current_devices || errorResponse.active_devices.length,
+            message: errorResponse.message || 'You have reached the maximum limit of 3 active devices.',
+          });
+          setPendingLoginCredentials({ email: trimmedEmail, password: trimmedPassword, ip });
+          setShowDeviceLimitModal(true);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Re-throw other errors
+        throw loginError;
+      }
     } catch (err) {
+      // Device limit errors are already handled above
+      if (err?.response?.data?.requires_logout) {
+        return; // Already handled, don't show error
+      }
+      
       const message =
         err?.response?.data?.message ||
         err?.response?.data?.error ||
@@ -180,6 +277,108 @@ const LoginScreen = ({ navigation }) => {
       Alert.alert('Login Failed', message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeviceLogout = async (sessionId, deviceIndex) => {
+    try {
+      // After device logout, retry login
+      console.log('📱 [LoginScreen] Device logged out, retrying login...');
+      setShowDeviceLimitModal(false);
+      
+      // Small delay to ensure logout completes
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Retry login with pending credentials
+      if (pendingLoginCredentials) {
+        setIsLoading(true);
+        setError('');
+        
+        try {
+          const responseData = await loginRequest(pendingLoginCredentials);
+          
+          if (responseData?.access_token) {
+            // Helper function to handle successful login (same as in handleLogin)
+            const handleSuccessfulLogin = async (responseData) => {
+              const userRole = (
+                responseData?.role || 
+                responseData?.role_name || 
+                responseData?.user_role ||
+                ''
+              ).toString().toLowerCase().trim();
+
+              await new Promise(resolve => setTimeout(resolve, 300));
+              
+              // Check role and navigate accordingly
+              const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc' || userRole === 'qa qc';
+              const isErectionManager = 
+                userRole === 'erectionmanager' || 
+                userRole === 'erection_manager' || 
+                userRole === 'erection manager' ||
+                userRole === 'erectionmanger' || // Common typo
+                userRole === 'erection managaer' || // API typo: "managaer" instead of "manager"
+                userRole === 'erectionmanagaer' ||
+                (userRole.includes('erection') && (userRole.includes('manager') || userRole.includes('managaer')));
+              const isStockManager = 
+                userRole === 'stockmanager' || 
+                userRole === 'stock_manager' || 
+                userRole === 'stock manager' ||
+                userRole === 'stockmanger' || // Common typo
+                userRole === 'stock managaer' || // API typo: "managaer" instead of "manager"
+                userRole === 'stockmanagaer' ||
+                (userRole.includes('stock') && (userRole.includes('manager') || userRole.includes('managaer')));
+              const isDispatchManager = 
+                userRole === 'dispatchmanager' || 
+                userRole === 'dispatch_manager' || 
+                userRole === 'dispatch manager' ||
+                userRole === 'dispatchmanger' || // Common typo
+                userRole === 'dispatch managaer' || // API typo: "managaer" instead of "manager"
+                userRole === 'dispatchmanagaer' ||
+                (userRole.includes('dispatch') && (userRole.includes('manager') || userRole.includes('managaer')));
+
+              if (isQAQC) {
+                navigation.replace('Dashboard');
+              } else if (isErectionManager) {
+                navigation.replace('ErectionManager');
+              } else if (isStockManager) {
+                navigation.replace('StockManager');
+              } else if (isDispatchManager) {
+                navigation.replace('DispatchManager');
+              } else {
+                navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+              }
+            };
+            
+            await handleSuccessfulLogin(responseData);
+          }
+        } catch (retryError) {
+          // Check if device limit error again
+          const errorResponse = retryError?.response?.data || retryError?.data || {};
+          
+          if (errorResponse.requires_logout === true && errorResponse.active_devices) {
+            // Update device list and show modal again
+            setDeviceLimitData({
+              activeDevices: errorResponse.active_devices,
+              maxDevices: errorResponse.max_devices || 3,
+              currentDevices: errorResponse.current_devices || errorResponse.active_devices.length,
+              message: errorResponse.message || 'You have reached the maximum limit of 3 active devices.',
+            });
+            setShowDeviceLimitModal(true);
+            setIsLoading(false);
+            return;
+          }
+          
+          throw retryError;
+        }
+      }
+    } catch (error) {
+      console.error('❌ [LoginScreen] Error retrying login after device logout:', error);
+      const message = error?.response?.data?.message || error?.message || 'Failed to login after device logout';
+      setError(message);
+      Alert.alert('Login Failed', message);
+    } finally {
+      setIsLoading(false);
+      setPendingLoginCredentials(null);
     }
   };
 
@@ -465,6 +664,20 @@ const LoginScreen = ({ navigation }) => {
       </ScrollView>
     </KeyboardAvoidingView>
   </View>
+
+      {/* Device Limit Modal */}
+      <DeviceLimitModal
+        visible={showDeviceLimitModal}
+        onClose={() => {
+          setShowDeviceLimitModal(false);
+          setDeviceLimitData(null);
+          setPendingLoginCredentials(null);
+        }}
+        activeDevices={deviceLimitData?.activeDevices || []}
+        maxDevices={deviceLimitData?.maxDevices || 3}
+        currentDevices={deviceLimitData?.currentDevices || 0}
+        onDeviceLogout={handleDeviceLogout}
+      />
 </View>
   );
 };

@@ -41,6 +41,67 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedJobForMenu, setSelectedJobForMenu] = useState(null);
 
+  // Check user role on mount - redirect if not QA/QC
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.role_name) {
+          const userRole = sessionResult.role_name.toString().toLowerCase().trim();
+          const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc' || userRole === 'qa qc';
+          
+          if (!isQAQC) {
+            // User is not QA/QC, redirect to appropriate screen
+            console.log('📱 [DashboardScreen] User is not QA/QC, redirecting...');
+            console.log('📱 [DashboardScreen] User role:', userRole);
+            
+            // Check which manager role
+            const isStockManager = 
+              userRole === 'stockmanager' || 
+              userRole === 'stock_manager' || 
+              userRole === 'stock manager' ||
+              userRole === 'stockmanger' ||
+              userRole === 'stock managaer' ||
+              userRole === 'stockmanagaer' ||
+              (userRole.includes('stock') && (userRole.includes('manager') || userRole.includes('managaer')));
+            
+            const isErectionManager = 
+              userRole === 'erectionmanager' || 
+              userRole === 'erection_manager' || 
+              userRole === 'erection manager' ||
+              userRole === 'erectionmanger' ||
+              userRole === 'erection managaer' ||
+              userRole === 'erectionmanagaer' ||
+              (userRole.includes('erection') && (userRole.includes('manager') || userRole.includes('managaer')));
+            
+            const isDispatchManager = 
+              userRole === 'dispatchmanager' || 
+              userRole === 'dispatch_manager' || 
+              userRole === 'dispatch manager' ||
+              userRole === 'dispatchmanger' ||
+              userRole === 'dispatch managaer' ||
+              userRole === 'dispatchmanagaer' ||
+              (userRole.includes('dispatch') && (userRole.includes('manager') || userRole.includes('managaer')));
+            
+            if (isStockManager) {
+              navigation.replace('StockManager');
+            } else if (isErectionManager) {
+              navigation.replace('ErectionManager');
+            } else if (isDispatchManager) {
+              navigation.replace('DispatchManager');
+            } else {
+              navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+            }
+          }
+        }
+      } catch (error) {
+        console.log('❌ [DashboardScreen] Error checking user role:', error);
+      }
+    };
+    
+    checkUserRole();
+  }, [navigation]);
+
   const validateTokenLocally = (token) => {
     if (!token) return false;
     const parts = token.split('.');
@@ -814,12 +875,17 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
       />
       </View>
 
-      <View style={styles.pieChartContainer}>
-        <PieChart 
-          data={pieChartData}
-          title="QC Jobs Status Distribution"
-          size={180}
-        />
+      <View style={styles.chartCard}>
+        <View style={styles.chartHeader}>
+          <Text style={styles.chartTitle}>QC Jobs Status Distribution</Text>
+        </View>
+        <View style={styles.pieChartContainer}>
+          <PieChart 
+            data={pieChartData}
+            title=""
+            size={300}
+          />
+        </View>
       </View>
 
       <View style={styles.jobsSection}>
@@ -1427,8 +1493,35 @@ const styles = StyleSheet.create({
     borderColor: '#f0f0f0',
   },
   pieChartContainer: {
+    width: '100%',
+    minHeight: 300,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chartCard: {
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
     marginHorizontal: 16,
-    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#f0f0f0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  chartHeader: {
+    marginBottom: 16,
+  },
+  chartTitle: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: Colors.textPrimary,
   },
   summaryCards: {
     flexDirection: 'row',

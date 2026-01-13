@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import * as Location from 'expo-location';
 import { captureRef } from 'react-native-view-shot';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '../styles/colors';
@@ -51,7 +52,12 @@ const QuestionsScreen = ({ route, navigation }) => {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const annotationViewRef = useRef(null);
+  // Use refs to store current color and width so panResponder always has latest values
+  const strokeColorRef = useRef('#007AFF');
+  const strokeWidthRef = useRef(4);
   const [birdsEyeViewVisible, setBirdsEyeViewVisible] = useState(false);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [viewingImage, setViewingImage] = useState(null);
   
   const statusOptions = ['Completed', 'In Progress'];
   
@@ -87,6 +93,17 @@ const QuestionsScreen = ({ route, navigation }) => {
     requestPermissions();
   }, [paperId]);
 
+  // Keep refs in sync with state for panResponder (so it always uses latest color/width)
+  useEffect(() => {
+    strokeColorRef.current = strokeColor;
+    console.log('🎨 [QuestionsScreen] strokeColorRef updated to:', strokeColor);
+  }, [strokeColor]);
+
+  useEffect(() => {
+    strokeWidthRef.current = strokeWidth;
+    console.log('🎨 [QuestionsScreen] strokeWidthRef updated to:', strokeWidth);
+  }, [strokeWidth]);
+
   const requestPermissions = async () => {
     // Request camera permission
     const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
@@ -98,6 +115,18 @@ const QuestionsScreen = ({ route, navigation }) => {
     const mediaStatus = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (mediaStatus.status !== 'granted') {
       console.log('Media library permission not granted');
+    }
+
+    // Request location permission
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Location permission not granted');
+      } else {
+        console.log('✅ [QuestionsScreen] Location permission granted');
+      }
+    } catch (error) {
+      console.log('⚠️ [QuestionsScreen] Error requesting location permission:', error);
     }
   };
 
@@ -247,10 +276,16 @@ const QuestionsScreen = ({ route, navigation }) => {
 
   const handleTakePhoto = async (questionId = null) => {
     try {
+      console.log('📸 [QuestionsScreen] Starting image capture...');
+      console.log('📸 [QuestionsScreen] Question ID:', questionId);
+      
       // Check camera permission
       const { status } = await ImagePicker.getCameraPermissionsAsync();
+      console.log('📸 [QuestionsScreen] Camera permission status:', status);
+      
       if (status !== 'granted') {
         const { status: newStatus } = await ImagePicker.requestCameraPermissionsAsync();
+        console.log('📸 [QuestionsScreen] Requested camera permission, new status:', newStatus);
         if (newStatus !== 'granted') {
           Alert.alert(
             'Permission Required',
@@ -260,12 +295,87 @@ const QuestionsScreen = ({ route, navigation }) => {
         }
       }
 
+      // Get location before taking photo
+      let locationData = null;
+      try {
+        const { status: locationStatus } = await Location.getForegroundPermissionsAsync();
+        if (locationStatus === 'granted') {
+            console.log('📍 [QuestionsScreen] Getting location...');
+            const location = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+              maximumAge: 10000,
+            });
+            
+            console.log('📍 [QuestionsScreen] Location obtained:', {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              accuracy: location.coords.accuracy,
+            });
+
+            // Reverse geocode to get address
+            try {
+              const addresses = await Location.reverseGeocodeAsync({
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+              });
+              
+              if (addresses && addresses.length > 0) {
+                const address = addresses[0];
+                locationData = {
+                  latitude: location.coords.latitude,
+                  longitude: location.coords.longitude,
+                  altitude: location.coords.altitude,
+                  accuracy: location.coords.accuracy,
+                  address: {
+                    street: address.street || '',
+                    city: address.city || '',
+                    region: address.region || '',
+                    country: address.country || '',
+                    postalCode: address.postalCode || '',
+                    name: address.name || '',
+                    formatted: `${address.street || ''} ${address.city || ''} ${address.region || ''} ${address.country || ''}`.trim(),
+                  },
+                  timestamp: new Date().toISOString(),
+                };
+                console.log('📍 [QuestionsScreen] Address obtained:', locationData.address);
+              } else {
+                locationData = {
+                  latitude: location.coords.latitude,
+                  longitude: location.coords.longitude,
+                  altitude: location.coords.altitude,
+                  accuracy: location.coords.accuracy,
+                  timestamp: new Date().toISOString(),
+                };
+              }
+            } catch (geocodeError) {
+              console.log('⚠️ [QuestionsScreen] Reverse geocoding failed:', geocodeError);
+              locationData = {
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                altitude: location.coords.altitude,
+                accuracy: location.coords.accuracy,
+                timestamp: new Date().toISOString(),
+              };
+            }
+          } else {
+            console.log('⚠️ [QuestionsScreen] Location permission not granted');
+          }
+        } catch (locationError) {
+          console.log('⚠️ [QuestionsScreen] Error getting location:', locationError);
+      }
+
       // Launch camera
+      console.log('📸 [QuestionsScreen] Launching camera...');
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: false,
         quality: 1.0,
         base64: false,
+      });
+
+      console.log('📸 [QuestionsScreen] Camera result:', {
+        canceled: result.canceled,
+        assetsCount: result.assets?.length || 0,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -276,7 +386,17 @@ const QuestionsScreen = ({ route, navigation }) => {
           name: `photo_${Date.now()}.jpg`,
           width: asset.width,
           height: asset.height,
+          location: locationData, // Add location data to photo
         };
+        
+        console.log('✅ [QuestionsScreen] Image captured successfully:', {
+          uri: photoData.uri,
+          name: photoData.name,
+          width: photoData.width,
+          height: photoData.height,
+          type: photoData.type,
+          hasLocation: !!locationData,
+        });
         
         // Open annotation modal instead of directly uploading
         setPhotoToAnnotate(photoData);
@@ -284,9 +404,13 @@ const QuestionsScreen = ({ route, navigation }) => {
         setPaths([]);
         setCurrentPath('');
         setAnnotationVisible(true);
+        console.log('🎨 [QuestionsScreen] Annotation modal opened');
+      } else {
+        console.log('ℹ️ [QuestionsScreen] Image capture canceled by user');
       }
     } catch (error) {
-      console.log('Error taking photo:', error);
+      console.log('❌ [QuestionsScreen] Error taking photo:', error);
+      console.log('❌ [QuestionsScreen] Error details:', JSON.stringify(error, null, 2));
       Alert.alert('Error', 'Failed to take photo. Please try again.');
     }
   };
@@ -308,7 +432,7 @@ const QuestionsScreen = ({ route, navigation }) => {
 
       // Launch image library
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: false,
         quality: 1.0,
       });
@@ -360,19 +484,42 @@ const QuestionsScreen = ({ route, navigation }) => {
       }
 
       // Create FormData for file upload
+      // React Native FormData format: { uri, type, name }
+      const fileUri = photoData.uri;
+      const fileType = photoData.type || 'image/jpeg';
+      const fileName = photoData.name || `photo_${Date.now()}.jpg`;
+      
+      console.log('📤 [QuestionsScreen] Preparing file for upload:', {
+        uri: fileUri,
+        type: fileType,
+        name: fileName,
+        uriExists: !!fileUri,
+        uriType: typeof fileUri,
+      });
+      
+      // Verify file URI is accessible
+      if (!fileUri || !fileUri.startsWith('file://') && !fileUri.startsWith('content://') && !fileUri.startsWith('http')) {
+        console.log('⚠️ [QuestionsScreen] File URI format might be incorrect:', fileUri);
+      }
+      
       const formData = new FormData();
       formData.append('file', {
-        uri: photoData.uri,
-        type: photoData.type,
-        name: photoData.name,
+        uri: fileUri,
+        type: fileType,
+        name: fileName,
       });
+      
+      console.log('📤 [QuestionsScreen] FormData created successfully');
 
       // Try with Bearer token first
+      // IMPORTANT: Don't set Content-Type for FormData - React Native will set it with boundary
       const headersWithBearer = {
         ...createAuthHeaders(currentToken, { useBearer: true, includeSessionId: true }),
-        // Let fetch set multipart boundaries automatically
       };
+      // Remove Content-Type to let React Native set multipart/form-data with boundary
+      delete headersWithBearer['Content-Type'];
       console.log('📱 [QuestionsScreen] Upload - Attempt 1: With Bearer token');
+      console.log('📱 [QuestionsScreen] Upload headers:', JSON.stringify(headersWithBearer, null, 2));
 
       let response = await fetch(apiUrl, {
         method: 'POST',
@@ -388,6 +535,9 @@ const QuestionsScreen = ({ route, navigation }) => {
         const headersWithoutBearer = {
           ...createAuthHeaders(currentToken, { useBearer: false, includeSessionId: true }),
         };
+        // Remove Content-Type to let React Native set multipart/form-data with boundary
+        delete headersWithoutBearer['Content-Type'];
+        console.log('📱 [QuestionsScreen] Upload headers (no Bearer):', JSON.stringify(headersWithoutBearer, null, 2));
         response = await fetch(apiUrl, {
           method: 'POST',
           headers: headersWithoutBearer,
@@ -398,26 +548,59 @@ const QuestionsScreen = ({ route, navigation }) => {
 
       if (response.ok) {
         const responseData = await response.json();
-        console.log('✅ [QuestionsScreen] Photo uploaded successfully:', JSON.stringify(responseData, null, 2));
+        console.log('✅ [QuestionsScreen] ==========================================');
+        console.log('✅ [QuestionsScreen] PHOTO UPLOAD SUCCESSFUL!');
+        console.log('✅ [QuestionsScreen] ==========================================');
+        console.log('✅ [QuestionsScreen] Response Status:', response.status);
+        console.log('✅ [QuestionsScreen] Response Data:', JSON.stringify(responseData, null, 2));
+        console.log('✅ [QuestionsScreen] File Name:', responseData.file_name || 'N/A');
+        console.log('✅ [QuestionsScreen] File URL:', responseData.url || responseData.file_path || 'N/A');
+        console.log('✅ [QuestionsScreen] Full Response:', responseData);
+        console.log('✅ [QuestionsScreen] ==========================================');
         
         // Add uploaded photo to photos array with server response data
         const uploadedPhoto = {
           ...photoData,
           serverResponse: responseData,
-          file_name: responseData.file_name, // Save file_name from response
+          file_name: responseData.file_name || responseData.filename || responseData.name, // Save file_name from response
           uploaded: true,
+          uploadedAt: new Date().toISOString(),
         };
+        
+        console.log('📸 [QuestionsScreen] Adding photo to question photos list:', {
+          questionId: questionId,
+          photoUri: uploadedPhoto.uri,
+          fileName: uploadedPhoto.file_name,
+        });
         
         if (questionId) {
           // Add to question-specific photos
           const currentQuestionPhotos = questionPhotos[questionId] || [];
+          const updatedPhotos = [...currentQuestionPhotos, uploadedPhoto];
           setQuestionPhotos({
             ...questionPhotos,
-            [questionId]: [...currentQuestionPhotos, uploadedPhoto],
+            [questionId]: updatedPhotos,
           });
+          console.log('✅ [QuestionsScreen] Photo added to question photos. Total photos for question:', updatedPhotos.length);
+        } else {
+          console.log('⚠️ [QuestionsScreen] No questionId provided, photo not added to list');
         }
+        
+        // Show success alert
+        Alert.alert(
+          'Success',
+          `Photo uploaded successfully!\nFile: ${uploadedPhoto.file_name || 'uploaded'}`,
+          [{ text: 'OK' }]
+        );
       } else {
-        const errorText = await response.text();
+        // Response exists but status is not OK
+        let errorText = 'Unknown error';
+        try {
+          errorText = await response.text();
+        } catch (textError) {
+          console.log('⚠️ [QuestionsScreen] Could not read error response text:', textError);
+          errorText = `Status: ${response.status}`;
+        }
         console.log('❌ [QuestionsScreen] Error uploading photo');
         console.log('📱 [QuestionsScreen] Error status:', response.status);
         console.log('📱 [QuestionsScreen] Error response:', errorText);
@@ -425,7 +608,20 @@ const QuestionsScreen = ({ route, navigation }) => {
       }
     } catch (error) {
       console.log('❌ [QuestionsScreen] Error uploading photo:', error);
+      console.log('❌ [QuestionsScreen] Error type:', error?.constructor?.name);
+      console.log('❌ [QuestionsScreen] Error message:', error?.message);
+      console.log('❌ [QuestionsScreen] Error stack:', error?.stack);
+      
+      // Check if it's a network error
+      if (error?.message?.includes('Network request failed') || error?.message?.includes('Failed to fetch')) {
+        Alert.alert(
+          'Network Error',
+          'Failed to upload photo. Please check your internet connection and try again.',
+          [{ text: 'OK' }]
+        );
+      } else {
       await handleApiError(error, navigation, 'Network error uploading photo.');
+      }
     }
   };
 
@@ -443,16 +639,22 @@ const QuestionsScreen = ({ route, navigation }) => {
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => {
-        return isDrawing;
+        const shouldRespond = isDrawing;
+        console.log('🎨 [QuestionsScreen] onStartShouldSetPanResponder:', shouldRespond, 'isDrawing:', isDrawing);
+        return shouldRespond;
       },
       onMoveShouldSetPanResponder: () => {
-        return isDrawing;
+        const shouldRespond = isDrawing;
+        console.log('🎨 [QuestionsScreen] onMoveShouldSetPanResponder:', shouldRespond);
+        return shouldRespond;
       },
       onPanResponderGrant: (evt) => {
+        console.log('🎨 [QuestionsScreen] onPanResponderGrant - isDrawing:', isDrawing);
         if (!isDrawing) {
           return;
         }
         const { locationX, locationY } = evt.nativeEvent;
+        console.log('🎨 [QuestionsScreen] Drawing started at:', { locationX, locationY });
         const newPath = `M${locationX},${locationY}`;
         setCurrentPath(newPath);
       },
@@ -467,10 +669,21 @@ const QuestionsScreen = ({ route, navigation }) => {
         });
       },
       onPanResponderRelease: () => {
+        console.log('🎨 [QuestionsScreen] onPanResponderRelease - saving path');
+        console.log('🎨 [QuestionsScreen] Current strokeColor from ref:', strokeColorRef.current);
+        console.log('🎨 [QuestionsScreen] Current strokeWidth from ref:', strokeWidthRef.current);
         setCurrentPath((prevPath) => {
           if (prevPath) {
+            console.log('🎨 [QuestionsScreen] Path saved:', prevPath.substring(0, 50) + '...');
             setPaths((prevPaths) => {
-              const newPaths = [...prevPaths, { path: prevPath, color: strokeColor, width: strokeWidth }];
+              // Use ref values to get the latest color and width
+              const newPaths = [...prevPaths, { 
+                path: prevPath, 
+                color: strokeColorRef.current, 
+                width: strokeWidthRef.current 
+              }];
+              console.log('🎨 [QuestionsScreen] Total paths:', newPaths.length);
+              console.log('🎨 [QuestionsScreen] Path color:', strokeColorRef.current);
               return newPaths;
             });
           }
@@ -482,9 +695,18 @@ const QuestionsScreen = ({ route, navigation }) => {
 
   const handleSaveAnnotation = async () => {
     try {
+      console.log('🎨 [QuestionsScreen] Starting annotation save...');
+      
       if (!annotationViewRef.current || !photoToAnnotate) {
+        console.log('❌ [QuestionsScreen] Missing annotation ref or photo data');
         return;
       }
+
+      console.log('🎨 [QuestionsScreen] Capturing annotated image...');
+      console.log('🎨 [QuestionsScreen] Annotation paths count:', paths.length);
+      console.log('🎨 [QuestionsScreen] Current path:', currentPath ? 'exists' : 'empty');
+      console.log('🎨 [QuestionsScreen] Stroke color:', strokeColor);
+      console.log('🎨 [QuestionsScreen] Stroke width:', strokeWidth);
 
       // Capture the annotated image
       const uri = await captureRef(annotationViewRef.current, {
@@ -492,24 +714,42 @@ const QuestionsScreen = ({ route, navigation }) => {
         quality: 0.9,
       });
 
+      console.log('✅ [QuestionsScreen] Annotated image captured:', {
+        uri: uri,
+        originalUri: photoToAnnotate.uri,
+      });
+
       // Create new photo data with annotated image
+      // Preserve location data from original photo
       const annotatedPhotoData = {
         ...photoToAnnotate,
         uri: uri,
         name: `annotated_${Date.now()}.jpg`,
+        location: photoToAnnotate.location, // Preserve location data
       };
+
+      console.log('📤 [QuestionsScreen] Prepared annotated photo data:', {
+        uri: annotatedPhotoData.uri,
+        name: annotatedPhotoData.name,
+        type: annotatedPhotoData.type,
+        width: annotatedPhotoData.width,
+        height: annotatedPhotoData.height,
+      });
 
       // Close annotation modal
       setAnnotationVisible(false);
       setPhotoToAnnotate(null);
       setPaths([]);
       setCurrentPath('');
+      console.log('🎨 [QuestionsScreen] Annotation modal closed');
 
       // Upload the annotated photo
+      console.log('📤 [QuestionsScreen] Starting upload of annotated photo...');
       await uploadPhotoToServer(annotatedPhotoData, currentQuestionId);
       setCurrentQuestionId(null);
     } catch (error) {
-      console.log('Error saving annotation:', error);
+      console.log('❌ [QuestionsScreen] Error saving annotation:', error);
+      console.log('❌ [QuestionsScreen] Error details:', JSON.stringify(error, null, 2));
       Alert.alert('Error', 'Failed to save annotated photo. Please try again.');
     }
   };
@@ -823,7 +1063,20 @@ const QuestionsScreen = ({ route, navigation }) => {
                     <View style={styles.photosContainer}>
                       {questionPhotosList.map((photo, photoIndex) => (
                         <View key={photoIndex} style={styles.photoItem}>
-                          <Image source={{ uri: photo.uri }} style={styles.photoPreview} />
+                          <TouchableOpacity
+                            onPress={() => {
+                              setViewingImage(photo);
+                              setImageViewerVisible(true);
+                            }}
+                            activeOpacity={0.8}
+                            style={styles.photoPreviewContainer}
+                          >
+                            <Image 
+                              source={{ uri: photo.uri }} 
+                              style={styles.photoPreview}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
                           <TouchableOpacity
                             style={styles.removePhotoButton}
                             onPress={() => handleRemovePhoto(question.id, photoIndex)}
@@ -913,6 +1166,411 @@ const QuestionsScreen = ({ route, navigation }) => {
        
         
       </ScrollView>
+
+      {/* Annotation Modal - Beautiful & User-Friendly */}
+      <Modal
+        visible={annotationVisible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={handleCancelAnnotation}
+        statusBarTranslucent={true}
+      >
+        <View style={styles.annotationContainer}>
+          {/* Top Toolbar - Modern Design */}
+          <View style={styles.annotationHeader}>
+            <TouchableOpacity
+              onPress={handleCancelAnnotation}
+              style={styles.annotationCancelButton}
+              activeOpacity={0.7}
+            >
+              <View style={styles.iconButton}>
+                <Text style={styles.iconText}>✕</Text>
+              </View>
+              <Text style={styles.annotationCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <View style={styles.annotationTitleContainer}>
+              <Text style={styles.annotationTitle}>Edit Photo</Text>
+              <Text style={styles.annotationSubtitle}>Draw on your image</Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleSaveAnnotation}
+              style={styles.annotationDoneButton}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.annotationDoneText}>✓ Save</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Image with Drawing Canvas */}
+          <View
+            ref={annotationViewRef}
+            style={styles.annotationImageContainer}
+            collapsable={false}
+            {...panResponder.panHandlers}
+          >
+            {photoToAnnotate && (
+              <Image
+                source={{ uri: photoToAnnotate.uri }}
+                style={styles.annotationImage}
+                resizeMode="contain"
+              />
+            )}
+            <Svg style={styles.annotationSvg} width={SCREEN_WIDTH} height={SCREEN_HEIGHT * 0.7}>
+              {paths.map((pathData, index) => (
+                <Path
+                  key={index}
+                  d={pathData.path}
+                  stroke={pathData.color}
+                  strokeWidth={pathData.width}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
+              {currentPath && (
+                <Path
+                  d={currentPath}
+                  stroke={strokeColorRef.current || strokeColor}
+                  strokeWidth={strokeWidthRef.current || strokeWidth}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+            </Svg>
+          </View>
+
+          {/* Bottom Toolbar - Enhanced Design */}
+          <View style={styles.annotationToolbar}>
+            {/* Color Picker Button */}
+            <TouchableOpacity
+              onPress={() => {
+                setShowColorPicker(!showColorPicker);
+                setShowPenOptions(false);
+              }}
+              style={[
+                styles.annotationToolButton,
+                showColorPicker && styles.annotationToolButtonActive
+              ]}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.colorPreview, { backgroundColor: strokeColor }]}>
+                {showColorPicker && <View style={styles.activeIndicator} />}
+              </View>
+              <Text style={[
+                styles.annotationToolText,
+                showColorPicker && styles.annotationToolTextActive
+              ]}>Color</Text>
+            </TouchableOpacity>
+
+            {/* Pen Size Button */}
+            <TouchableOpacity
+              onPress={() => {
+                setShowPenOptions(!showPenOptions);
+                setShowColorPicker(false);
+              }}
+              style={[
+                styles.annotationToolButton,
+                showPenOptions && styles.annotationToolButtonActive
+              ]}
+              activeOpacity={0.7}
+            >
+              <View style={styles.penSizePreview}>
+                <View style={[styles.penSizeDot, { 
+                  width: Math.max(strokeWidth * 2, 8), 
+                  height: Math.max(strokeWidth * 2, 8), 
+                  backgroundColor: strokeColor 
+                }]} />
+                {showPenOptions && <View style={styles.activeIndicator} />}
+              </View>
+              <Text style={[
+                styles.annotationToolText,
+                showPenOptions && styles.annotationToolTextActive
+              ]}>Size</Text>
+            </TouchableOpacity>
+
+            {/* Clear All Button */}
+            <TouchableOpacity
+              onPress={handleClearAnnotation}
+              style={styles.annotationToolButton}
+              activeOpacity={0.7}
+            >
+              <View style={styles.clearIconContainer}>
+                <Text style={styles.clearIcon}>🗑</Text>
+              </View>
+              <Text style={styles.annotationToolText}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Color Picker Popup - Enhanced */}
+          {showColorPicker && (
+            <View style={styles.colorPickerContainer}>
+              <View style={styles.colorPickerHeader}>
+                <Text style={styles.colorPickerTitle}>Choose Color</Text>
+                <TouchableOpacity
+                  onPress={() => setShowColorPicker(false)}
+                  style={styles.closePickerButton}
+                >
+                  <Text style={styles.closePickerText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.colorPickerGrid}>
+                {colorOptions.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                  onPress={() => {
+                    console.log('🎨 [QuestionsScreen] Color selected:', color);
+                    setStrokeColor(color);
+                    strokeColorRef.current = color; // Update ref immediately
+                    setShowColorPicker(false);
+                  }}
+                    style={[
+                      styles.colorOption,
+                      { backgroundColor: color },
+                      strokeColor === color && styles.colorOptionSelected,
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    {strokeColor === color && (
+                      <View style={styles.colorCheckmark}>
+                        <Text style={styles.colorCheckmarkText}>✓</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Pen Size Popup - Enhanced */}
+          {showPenOptions && (
+            <View style={styles.penSizeContainer}>
+              <View style={styles.penSizeHeader}>
+                <Text style={styles.penSizeTitle}>Pen Size</Text>
+                <TouchableOpacity
+                  onPress={() => setShowPenOptions(false)}
+                  style={styles.closePickerButton}
+                >
+                  <Text style={styles.closePickerText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.penSizeGrid}>
+                {penSizes.map((size) => (
+                  <TouchableOpacity
+                    key={size}
+                  onPress={() => {
+                    console.log('🎨 [QuestionsScreen] Pen size selected:', size);
+                    setStrokeWidth(size);
+                    strokeWidthRef.current = size; // Update ref immediately
+                    setShowPenOptions(false);
+                  }}
+                    style={[
+                      styles.penSizeOption,
+                      strokeWidth === size && styles.penSizeOptionSelected,
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[
+                      styles.penSizeIndicator, 
+                      { 
+                        width: size * 3, 
+                        height: size * 3, 
+                        backgroundColor: strokeColor,
+                        borderRadius: (size * 3) / 2,
+                      }
+                    ]} />
+                    {strokeWidth === size && (
+                      <View style={styles.penSizeCheckmark}>
+                        <Text style={styles.penSizeCheckmarkText}>✓</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
+      {/* Image Viewer Modal - Full Screen */}
+      <Modal
+        visible={imageViewerVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setImageViewerVisible(false);
+          setViewingImage(null);
+        }}
+        statusBarTranslucent={true}
+      >
+        <View style={styles.imageViewerContainer}>
+          <TouchableOpacity
+            style={styles.imageViewerCloseButton}
+            onPress={() => {
+              setImageViewerVisible(false);
+              setViewingImage(null);
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.imageViewerCloseIcon}>
+              <Text style={styles.imageViewerCloseText}>✕</Text>
+            </View>
+          </TouchableOpacity>
+          
+          {viewingImage && (
+            <>
+              <ScrollView
+                contentContainerStyle={styles.imageViewerScrollContent}
+                maximumZoomScale={3}
+                minimumZoomScale={1}
+                showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}
+              >
+                <Image
+                  source={{ uri: viewingImage.uri }}
+                  style={styles.imageViewerImage}
+                  resizeMode="contain"
+                />
+              </ScrollView>
+              
+              {/* Image Info Footer - Only Location */}
+              <View style={styles.imageViewerFooter}>
+                {/* Location/Geotag Information - White Text */}
+                {viewingImage.location && (
+                  <View style={styles.imageViewerLocationSection}>
+                    <View style={styles.imageViewerLocationHeader}>
+                      <Text style={styles.imageViewerLocationIcon}>📍</Text>
+                      <Text style={styles.imageViewerLocationTitle}>Location</Text>
+                    </View>
+                    {viewingImage.location.address?.formatted && (
+                      <Text style={styles.imageViewerLocationAddress} numberOfLines={2}>
+                        {viewingImage.location.address.formatted}
+                      </Text>
+                    )}
+                    {viewingImage.location.address?.street && (
+                      <Text style={styles.imageViewerLocationDetail}>
+                        {viewingImage.location.address.street}
+                        {viewingImage.location.address.city && `, ${viewingImage.location.address.city}`}
+                        {viewingImage.location.address.region && `, ${viewingImage.location.address.region}`}
+                        {viewingImage.location.address.country && `, ${viewingImage.location.address.country}`}
+                        {viewingImage.location.address.postalCode && ` ${viewingImage.location.address.postalCode}`}
+                      </Text>
+                    )}
+                    <View style={styles.imageViewerLocationCoords}>
+                      <Text style={styles.imageViewerLocationCoordText}>
+                        Lat: {viewingImage.location.latitude?.toFixed(6) || 'N/A'}
+                      </Text>
+                      <Text style={styles.imageViewerLocationCoordText}>
+                        Long: {viewingImage.location.longitude?.toFixed(6) || 'N/A'}
+                      </Text>
+                      {viewingImage.location.altitude && (
+                        <Text style={styles.imageViewerLocationCoordText}>
+                          Alt: {viewingImage.location.altitude.toFixed(2)}m
+                        </Text>
+                      )}
+                      {viewingImage.location.accuracy && (
+                        <Text style={styles.imageViewerLocationCoordText}>
+                          Accuracy: ±{viewingImage.location.accuracy.toFixed(0)}m
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+        </View>
+      </Modal>
+
+      {/* Image Viewer Modal - Full Screen */}
+      <Modal
+        visible={imageViewerVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setImageViewerVisible(false);
+          setViewingImage(null);
+        }}
+        statusBarTranslucent={true}
+      >
+        <View style={styles.imageViewerContainer}>
+          <TouchableOpacity
+            style={styles.imageViewerCloseButton}
+            onPress={() => {
+              setImageViewerVisible(false);
+              setViewingImage(null);
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.imageViewerCloseIcon}>
+              <Text style={styles.imageViewerCloseText}>✕</Text>
+            </View>
+          </TouchableOpacity>
+          
+          {viewingImage && (
+            <>
+              <ScrollView
+                contentContainerStyle={styles.imageViewerScrollContent}
+                maximumZoomScale={3}
+                minimumZoomScale={1}
+                showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}
+              >
+                <Image
+                  source={{ uri: viewingImage.uri }}
+                  style={styles.imageViewerImage}
+                  resizeMode="contain"
+                />
+              </ScrollView>
+              
+              {/* Image Info Footer - Only Location */}
+              <View style={styles.imageViewerFooter}>
+                {/* Location/Geotag Information - White Text */}
+                {viewingImage.location && (
+                  <View style={styles.imageViewerLocationSection}>
+                    <View style={styles.imageViewerLocationHeader}>
+                      <Text style={styles.imageViewerLocationIcon}>📍</Text>
+                      <Text style={styles.imageViewerLocationTitle}>Location</Text>
+                    </View>
+                    {viewingImage.location.address?.formatted && (
+                      <Text style={styles.imageViewerLocationAddress} numberOfLines={2}>
+                        {viewingImage.location.address.formatted}
+                      </Text>
+                    )}
+                    {viewingImage.location.address?.street && (
+                      <Text style={styles.imageViewerLocationDetail}>
+                        {viewingImage.location.address.street}
+                        {viewingImage.location.address.city && `, ${viewingImage.location.address.city}`}
+                        {viewingImage.location.address.region && `, ${viewingImage.location.address.region}`}
+                        {viewingImage.location.address.country && `, ${viewingImage.location.address.country}`}
+                        {viewingImage.location.address.postalCode && ` ${viewingImage.location.address.postalCode}`}
+                      </Text>
+                    )}
+                    <View style={styles.imageViewerLocationCoords}>
+                      <Text style={styles.imageViewerLocationCoordText}>
+                        Lat: {viewingImage.location.latitude?.toFixed(6) || 'N/A'}
+                      </Text>
+                      <Text style={styles.imageViewerLocationCoordText}>
+                        Long: {viewingImage.location.longitude?.toFixed(6) || 'N/A'}
+                      </Text>
+                      {viewingImage.location.altitude && (
+                        <Text style={styles.imageViewerLocationCoordText}>
+                          Alt: {viewingImage.location.altitude.toFixed(2)}m
+                        </Text>
+                      )}
+                      {viewingImage.location.accuracy && (
+                        <Text style={styles.imageViewerLocationCoordText}>
+                          Accuracy: ±{viewingImage.location.accuracy.toFixed(0)}m
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+        </View>
+      </Modal>
 
       {/* Bird's Eye View Modal */}
       <BirdsEyeViewModal
@@ -1156,6 +1814,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: BWTheme.border,
   },
+  uploadedBadge: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: '#34C759',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 2,
+  },
+  uploadedBadgeText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.extraSmall,
+    fontWeight: FontWeights.bold,
+  },
+  fileNameBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    right: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 2,
+  },
+  fileNameText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.extraSmall,
+    fontWeight: FontWeights.medium,
+  },
   removePhotoButton: {
     position: 'absolute',
     top: -6,
@@ -1376,6 +2065,495 @@ const styles = StyleSheet.create({
     color: BWTheme.textSecondary,
     textAlign: 'center',
     fontWeight: FontWeights.medium,
+  },
+  // Annotation Modal Styles - Beautiful & User-Friendly
+  annotationContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  annotationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#1A1A1A',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A2A2A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  annotationCancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2A2A2A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  iconText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: FontWeights.bold,
+  },
+  annotationCancelText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.medium,
+  },
+  annotationTitleContainer: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  annotationTitle: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.large,
+    fontWeight: FontWeights.bold,
+    marginBottom: 2,
+  },
+  annotationSubtitle: {
+    color: '#999999',
+    fontSize: FontSizes.extraSmall,
+    fontWeight: FontWeights.regular,
+  },
+  annotationDoneButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#007AFF',
+    borderRadius: 20,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  annotationDoneText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.bold,
+  },
+  annotationImageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+  },
+  annotationImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.7,
+    position: 'absolute',
+  },
+  annotationSvg: {
+    position: 'absolute',
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.7,
+  },
+  annotationToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+    backgroundColor: '#1A1A1A',
+    borderTopWidth: 1,
+    borderTopColor: '#2A2A2A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  annotationToolButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+    minWidth: 80,
+  },
+  annotationToolButtonActive: {
+    backgroundColor: '#2A2A2A',
+  },
+  colorPreview: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeIndicator: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#34C759',
+    borderWidth: 2,
+    borderColor: '#1A1A1A',
+  },
+  penSizePreview: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    position: 'relative',
+  },
+  penSizeDot: {
+    borderRadius: 999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  annotationToolText: {
+    color: '#CCCCCC',
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.medium,
+    marginTop: 4,
+  },
+  annotationToolTextActive: {
+    color: '#FFFFFF',
+    fontWeight: FontWeights.bold,
+  },
+  clearIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#2A2A2A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  clearIcon: {
+    fontSize: 20,
+  },
+  colorPickerContainer: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 110 : 100,
+    left: 0,
+    right: 0,
+    backgroundColor: '#1A1A1A',
+    borderTopWidth: 1,
+    borderTopColor: '#2A2A2A',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A2A2A',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  colorPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  colorPickerTitle: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+  },
+  closePickerButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#2A2A2A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closePickerText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: FontWeights.bold,
+  },
+  colorPickerGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  colorOption: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginHorizontal: 8,
+    marginVertical: 8,
+    borderWidth: 3,
+    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorOptionSelected: {
+    borderColor: '#FFFFFF',
+    transform: [{ scale: 1.1 }],
+  },
+  colorCheckmark: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorCheckmarkText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: FontWeights.bold,
+  },
+  penSizeContainer: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 110 : 100,
+    left: 0,
+    right: 0,
+    backgroundColor: '#1A1A1A',
+    borderTopWidth: 1,
+    borderTopColor: '#2A2A2A',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A2A2A',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  penSizeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  penSizeTitle: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+  },
+  penSizeGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  penSizeOption: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginHorizontal: 8,
+    marginVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'transparent',
+    backgroundColor: '#2A2A2A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
+    position: 'relative',
+  },
+  penSizeOptionSelected: {
+    borderColor: '#007AFF',
+    backgroundColor: '#1A3A5A',
+    transform: [{ scale: 1.1 }],
+  },
+  penSizeIndicator: {
+    borderRadius: 999,
+  },
+  penSizeCheckmark: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  penSizeCheckmarkText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: FontWeights.bold,
+  },
+  // Image Viewer Styles
+  photoPreviewContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  imageViewerContainer: {
+    flex: 1,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerCloseButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    right: 20,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  imageViewerCloseIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerCloseText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: FontWeights.bold,
+  },
+  imageViewerScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+  },
+  imageViewerImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.8,
+  },
+  imageViewerFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+    borderTopWidth: 1,
+    borderTopColor: '#333333',
+  },
+  imageViewerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  imageViewerLabel: {
+    color: '#CCCCCC',
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.medium,
+    marginRight: 8,
+  },
+  imageViewerValue: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.regular,
+    flex: 1,
+  },
+  imageViewerStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  imageViewerStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#34C759',
+    marginRight: 8,
+  },
+  imageViewerStatusText: {
+    color: '#34C759',
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.bold,
+  },
+  imageViewerLocationSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  imageViewerLocationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  imageViewerLocationIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  imageViewerLocationTitle: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+  },
+  imageViewerLocationAddress: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.medium,
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  imageViewerLocationDetail: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.extraSmall,
+    fontWeight: FontWeights.regular,
+    marginBottom: 8,
+    opacity: 0.9,
+  },
+  imageViewerLocationCoords: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 4,
+  },
+  imageViewerLocationCoordText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.extraSmall,
+    fontWeight: FontWeights.regular,
+    opacity: 0.85,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 });
 

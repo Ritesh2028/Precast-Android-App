@@ -22,7 +22,7 @@ import { handleApiError, handle401Error } from '../services/errorHandler';
 
 const { width, height } = Dimensions.get('window');
 
-const CameraQRScanner = ({ visible, onClose, onScan, navigation }) => {
+const CameraQRScanner = ({ visible, onClose, onScan, navigation, autoProcess = false }) => {
   const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
   const [manualData, setManualData] = useState('');
@@ -119,6 +119,14 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation }) => {
       setScanned(true);
       setQrDetected(true);
       setDetectedData(data);
+      
+      // If autoProcess is true, directly call onScan without validation or action modal
+      if (autoProcess) {
+        setScanned(false);
+        setQrDetected(false);
+        onScan(data);
+        return;
+      }
       
       // Parse QR code data to check for paper_id and is_valid
       const qrData = parseQRCodeData(data);

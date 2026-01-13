@@ -32,6 +32,7 @@ import ProjectDropdown from '../components/ProjectDropdown';
 import { DateFilter } from '../components/DateFilter';
 import LineChart from '../components/LineChart';
 import TowerFloorEditor from '../components/TowerFloorEditor';
+import CameraQRScanner from '../components/CameraQRScanner';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -86,13 +87,27 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   }));
   const [showCreateRequest, setShowCreateRequest] = useState(false);
   const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [showReceiveDispatch, setShowReceiveDispatch] = useState(false);
+  const [showMarkErected, setShowMarkErected] = useState(false);
   // Removed taskSection state - both sections will be shown together
   const [pendingDispatchOrders, setPendingDispatchOrders] = useState([]);
   const [loadingDispatchOrders, setLoadingDispatchOrders] = useState(false);
   const [selectedDispatchItems, setSelectedDispatchItems] = useState([]);
+  const [expandedOrders, setExpandedOrders] = useState(new Set());
   const [receiveComments, setReceiveComments] = useState('');
   const [receiveModalVisible, setReceiveModalVisible] = useState(false);
   const [submittingReceive, setSubmittingReceive] = useState(false);
+  
+  // Mark Erected states
+  const [incompleteErectedElements, setIncompleteErectedElements] = useState([]);
+  const [loadingIncompleteElements, setLoadingIncompleteElements] = useState(false);
+  const [selectedErectElements, setSelectedErectElements] = useState([]);
+  const [erectComments, setErectComments] = useState('');
+  const [erectModalVisible, setErectModalVisible] = useState(false);
+  const [submittingErect, setSubmittingErect] = useState(false);
+  
+  // QR Scanner state
+  const [qrScannerVisible, setQrScannerVisible] = useState(false);
   
   const statusOptions = ['Completed', 'In Progress'];
   
@@ -122,6 +137,194 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
       return false;
     }
   };
+
+  // Extract element_id from QR code data
+  const extractElementIdFromQR = (qrData) => {
+    if (!qrData) return null;
+    
+    try {
+      // Try to parse as JSON first
+      const parsed = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
+      if (parsed && typeof parsed === 'object') {
+        // Check for element_id in various possible fields
+        if (parsed.element_id) return String(parsed.element_id);
+        if (parsed.id && parsed.paper_id) return String(parsed.id); // If it's a task/paper QR
+        if (parsed.elementId) return String(parsed.elementId);
+      }
+    } catch (e) {
+      // Not JSON, try regex extraction
+    }
+    
+    // Try regex to extract numbers (element IDs are usually numeric)
+    const numberMatch = String(qrData).match(/\d+/);
+    if (numberMatch) {
+      return numberMatch[0];
+    }
+    
+    return null;
+  };
+
+  // Handle QR scan for marking erected
+  const handleQRScanForErect = async (qrData) => {
+    console.log('[ErectionManagerScreen] QR scanned:', qrData);
+    
+    // Ensure scanner is closed immediately
+    setQrScannerVisible(false);
+    
+    const elementId = extractElementIdFromQR(qrData);
+    if (!elementId) {
+      Alert.alert(
+        'Invalid QR Code',
+        'Could not extract element ID from QR code. Please scan a valid element QR code.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    console.log('[ErectionManagerScreen] Extracted element ID:', elementId);
+
+    // Switch to task tab if not already there
+    if (activeTab !== 'task') {
+      setActiveTab('task');
+    }
+
+    // Ensure incomplete elements are loaded
+    if (incompleteErectedElements.length === 0 && !loadingIncompleteElements) {
+      console.log('[ErectionManagerScreen] Loading incomplete elements...');
+      await loadIncompleteErectedElements();
+      // Wait for state to update
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
+
+    // Function to find and process element
+    const findAndProcessElement = () => {
+      const foundElement = incompleteErectedElements.find(
+        element => String(element.element_id) === String(elementId)
+      );
+
+      if (foundElement) {
+        console.log('[ErectionManagerScreen] Element found:', foundElement.element_id);
+        selectAndShowModal(foundElement);
+      } else {
+        console.log('[ErectionManagerScreen] Element not found in list');
+        showElementNotFoundAlert(elementId);
+      }
+    };
+
+    // If still loading, wait for it to complete
+    if (loadingIncompleteElements) {
+      console.log('[ErectionManagerScreen] Waiting for elements to load...');
+      const maxWaitTime = 5000; // 5 seconds max
+      const startTime = Date.now();
+      const checkInterval = setInterval(() => {
+        if (!loadingIncompleteElements || (Date.now() - startTime) > maxWaitTime) {
+          clearInterval(checkInterval);
+          findAndProcessElement();
+        }
+      }, 300);
+      return;
+    }
+
+    // Find and process element immediately
+    findAndProcessElement();
+  };
+
+  // Helper function to show element not found alert
+  const showElementNotFoundAlert = (elementId) => {
+    Alert.alert(
+      'Element Not Found',
+      `Element ID ${elementId} is not in the incomplete erected elements list. It may already be erected or not received yet.`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  // Helper function to select element and show modal
+  const selectAndShowModal = (foundElement) => {
+    // Ensure scanner is closed first
+    setQrScannerVisible(false);
+    
+    // Check if already selected
+    const isAlreadySelected = selectedErectElements.some(
+      e => String(e.element_id) === String(foundElement.element_id)
+    );
+
+    if (!isAlreadySelected) {
+      // Add to selected elements
+      setSelectedErectElements(prev => [...prev, foundElement]);
+    }
+
+    // Show the erect modal after a short delay to ensure scanner is closed
+    setTimeout(() => {
+      setErectModalVisible(true);
+    }, 300);
+  };
+
+  // Handle QR scan from scanner
+  const handleQRScan = (qrData) => {
+    console.log('[ErectionManagerScreen] QR scan received:', qrData);
+    // Close scanner immediately
+    setQrScannerVisible(false);
+    // Small delay to ensure scanner closes before processing
+    setTimeout(() => {
+      // Process the QR scan
+      handleQRScanForErect(qrData);
+    }, 100);
+  };
+
+  // Override header QR button to open our scanner for marking erected
+  useEffect(() => {
+    // Set navigation options to handle QR scan
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => {
+              console.log('Notifications pressed');
+            }}
+            style={{ paddingHorizontal: 8, paddingVertical: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel="Open notifications"
+          >
+            <Image
+              source={require('../icons/bell.png')}
+              style={{ width: 24, height: 24, tintColor: '#333' }}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              // Open our QR scanner for marking erected
+              setQrScannerVisible(true);
+            }}
+            style={{ paddingHorizontal: 8, paddingVertical: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel="Open scanner for marking erected"
+          >
+            <Image
+              source={require('../icons/qr-code.png')}
+              style={{ width: 24, height: 24, tintColor: '#333' }}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </View>
+      ),
+    });
+  }, [navigation]);
+
+  // Also handle when user navigates to Scan screen and comes back
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Check if we have QR scan data from route params (if user navigated to Scan screen)
+      const qrScanData = route.params?.qrScanData;
+      if (qrScanData) {
+        handleQRScanForErect(qrScanData);
+        // Clear the param to avoid processing again
+        navigation.setParams({ qrScanData: undefined });
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, route.params]);
 
   useEffect(() => {
     if (paperId) {
@@ -1259,22 +1462,120 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     }
   };
 
-  // Load dispatch orders when task tab is active
+  // Load incomplete erected elements
+  const loadIncompleteErectedElements = async () => {
+    const projectId = selectedProjectId || route.params?.projectId;
+    
+    if (!projectId) {
+      setIncompleteErectedElements([]);
+      return;
+    }
+
+    setLoadingIncompleteElements(true);
+
+    try {
+      const { accessToken } = await getTokens();
+      if (!accessToken) {
+        return;
+      }
+
+      // Validate session
+      let currentToken = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          currentToken = sessionResult.session_id;
+        }
+      } catch (validateError) {
+        console.log('Session validation failed');
+      }
+
+      const url = `${API_BASE_URL}/api/erection_stock/received/${projectId}`;
+      const headers = createAuthHeaders(currentToken, { useBearer: true });
+      
+      let response = await fetch(url, { headers });
+      
+      if (response.status === 401) {
+        const headersWithoutBearer = createAuthHeaders(currentToken, { useBearer: false });
+        response = await fetch(url, { headers: headersWithoutBearer });
+      }
+
+      if (response.ok) {
+        const responseData = await response.json();
+        // Filter for incomplete erected elements (erected === false)
+        const incomplete = Array.isArray(responseData) 
+          ? responseData.filter(element => element.erected === false)
+          : [];
+        setIncompleteErectedElements(incomplete);
+      } else {
+        setIncompleteErectedElements([]);
+      }
+    } catch (err) {
+      console.error('Error loading incomplete erected elements:', err);
+      setIncompleteErectedElements([]);
+    } finally {
+      setLoadingIncompleteElements(false);
+    }
+  };
+
+  // Load dispatch orders and incomplete elements when task tab is active
   useEffect(() => {
     if (activeTab === 'task') {
       loadPendingDispatchOrders();
+      loadIncompleteErectedElements();
     }
   }, [activeTab, selectedProjectId]);
 
-  // Toggle item selection
-  const toggleDispatchItemSelection = (item, orderId) => {
-    const itemKey = `${orderId}_${item.element_id}`;
-    setSelectedDispatchItems(prev => {
-      const exists = prev.find(i => `${i.orderId}_${i.element_id}` === itemKey);
-      if (exists) {
-        return prev.filter(i => `${i.orderId}_${i.element_id}` !== itemKey);
+  // Toggle order expansion (show/hide items)
+  const toggleOrderExpansion = (orderId, event) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    setExpandedOrders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId);
       } else {
-        return [...prev, { ...item, orderId }];
+        newSet.add(orderId);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle order selection (selects/deselects all items in an order)
+  const toggleOrderSelection = (order) => {
+    if (!order.items || order.items.length === 0) {
+      return;
+    }
+
+    setSelectedDispatchItems(prev => {
+      // Check if all items in this order are already selected
+      const orderItems = order.items.map(item => `${order.id}_${item.element_id}`);
+      const allSelected = orderItems.every(itemKey => 
+        prev.some(i => `${i.orderId}_${i.element_id}` === itemKey)
+      );
+
+      if (allSelected) {
+        // Deselect all items in this order
+        return prev.filter(i => i.orderId !== order.id);
+      } else {
+        // Select all items in this order
+        const newItems = order.items.map(item => ({ ...item, orderId: order.id }));
+        // Remove any existing items from this order first, then add all
+        const filtered = prev.filter(i => i.orderId !== order.id);
+        return [...filtered, ...newItems];
+      }
+    });
+  };
+
+  // Toggle erect element selection
+  const toggleErectElementSelection = (element) => {
+    setSelectedErectElements(prev => {
+      const exists = prev.find(e => e.element_id === element.element_id);
+      if (exists) {
+        return prev.filter(e => e.element_id !== element.element_id);
+      } else {
+        return [...prev, element];
       }
     });
   };
@@ -1368,6 +1669,95 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     }
   };
 
+  // Handle marking elements as erected
+  const handleMarkAsErected = async () => {
+    if (!erectComments.trim()) {
+      Alert.alert('Error', 'Please enter comments before erecting elements.');
+      return;
+    }
+
+    if (selectedErectElements.length === 0) {
+      Alert.alert('Error', 'Please select at least one element to erect.');
+      return;
+    }
+
+    setSubmittingErect(true);
+    try {
+      const { accessToken } = await getTokens();
+      if (!accessToken) {
+        Alert.alert('Authentication Required', 'Please login to erect elements.');
+        return;
+      }
+
+      // Validate session
+      let currentToken = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          currentToken = sessionResult.session_id;
+        }
+      } catch (validateError) {
+        console.log('Session validation failed');
+      }
+
+      const projectId = selectedProjectId || route.params?.projectId;
+      const elementIds = selectedErectElements.map(element => element.element_id);
+
+      const url = `${API_BASE_URL}/api/erection_stock/update_when_erected`;
+      const headers = {
+        ...createAuthHeaders(currentToken, { useBearer: true }),
+        'Content-Type': 'application/json',
+      };
+
+      const requestBody = {
+        element_ids: elementIds,
+        project_id: Number(projectId),
+        comments: erectComments.trim(),
+      };
+
+      let response = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+
+      if (response.status === 401) {
+        const headersWithoutBearer = {
+          ...createAuthHeaders(currentToken, { useBearer: false }),
+          'Content-Type': 'application/json',
+        };
+        response = await fetch(url, {
+          method: 'PUT',
+          headers: headersWithoutBearer,
+          body: JSON.stringify(requestBody),
+        });
+      }
+
+      if (response.ok) {
+        Alert.alert('Success', 'Elements erected successfully!', [
+          {
+            text: 'OK',
+            onPress: () => {
+              setErectModalVisible(false);
+              setErectComments('');
+              setSelectedErectElements([]);
+              loadIncompleteErectedElements();
+            },
+          },
+        ]);
+      } else {
+        const errorText = await response.text();
+        console.log('Error erecting elements:', errorText);
+        Alert.alert('Error', 'Failed to erect elements. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error erecting elements:', error);
+      Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
+      setSubmittingErect(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -1405,24 +1795,90 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
           {/* Show Create Request and Receive Dispatch when task tab is active */}
           {activeTab === 'task' ? (
             <View style={styles.taskSectionContainer}>
-              {/* Create Request Section */}
-              <View style={styles.createRequestSection}>
-                <View style={styles.createRequestHeader}>
-                  <Text style={styles.createRequestTitle}>Create Request</Text>
-                </View>
-                <View style={styles.createRequestContent}>
-                  <TowerFloorEditor
-                    projectId={selectedProjectId || projectId}
-                    onSave={handleSaveErectionRequest}
-                  />
-                </View>
+              {/* Operation Buttons */}
+              <View style={styles.operationButtonsContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.operationButton,
+                    showCreateRequest && styles.operationButtonActive
+                  ]}
+                  onPress={() => {
+                    setShowCreateRequest(!showCreateRequest);
+                    setShowReceiveDispatch(false);
+                    setShowMarkErected(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.operationButtonText,
+                    showCreateRequest && styles.operationButtonTextActive
+                  ]}>
+                    Create Request
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.operationButton,
+                    showReceiveDispatch && styles.operationButtonActive
+                  ]}
+                  onPress={() => {
+                    setShowReceiveDispatch(!showReceiveDispatch);
+                    setShowCreateRequest(false);
+                    setShowMarkErected(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.operationButtonText,
+                    showReceiveDispatch && styles.operationButtonTextActive
+                  ]}>
+                    Receive Dispatch
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.operationButton,
+                    showMarkErected && styles.operationButtonActive
+                  ]}
+                  onPress={() => {
+                    setShowMarkErected(!showMarkErected);
+                    setShowCreateRequest(false);
+                    setShowReceiveDispatch(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.operationButtonText,
+                    showMarkErected && styles.operationButtonTextActive
+                  ]}>
+                    Mark Erected
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              {/* Receive Dispatch Section */}
-              <View style={styles.receiveDispatchSection}>
-                <View style={styles.receiveDispatchHeader}>
-                  <Text style={styles.receiveDispatchTitle}>Receive Dispatch</Text>
+              {/* Create Request Section */}
+              {showCreateRequest && (
+                <View style={styles.createRequestSection}>
+                  <View style={styles.createRequestHeader}>
+                    <Text style={styles.createRequestTitle}>Create Request</Text>
+                  </View>
+                  <View style={styles.createRequestContent}>
+                    <TowerFloorEditor
+                      projectId={selectedProjectId || projectId}
+                      onSave={handleSaveErectionRequest}
+                    />
+                  </View>
                 </View>
+              )}
+
+              {/* Receive Dispatch Section */}
+              {showReceiveDispatch && (
+                <View style={styles.receiveDispatchSection}>
+                  <View style={styles.receiveDispatchHeader}>
+                    <Text style={styles.receiveDispatchTitle}>Receive Dispatch</Text>
+                  </View>
                 {loadingDispatchOrders ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#007AFF" />
@@ -1434,33 +1890,75 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                   </View>
                 ) : (
                   <View style={styles.dispatchOrdersContainer}>
-                    {pendingDispatchOrders.map((order) => (
-                      <View key={order.id} style={styles.dispatchOrderCard}>
-                        <View style={styles.dispatchOrderHeader}>
-                          <View style={styles.dispatchOrderHeaderLeft}>
-                            <Text style={styles.dispatchOrderId}>
-                              {order.dispatch_order_id || 'N/A'}
-                            </Text>
-                            <Text style={styles.dispatchOrderDate}>
-                              {order.dispatch_date 
-                                ? new Date(order.dispatch_date).toLocaleDateString()
-                                : 'N/A'}
-                            </Text>
-                          </View>
-                          <View style={[
-                            styles.dispatchStatusBadge,
-                            order.current_status === 'Accepted' && styles.dispatchStatusBadgeAccepted,
-                            order.current_status === 'Pending' && styles.dispatchStatusBadgePending,
-                          ]}>
-                            <Text style={[
-                              styles.dispatchStatusBadgeText,
-                              order.current_status === 'Accepted' && styles.dispatchStatusBadgeTextAccepted,
-                              order.current_status === 'Pending' && styles.dispatchStatusBadgeTextPending,
+                    {pendingDispatchOrders.map((order) => {
+                      // Check if all items in this order are selected
+                      const orderItems = order.items || [];
+                      const orderItemKeys = orderItems.map(item => `${order.id}_${item.element_id}`);
+                      const allItemsSelected = orderItems.length > 0 && orderItemKeys.every(itemKey => 
+                        selectedDispatchItems.some(i => `${i.orderId}_${i.element_id}` === itemKey)
+                      );
+                      const isExpanded = expandedOrders.has(order.id);
+                      
+                      return (
+                      <View
+                        key={order.id}
+                        style={[
+                          styles.dispatchOrderCard,
+                          allItemsSelected && styles.dispatchOrderCardSelected
+                        ]}
+                      >
+                        <TouchableOpacity
+                          onPress={() => toggleOrderSelection(order)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.dispatchOrderHeader}>
+                            <View style={styles.dispatchOrderCheckbox}>
+                              <View style={[
+                                styles.checkbox,
+                                allItemsSelected && styles.checkboxSelected
+                              ]}>
+                                {allItemsSelected && <Text style={styles.checkboxCheck}>✓</Text>}
+                              </View>
+                            </View>
+                            <View style={styles.dispatchOrderHeaderLeft}>
+                              <Text style={styles.dispatchOrderId}>
+                                {order.dispatch_order_id || 'N/A'}
+                              </Text>
+                              <Text style={styles.dispatchOrderDate}>
+                                {order.dispatch_date 
+                                  ? new Date(order.dispatch_date).toLocaleDateString()
+                                  : 'N/A'}
+                              </Text>
+                            </View>
+                            <View style={[
+                              styles.dispatchStatusBadge,
+                              order.current_status === 'Accepted' && styles.dispatchStatusBadgeAccepted,
+                              order.current_status === 'Pending' && styles.dispatchStatusBadgePending,
                             ]}>
-                              {order.current_status || 'N/A'}
-                            </Text>
+                              <Text style={[
+                                styles.dispatchStatusBadgeText,
+                                order.current_status === 'Accepted' && styles.dispatchStatusBadgeTextAccepted,
+                                order.current_status === 'Pending' && styles.dispatchStatusBadgeTextPending,
+                              ]}>
+                                {order.current_status || 'N/A'}
+                              </Text>
+                            </View>
+                            {order.items && order.items.length > 0 && (
+                              <TouchableOpacity
+                                style={styles.expandButton}
+                                onPress={(e) => toggleOrderExpansion(order.id, e)}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={[
+                                  styles.arrowIcon,
+                                  isExpanded && styles.arrowIconExpanded
+                                ]}>
+                                  →
+                                </Text>
+                              </TouchableOpacity>
+                            )}
                           </View>
-                        </View>
+                        </TouchableOpacity>
 
                         <View style={styles.dispatchOrderDetails}>
                           <View style={styles.dispatchDetailRow}>
@@ -1473,59 +1971,41 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                           </View>
                         </View>
 
-                        {order.items && order.items.length > 0 && (
+                        {order.items && order.items.length > 0 && isExpanded && (
                           <View style={styles.dispatchItemsContainer}>
                             <Text style={styles.dispatchItemsTitle}>
                               Items ({order.items.length})
                             </Text>
-                            {order.items.map((item, index) => {
-                              const itemKey = `${order.id}_${item.element_id}`;
-                              const isSelected = selectedDispatchItems.some(
-                                i => `${i.orderId}_${i.element_id}` === itemKey
-                              );
-                              return (
-                                <TouchableOpacity
-                                  key={index}
-                                  style={[
-                                    styles.dispatchItemCard,
-                                    isSelected && styles.dispatchItemCardSelected
-                                  ]}
-                                  onPress={() => toggleDispatchItemSelection(item, order.id)}
-                                  activeOpacity={0.7}
-                                >
-                                  <View style={styles.dispatchItemCheckbox}>
-                                    <View style={[
-                                      styles.checkbox,
-                                      isSelected && styles.checkboxSelected
-                                    ]}>
-                                      {isSelected && <Text style={styles.checkboxCheck}>✓</Text>}
-                                    </View>
-                                  </View>
-                                  <View style={styles.dispatchItemDetails}>
-                                    <Text style={styles.dispatchItemName}>
-                                      {item.element_type_name || 'N/A'}
-                                    </Text>
-                                    <Text style={styles.dispatchItemInfo}>
-                                      Element ID: {item.element_id || 'N/A'}
-                                    </Text>
-                                    <Text style={styles.dispatchItemInfo}>
-                                      Type: {item.element_type || 'N/A'} | Weight: {item.weight || '0'} kg
-                                    </Text>
-                                  </View>
-                                </TouchableOpacity>
-                              );
-                            })}
+                            {order.items.map((item, index) => (
+                              <View
+                                key={index}
+                                style={styles.dispatchItemCard}
+                              >
+                                <View style={styles.dispatchItemDetails}>
+                                  <Text style={styles.dispatchItemName}>
+                                    {item.element_type_name || 'N/A'}
+                                  </Text>
+                                  <Text style={styles.dispatchItemInfo}>
+                                    Element ID: {item.element_id || 'N/A'}
+                                  </Text>
+                                  <Text style={styles.dispatchItemInfo}>
+                                    Type: {item.element_type || 'N/A'} | Weight: {item.weight || '0'} kg
+                                  </Text>
+                                </View>
+                              </View>
+                            ))}
                           </View>
                         )}
                       </View>
-                    ))}
+                    );
+                    })}
                   </View>
                 )}
 
                 {selectedDispatchItems.length > 0 && (
                   <View style={styles.receiveActionBar}>
                     <Text style={styles.selectedItemsCount}>
-                      {selectedDispatchItems.length} item(s) selected
+                      {selectedDispatchItems.length} item(s) from {new Set(selectedDispatchItems.map(i => i.orderId)).size} order(s) selected
                     </Text>
                     <TouchableOpacity
                       style={styles.receiveButton}
@@ -1538,7 +2018,119 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                     </TouchableOpacity>
                   </View>
                 )}
+                </View>
+              )}
+
+              {/* Mark Erected Section */}
+              {showMarkErected && (
+                <View style={styles.markErectedSection}>
+                  <View style={styles.markErectedHeader}>
+                    <Text style={styles.markErectedTitle}>Mark Erected</Text>
+                  </View>
+                {loadingIncompleteElements ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={styles.loadingText}>Loading incomplete erected elements...</Text>
+                  </View>
+                ) : incompleteErectedElements.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No incomplete erected elements</Text>
+                  </View>
+                ) : (
+                  <View style={styles.erectElementsContainer}>
+                    {incompleteErectedElements.map((element) => {
+                      const isSelected = selectedErectElements.some(
+                        e => e.element_id === element.element_id
+                      );
+                      return (
+                        <TouchableOpacity
+                          key={element.id || element.element_id}
+                          style={[
+                            styles.erectElementCard,
+                            isSelected && styles.erectElementCardSelected
+                          ]}
+                          onPress={() => toggleErectElementSelection(element)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.erectElementCheckbox}>
+                            <View style={[
+                              styles.checkbox,
+                              isSelected && styles.checkboxSelected
+                            ]}>
+                              {isSelected && <Text style={styles.checkboxCheck}>✓</Text>}
+                            </View>
+                          </View>
+                          <View style={styles.erectElementDetails}>
+                            <Text style={styles.erectElementName}>
+                              Element ID: {element.element_id || 'N/A'}
+                            </Text>
+                            <Text style={styles.erectElementInfo}>
+                              Type: {element.element_type_name || 'N/A'}
+                            </Text>
+                            <Text style={styles.erectElementInfo}>
+                              Element Type: {element.element_type || 'N/A'}
+                            </Text>
+                            <Text style={styles.erectElementInfo}>
+                              Tower: {element.tower_name || 'N/A'} | Floor: {element.floor_name || 'N/A'}
+                            </Text>
+                            <View style={styles.erectElementStatusRow}>
+                              <Text style={styles.erectElementInfo}>
+                                Status: 
+                              </Text>
+                              <View style={[
+                                styles.erectedBadge,
+                                element.erected && styles.erectedBadgeActive
+                              ]}>
+                                <Text style={[
+                                  styles.erectedBadgeText,
+                                  element.erected && styles.erectedBadgeTextActive
+                                ]}>
+                                  {element.erected ? 'Erected' : 'Not Erected'}
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={styles.erectElementStatusRow}>
+                              <Text style={styles.erectElementInfo}>
+                                Approval: 
+                              </Text>
+                              <Text style={[
+                                styles.erectElementInfo,
+                                element.approved_status ? styles.approvedText : styles.pendingText
+                              ]}>
+                                {element.approved_status ? 'Approved' : 'Pending'}
+                              </Text>
+                            </View>
+                            {element.order_at && (
+                              <Text style={styles.erectElementInfo}>
+                                Order Date: {new Date(element.order_at).toLocaleDateString()}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {selectedErectElements.length > 0 && (
+                  <View style={styles.erectActionBar}>
+                    <Text style={styles.selectedItemsCount}>
+                      {selectedErectElements.length} element(s) selected
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.erectButton}
+                      onPress={() => setErectModalVisible(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.erectButtonText}>
+                        Mark as Erected
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
+              )}
+
             </View>
           ) : (
             <>
@@ -2283,6 +2875,106 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
             </View>
           </View>
         </Modal>
+
+        {/* Mark Erected Modal */}
+        <Modal
+          visible={erectModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => {
+            setErectModalVisible(false);
+            setErectComments('');
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.receiveModalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Mark as Erected</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setErectModalVisible(false);
+                    setErectComments('');
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={true}>
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>
+                    {selectedErectElements.length === 1
+                      ? `Erect element ID: ${selectedErectElements[0].element_id}`
+                      : `Erect ${selectedErectElements.length} selected elements`}
+                  </Text>
+                  
+                  <View style={styles.commentsInputContainer}>
+                    <Text style={styles.commentsLabel}>Comments *</Text>
+                    <TextInput
+                      style={styles.commentsInput}
+                      placeholder="Enter comments for erecting elements..."
+                      placeholderTextColor={Colors.textSecondary}
+                      multiline
+                      numberOfLines={4}
+                      value={erectComments}
+                      onChangeText={setErectComments}
+                      textAlignVertical="top"
+                    />
+                  </View>
+
+                  <View style={styles.selectedItemsList}>
+                    <Text style={styles.selectedItemsListTitle}>Selected Elements:</Text>
+                    {selectedErectElements.map((element, index) => (
+                      <View key={index} style={styles.selectedItemRow}>
+                        <Text style={styles.selectedItemText}>
+                          Element ID: {element.element_id || 'N/A'} - {element.element_type_name || 'N/A'} ({element.element_type || 'N/A'})
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => {
+                    setErectModalVisible(false);
+                    setErectComments('');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalSubmitButton,
+                    (!erectComments.trim() || submittingErect) && styles.modalSubmitButtonDisabled
+                  ]}
+                  onPress={handleMarkAsErected}
+                  disabled={!erectComments.trim() || submittingErect}
+                  activeOpacity={0.7}
+                >
+                  {submittingErect ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.modalSubmitButtonText}>Mark as Erected</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* QR Scanner for Marking Erected */}
+        <CameraQRScanner
+          visible={qrScannerVisible}
+          onClose={() => setQrScannerVisible(false)}
+          onScan={handleQRScan}
+          navigation={navigation}
+          autoProcess={true}
+        />
 
         {!hideBottomNav && (
           <BottomNavigation
@@ -3285,7 +3977,49 @@ const styles = StyleSheet.create({
   arrowIcon: {
     fontSize: 20,
     fontWeight: FontWeights.bold,
-    textAlign: 'right',
+    color: BWTheme.textSecondary,
+    transform: [{ rotate: '0deg' }],
+  },
+  arrowIconExpanded: {
+    transform: [{ rotate: '90deg' }],
+    color: '#007AFF',
+  },
+  operationButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 8,
+  },
+  operationButton: {
+    flex: 1,
+    backgroundColor: BWTheme.card,
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1.5,
+    borderColor: BWTheme.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  operationButtonActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  operationButtonText: {
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.semiBold,
+    color: BWTheme.textPrimary,
+    textAlign: 'center',
+  },
+  operationButtonTextActive: {
+    color: '#FFFFFF',
   },
   createRequestSection: {
     backgroundColor: BWTheme.card,
@@ -3360,14 +4094,29 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  dispatchOrderCardSelected: {
+    borderColor: '#007AFF',
+    backgroundColor: '#F0F7FF',
+    borderWidth: 2,
+  },
   dispatchOrderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 12,
   },
+  dispatchOrderCheckbox: {
+    marginRight: 12,
+    marginTop: 2,
+  },
   dispatchOrderHeaderLeft: {
     flex: 1,
+  },
+  expandButton: {
+    padding: 8,
+    marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   dispatchOrderId: {
     fontSize: FontSizes.medium,
@@ -3444,13 +4193,6 @@ const styles = StyleSheet.create({
     borderColor: BWTheme.border,
     alignItems: 'center',
   },
-  dispatchItemCardSelected: {
-    borderColor: '#007AFF',
-    backgroundColor: '#F0F7FF',
-  },
-  dispatchItemCheckbox: {
-    marginRight: 12,
-  },
   checkbox: {
     width: 24,
     height: 24,
@@ -3508,6 +4250,103 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   receiveButtonText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.bold,
+  },
+  markErectedSection: {
+    marginTop: 24,
+    backgroundColor: BWTheme.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  markErectedHeader: {
+    marginBottom: 16,
+  },
+  markErectedTitle: {
+    fontSize: FontSizes.large,
+    fontWeight: FontWeights.bold,
+    color: '#10B981',
+    textTransform: 'capitalize',
+  },
+  erectElementsContainer: {
+    // Removed maxHeight to allow full scrolling in parent ScrollView
+  },
+  erectElementCard: {
+    flexDirection: 'row',
+    backgroundColor: BWTheme.background,
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    alignItems: 'flex-start',
+  },
+  erectElementCardSelected: {
+    borderColor: '#10B981',
+    backgroundColor: '#F0FDF4',
+  },
+  erectElementCheckbox: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  erectElementDetails: {
+    flex: 1,
+  },
+  erectElementName: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 6,
+  },
+  erectElementInfo: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    marginBottom: 4,
+  },
+  erectElementStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 8,
+  },
+  approvedText: {
+    color: '#4CAF50',
+    fontWeight: FontWeights.semiBold,
+  },
+  pendingText: {
+    color: '#FF9800',
+    fontWeight: FontWeights.semiBold,
+  },
+  erectActionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: BWTheme.border,
+    marginTop: 12,
+  },
+  erectButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#10B981',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  erectButtonText: {
     color: '#FFFFFF',
     fontSize: FontSizes.regular,
     fontWeight: FontWeights.bold,

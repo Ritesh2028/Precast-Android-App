@@ -99,17 +99,17 @@ export default function App() {
           <Stack.Screen 
             name="StockManager" 
             component={StockManagerScreen}
-            options={{ title: 'Stock Manager' }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="ErectionManager" 
             component={ErectionManagerScreen}
-            options={{ title: 'Erection Manager' }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="DispatchManager" 
             component={DispatchManagerScreen}
-            options={{ title: 'Dispatch Manager' }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="WebView" 

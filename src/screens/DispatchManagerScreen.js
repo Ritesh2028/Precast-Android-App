@@ -27,6 +27,7 @@ import { logout, validateSession, refreshSession } from '../services/authService
 import { handle401Error, handleApiError } from '../services/errorHandler';
 import BirdsEyeViewModal from '../components/BirdsEyeViewModal';
 import BottomNavigation from '../components/BottomNavigation';
+import ProjectDropdown from '../components/ProjectDropdown';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -54,6 +55,37 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   const annotationViewRef = useRef(null);
   const [birdsEyeViewVisible, setBirdsEyeViewVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [dispatchOrders, setDispatchOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [expandedOrders, setExpandedOrders] = useState({});
+  const [selectedProject, setSelectedProject] = useState('Select Project');
+  const [selectedProjectId, setSelectedProjectId] = useState(projectId || null);
+  const [showDispatchTask, setShowDispatchTask] = useState(false);
+  const [dispatchItems, setDispatchItems] = useState([]);
+  const [loadingDispatchItems, setLoadingDispatchItems] = useState(false);
+  const [vehicles, setVehicles] = useState([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
+  const [transporters, setTransporters] = useState([]);
+  const [loadingTransporters, setLoadingTransporters] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState(null);
+  const [vehicleCapacity, setVehicleCapacity] = useState(0);
+  const [vehicleDetails, setVehicleDetails] = useState(null);
+  const [selectedItems, setSelectedItems] = useState({});
+  const [driverName, setDriverName] = useState('');
+  const [driverPhoneNo, setDriverPhoneNo] = useState('');
+  const [emergencyContactPhoneNo, setEmergencyContactPhoneNo] = useState('');
+  const [sendingDispatch, setSendingDispatch] = useState(false);
+  const [taskError, setTaskError] = useState('');
+  const [vehicleModalVisible, setVehicleModalVisible] = useState(false);
+  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
+  const [createVehicleVisible, setCreateVehicleVisible] = useState(false);
+  const [newVehicleNumber, setNewVehicleNumber] = useState('');
+  const [newTransporterId, setNewTransporterId] = useState('');
+  const [newCapacity, setNewCapacity] = useState('');
+  const [newTruckType, setNewTruckType] = useState('flatbed');
+  const [newDriverName, setNewDriverName] = useState('');
+  const [newDriverPhone, setNewDriverPhone] = useState('');
+  const [newEmergencyPhone, setNewEmergencyPhone] = useState('');
   
   const statusOptions = ['Completed', 'In Progress'];
   
@@ -94,6 +126,42 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     }
   }, [paperId]);
 
+  useEffect(() => {
+    if (route?.params?.openTask) {
+      setActiveTab('task');
+      setShowDispatchTask(true);
+    }
+  }, [route?.params?.openTask]);
+
+  useEffect(() => {
+    if (projectId && !selectedProjectId) {
+      setSelectedProjectId(projectId);
+    }
+  }, [projectId, selectedProjectId]);
+
+  useEffect(() => {
+    if (!paperId && selectedProjectId) {
+      loadDispatchOrders();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paperId, selectedProjectId]);
+
+  useEffect(() => {
+    if (!paperId && showDispatchTask && selectedProjectId) {
+      loadDispatchItems();
+      loadVehicles();
+      loadTransporters();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paperId, showDispatchTask, selectedProjectId]);
+
+  const handleProjectSelect = (project) => {
+    const projectName = typeof project === 'string' ? project : (project?.name || 'Select Project');
+    const projectIdValue = project?.project_id === 'all' || project?.project_id === null ? null : project?.project_id;
+    setSelectedProject(projectName);
+    setSelectedProjectId(projectIdValue);
+  };
+
   const requestPermissions = async () => {
     // Request camera permission
     const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
@@ -106,6 +174,510 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     if (mediaStatus.status !== 'granted') {
       console.log('Media library permission not granted');
     }
+  };
+
+  const fetchWithAuthRetry = async (url, options = {}) => {
+    const { accessToken } = await getTokens();
+    if (!accessToken) {
+      throw new Error('Authentication Required');
+    }
+
+    // Validate session first
+    let currentToken = accessToken;
+    try {
+      const sessionResult = await validateSession();
+      if (sessionResult && sessionResult.session_id) {
+        currentToken = sessionResult.session_id;
+      }
+    } catch (_) {
+      // Continue with original token
+    }
+
+    const headersWithBearer = {
+      ...createAuthHeaders(currentToken, { useBearer: true, includeSessionId: true }),
+      ...(options.headers || {}),
+    };
+
+    let response = await fetch(url, {
+      ...options,
+      headers: headersWithBearer,
+    });
+
+    if (response.status === 401) {
+      const headersWithoutBearer = {
+        ...createAuthHeaders(currentToken, { useBearer: false, includeSessionId: true }),
+        ...(options.headers || {}),
+      };
+      response = await fetch(url, {
+        ...options,
+        headers: headersWithoutBearer,
+      });
+    }
+
+    return response;
+  };
+
+  const loadDispatchOrders = async () => {
+    const projectIdToUse = selectedProjectId || projectId;
+    if (!projectIdToUse) {
+      console.log('📱 [DispatchManagerScreen] No projectId available for dispatch orders');
+      return;
+    }
+
+    try {
+      setLoadingOrders(true);
+      const { accessToken } = await getTokens();
+      
+      if (!accessToken) {
+        console.log('📱 [DispatchManagerScreen] No access token for dispatch orders');
+        return;
+      }
+
+      const apiUrl = `${API_BASE_URL}/api/dispatch_order/${projectIdToUse}`;
+      console.log('📱 [DispatchManagerScreen] Fetching dispatch orders from:', apiUrl);
+
+      // Validate session first
+      let currentToken = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          currentToken = sessionResult.session_id;
+          console.log('✅ [DispatchManagerScreen] Using validated session_id for dispatch orders');
+        }
+      } catch (validateError) {
+        console.log('⚠️ [DispatchManagerScreen] Session validation failed, using original token');
+      }
+
+      // Try with Bearer token first
+      const headersWithBearer = createAuthHeaders(currentToken, { useBearer: true, includeSessionId: true });
+      console.log('📱 [DispatchManagerScreen] Dispatch Orders API - Attempt 1: With Bearer token');
+      
+      let response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: headersWithBearer,
+      });
+
+      console.log('📱 [DispatchManagerScreen] Dispatch Orders API Response 1 - Status:', response.status);
+
+      // If 401, try without Bearer prefix
+      if (response.status === 401) {
+        console.log('❌ [DispatchManagerScreen] Dispatch Orders API returned 401 with Bearer, trying without...');
+        const headersWithoutBearer = createAuthHeaders(currentToken, { useBearer: false, includeSessionId: true });
+        response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: headersWithoutBearer,
+        });
+        console.log('📱 [DispatchManagerScreen] Dispatch Orders API Response 2 - Status:', response.status);
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ [DispatchManagerScreen] Dispatch orders loaded successfully');
+        setDispatchOrders(Array.isArray(data) ? data : []);
+      } else {
+        const errorText = await response.text();
+        console.log('❌ [DispatchManagerScreen] Error loading dispatch orders');
+        console.log('📱 [DispatchManagerScreen] Error status:', response.status);
+        console.log('📱 [DispatchManagerScreen] Error response:', errorText);
+        
+        // If 401, try to refresh token and retry
+        if (response.status === 401) {
+          try {
+            const { refreshToken } = await getTokens();
+            if (refreshToken) {
+              console.log('🔄 [DispatchManagerScreen] Dispatch Orders API 401 - attempting token refresh...');
+              const refreshResult = await refreshSession();
+              if (refreshResult && refreshResult.access_token) {
+                let newToken = refreshResult.access_token;
+                try {
+                  const newSessionResult = await validateSession();
+                  if (newSessionResult && newSessionResult.session_id) {
+                    newToken = newSessionResult.session_id;
+                  }
+                } catch (validateError) {
+                  console.log('⚠️ [DispatchManagerScreen] New session validation failed');
+                }
+                
+                console.log('🔄 [DispatchManagerScreen] Retrying dispatch orders API with refreshed token...');
+                response = await fetch(apiUrl, {
+                  method: 'GET',
+                  headers: createAuthHeaders(newToken, { useBearer: true, includeSessionId: true }),
+                });
+                
+                if (response.status === 401) {
+                  response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: createAuthHeaders(newToken, { useBearer: false, includeSessionId: true }),
+                  });
+                }
+                
+                if (response.ok) {
+                  const data = await response.json();
+                  console.log('✅ [DispatchManagerScreen] Dispatch orders retry successful!');
+                  setDispatchOrders(Array.isArray(data) ? data : []);
+                  return;
+                }
+              }
+            }
+          } catch (refreshError) {
+            console.log('❌ [DispatchManagerScreen] Token refresh failed:', refreshError);
+          }
+        }
+        
+        await handleApiError({ response: { status: response.status, data: { message: errorText } } }, navigation, `Failed to fetch dispatch orders. Status: ${response.status}`);
+      }
+    } catch (error) {
+      console.log('❌ [DispatchManagerScreen] Error fetching dispatch orders:', error);
+      await handleApiError(error, navigation, 'Network error fetching dispatch orders.');
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const loadDispatchItems = async () => {
+    if (!selectedProjectId) return;
+    setLoadingDispatchItems(true);
+    try {
+      const url = `${API_BASE_URL}/api/stock-summary/approved-erected/${selectedProjectId}`;
+      const response = await fetchWithAuthRetry(url, { method: 'GET' });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setDispatchItems(data);
+        } else if (Array.isArray(data?.data)) {
+          setDispatchItems(data.data);
+        } else {
+          setDispatchItems([]);
+        }
+      } else {
+        setDispatchItems([]);
+      }
+    } catch (error) {
+      console.log('❌ [DispatchManagerScreen] Error loading dispatch items:', error);
+      setDispatchItems([]);
+    } finally {
+      setLoadingDispatchItems(false);
+    }
+  };
+
+  const loadVehicles = async () => {
+    setLoadingVehicles(true);
+    try {
+      const url = `${API_BASE_URL}/api/vehicles`;
+      const response = await fetchWithAuthRetry(url, { method: 'GET' });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setVehicles(data);
+        } else if (Array.isArray(data?.data)) {
+          setVehicles(data.data);
+        } else {
+          setVehicles([]);
+        }
+      } else {
+        setVehicles([]);
+      }
+    } catch (error) {
+      console.log('❌ [DispatchManagerScreen] Error loading vehicles:', error);
+      setVehicles([]);
+    } finally {
+      setLoadingVehicles(false);
+    }
+  };
+
+  const loadTransporters = async () => {
+    setLoadingTransporters(true);
+    try {
+      const url = `${API_BASE_URL}/api/transporters`;
+      const response = await fetchWithAuthRetry(url, { method: 'GET' });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setTransporters(data);
+        } else if (Array.isArray(data?.data)) {
+          setTransporters(data.data);
+        } else {
+          setTransporters([]);
+        }
+      } else {
+        setTransporters([]);
+      }
+    } catch (error) {
+      console.log('❌ [DispatchManagerScreen] Error loading transporters:', error);
+      setTransporters([]);
+    } finally {
+      setLoadingTransporters(false);
+    }
+  };
+
+  const handleSelectVehicle = (vehicle) => {
+    setSelectedVehicleId(vehicle?.id || null);
+    setVehicleCapacity(Number(vehicle?.capacity || 0));
+    setVehicleDetails(vehicle || null);
+    setSelectedItems({});
+    setTaskError('');
+    setDriverName(vehicle?.driver_name || '');
+    setDriverPhoneNo(vehicle?.driver_contact_no || vehicle?.driver_phone_no || '');
+    setEmergencyContactPhoneNo(vehicle?.emergency_contact_phone_no || '');
+    setVehicleModalVisible(false);
+  };
+
+  const toggleDispatchItem = (elementId) => {
+    setSelectedItems((prev) => ({
+      ...prev,
+      [elementId]: !prev[elementId],
+    }));
+  };
+
+  const calculateSelectedCapacity = () => {
+    return dispatchItems.reduce((total, item) => {
+      const id = item.element_table_id || item.element_id;
+      if (!id) return total;
+      if (selectedItems[id]) {
+        return total + (Number(item.weight) || 0);
+      }
+      return total;
+    }, 0);
+  };
+
+  const calculateLeftCapacity = () => {
+    return Number((Number(vehicleCapacity) - calculateSelectedCapacity()).toFixed(2));
+  };
+
+  const handleCreateVehicle = async () => {
+    if (!newVehicleNumber || !newTransporterId || !newCapacity) {
+      Alert.alert('Error', 'Please fill required vehicle details.');
+      return;
+    }
+
+    try {
+      const url = `${API_BASE_URL}/vehicles`;
+      const payload = {
+        vehicle_number: newVehicleNumber,
+        transporter_id: Number(newTransporterId),
+        capacity: Number(newCapacity),
+        truck_type: newTruckType,
+        driver_name: newDriverName,
+        driver_phone_no: newDriverPhone,
+        emergency_contact_phone_no: newEmergencyPhone,
+      };
+
+      const response = await fetchWithAuthRetry(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        await loadVehicles();
+        setCreateVehicleVisible(false);
+        setNewVehicleNumber('');
+        setNewTransporterId('');
+        setNewCapacity('');
+        setNewTruckType('flatbed');
+        setNewDriverName('');
+        setNewDriverPhone('');
+        setNewEmergencyPhone('');
+        if (data?.id) {
+          handleSelectVehicle(data);
+        }
+      } else {
+        Alert.alert('Error', 'Failed to create vehicle.');
+      }
+    } catch (error) {
+      console.log('❌ [DispatchManagerScreen] Error creating vehicle:', error);
+      Alert.alert('Error', 'Failed to create vehicle.');
+    }
+  };
+
+  const handleSendDispatch = async () => {
+    const selectedElementIds = Object.keys(selectedItems).filter((id) => selectedItems[id]);
+    if (!selectedVehicleId) {
+      setTaskError('Please select a vehicle');
+      return;
+    }
+    if (selectedElementIds.length === 0) {
+      setTaskError('Please select at least one item');
+      return;
+    }
+    if (!driverName || driverName.trim().length < 2) {
+      setTaskError('Driver name must be at least 2 characters');
+      return;
+    }
+    if (driverPhoneNo.length !== 10) {
+      setTaskError('Driver phone number must be exactly 10 digits');
+      return;
+    }
+    if (emergencyContactPhoneNo.length !== 10) {
+      setTaskError('Emergency contact phone number must be exactly 10 digits');
+      return;
+    }
+
+    setSendingDispatch(true);
+    setTaskError('');
+    try {
+      const url = `${API_BASE_URL}/dispatch_order`;
+      const payload = {
+        vehicle_id: selectedVehicleId,
+        project_id: Number(selectedProjectId),
+        driver_name: driverName,
+        driver_phone_no: driverPhoneNo,
+        emergency_contact_phone_no: emergencyContactPhoneNo,
+        items: selectedElementIds.map((id) => Number(id)),
+        vehicle_details: vehicleDetails,
+      };
+
+      const response = await fetchWithAuthRetry(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        Alert.alert('Success', 'Dispatch order sent successfully!');
+        setSelectedItems({});
+        setDriverName('');
+        setDriverPhoneNo('');
+        setEmergencyContactPhoneNo('');
+        await loadDispatchItems();
+      } else {
+        Alert.alert('Error', 'Failed to send dispatch. Please try again.');
+      }
+    } catch (error) {
+      console.log('❌ [DispatchManagerScreen] Error sending dispatch:', error);
+      Alert.alert('Error', 'Failed to send dispatch. Please try again.');
+    } finally {
+      setSendingDispatch(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${day}-${month}-${year} ${hours}:${minutes}`;
+    } catch (error) {
+      return dateString;
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'dispatched':
+        return '#34C759'; // Green
+      case 'accepted':
+        return '#007AFF'; // Blue
+      case 'pending':
+        return '#FF9500'; // Orange
+      case 'rejected':
+        return '#FF3B30'; // Red
+      default:
+        return BWTheme.textSecondary;
+    }
+  };
+
+  const splitDispatchOrders = (orders) => {
+    const dispatchList = [];
+    const receiveList = [];
+    (orders || []).forEach((order) => {
+      const status = String(order?.current_status || '').toLowerCase();
+      if (status === 'accepted') {
+        receiveList.push(order);
+      } else if (status === 'dispatched') {
+        dispatchList.push(order);
+      }
+    });
+    return { dispatchList, receiveList };
+  };
+
+  const toggleOrderItems = (orderId) => {
+    setExpandedOrders((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
+
+  const renderOrderList = (orders, emptyText) => {
+    if (!orders || orders.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>{emptyText}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadDispatchOrders}>
+            <Text style={styles.retryButtonText}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return orders.map((order) => (
+      <View key={order.id} style={styles.orderCard}>
+        {/* Order Header */}
+        <View style={styles.orderHeader}>
+          <View style={styles.orderHeaderLeft}>
+            <Text style={styles.orderId}>{order.dispatch_order_id}</Text>
+            <Text style={styles.projectName}>{order.project_name}</Text>
+          </View>
+          <View style={styles.orderHeaderRight}>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.current_status) + '20' }]}>
+              <Text style={[styles.statusText, { color: getStatusColor(order.current_status) }]}>
+                {order.current_status}
+              </Text>
+            </View>
+            {order.items && order.items.length > 0 && (
+              <TouchableOpacity
+                style={styles.arrowButton}
+                onPress={() => toggleOrderItems(order.id)}
+                accessibilityRole="button"
+                accessibilityLabel={expandedOrders[order.id] ? 'Hide items' : 'Show items'}
+              >
+                <Text style={styles.arrowText}>
+                  {expandedOrders[order.id] ? '▲' : '▼'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Order Details */}
+        <View style={styles.orderDetails}>
+          <View style={styles.orderDetailRow}>
+            <Text style={styles.orderDetailLabel}>Dispatch Date:</Text>
+            <Text style={styles.orderDetailValue}>{formatDate(order.dispatch_date)}</Text>
+          </View>
+          <View style={styles.orderDetailRow}>
+            <Text style={styles.orderDetailLabel}>Driver Name:</Text>
+            <Text style={styles.orderDetailValue}>{order.driver_name}</Text>
+          </View>
+          <View style={styles.orderDetailRow}>
+            <Text style={styles.orderDetailLabel}>Vehicle ID:</Text>
+            <Text style={styles.orderDetailValue}>{order.vehicle_id}</Text>
+          </View>
+        </View>
+
+        {/* Items Section */}
+        {order.items && order.items.length > 0 && expandedOrders[order.id] && (
+          <View style={styles.itemsSection}>
+            <Text style={styles.itemsTitle}>Items ({order.items.length})</Text>
+            {order.items.map((item, itemIndex) => (
+              <View key={itemIndex} style={styles.itemRow}>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemType}>{item.element_type_name || item.element_type}</Text>
+                  <Text style={styles.itemId}>Element ID: {item.element_id}</Text>
+                </View>
+                {item.weight > 0 && (
+                  <Text style={styles.itemWeight}>{item.weight} kg</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    ));
   };
 
   const loadQuestions = async () => {
@@ -545,16 +1117,20 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
       if (currentRoute !== 'DispatchManager') {
         navigation.navigate('DispatchManager');
       }
+      setShowDispatchTask(false);
     } else if (tabId === 'task') {
-      // Task tab: Navigate to Scan screen for QR code scanning
-      if (currentRoute !== 'Scan') {
-        navigation.navigate('Scan');
+      // Task tab: Show Dispatch Items section
+      if (currentRoute !== 'DispatchManager') {
+        navigation.navigate('DispatchManager', { openTask: true });
+      } else {
+        setShowDispatchTask(true);
       }
     } else if (tabId === 'me') {
       // Me tab: Navigate to UserProfile
       if (currentRoute !== 'UserProfile') {
         navigation.navigate('UserProfile');
       }
+      setShowDispatchTask(false);
     }
   }, [navigation]);
 
@@ -748,16 +1324,437 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     );
   }
 
+  if (showDispatchTask) {
+    const selectedCapacity = calculateSelectedCapacity();
+    const leftCapacity = calculateLeftCapacity();
+    return (
+      <View style={styles.container}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.homeHeader}>
+            <Text style={styles.homeTitle}>Dispatch Items</Text>
+          {selectedProjectId ? (
+            <Text style={styles.homeSubtitle}>Project ID: {selectedProjectId}</Text>
+          ) : (
+            <Text style={styles.homeSubtitle}>Select a project to dispatch items</Text>
+          )}
+          </View>
+
+            <View style={styles.projectDropdownWrapper}>
+              <ProjectDropdown
+                selectedProject={selectedProject}
+                onProjectSelect={handleProjectSelect}
+                navigation={navigation}
+                includeAllOption={false}
+              />
+            </View>
+
+          {!selectedProjectId ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No project selected</Text>
+              <Text style={styles.emptySubtext}>Select a project to load dispatch items</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.taskGrid}>
+                {/* Left Column - Vehicle + Driver Form */}
+                <View style={styles.taskLeft}>
+                  <View style={styles.taskCard}>
+                    <View style={styles.taskHeaderRow}>
+                      <Text style={styles.taskSectionTitle}>Select Vehicle</Text>
+                      <TouchableOpacity
+                        style={styles.resetButton}
+                        onPress={() => {
+                          setSelectedVehicleId(null);
+                          setVehicleCapacity(0);
+                          setVehicleDetails(null);
+                          setSelectedItems({});
+                          setDriverName('');
+                          setDriverPhoneNo('');
+                          setEmergencyContactPhoneNo('');
+                          setTaskError('');
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.resetButtonText}>Reset</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.selectVehicleButton}
+                      onPress={() => setShowVehicleDropdown((prev) => !prev)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.selectVehicleText}>
+                        {selectedVehicleId ? `Vehicle ID: ${selectedVehicleId}` : 'Select Vehicle'}
+                      </Text>
+                      <Text style={styles.dropdownArrow}>{showVehicleDropdown ? '▲' : '▼'}</Text>
+                    </TouchableOpacity>
+                    {showVehicleDropdown && (
+                      <View style={styles.dropdownList}>
+                        {loadingVehicles ? (
+                          <View style={styles.dropdownLoading}>
+                            <ActivityIndicator size="small" color="#007AFF" />
+                          </View>
+                        ) : (
+                          <ScrollView style={styles.dropdownScroll}>
+                            {vehicles.map((vehicle) => (
+                              <TouchableOpacity
+                                key={vehicle.id}
+                                style={styles.dropdownItem}
+                                onPress={() => {
+                                  handleSelectVehicle(vehicle);
+                                  setShowVehicleDropdown(false);
+                                }}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={styles.dropdownItemText}>
+                                  {vehicle.vehicle_number || `Vehicle ${vehicle.id}`}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        )}
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={styles.createVehicleButton}
+                      onPress={() => setCreateVehicleVisible(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.createVehicleText}>Create Vehicle</Text>
+                    </TouchableOpacity>
+
+                    <Text style={styles.taskSectionTitle}>Driver Details</Text>
+                    <TextInput
+                      style={styles.taskInput}
+                      placeholder="Driver Name"
+                      value={driverName}
+                      onChangeText={setDriverName}
+                    />
+                    <TextInput
+                      style={styles.taskInput}
+                      placeholder="Driver Contact Number"
+                      keyboardType="number-pad"
+                      value={driverPhoneNo}
+                      onChangeText={setDriverPhoneNo}
+                    />
+                    <TextInput
+                      style={styles.taskInput}
+                      placeholder="Emergency Contact Number"
+                      keyboardType="number-pad"
+                      value={emergencyContactPhoneNo}
+                      onChangeText={setEmergencyContactPhoneNo}
+                    />
+                  </View>
+                </View>
+
+                {/* Right Column - Items + Capacity + Send */}
+                <View style={styles.taskRight}>
+                  <View style={styles.elementsCard}>
+                    <Text style={styles.taskSectionTitle}>Available Elements</Text>
+                    {loadingDispatchItems ? (
+      <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#007AFF" />
+                        <Text style={styles.loadingText}>Loading items...</Text>
+                      </View>
+                    ) : dispatchItems.length === 0 ? (
+                      <Text style={styles.emptySubtext}>No elements available</Text>
+                    ) : (
+                      dispatchItems.map((item) => {
+                        const elementId = item.element_table_id || item.element_id;
+                        const isChecked = !!selectedItems[elementId];
+                        return (
+                          <TouchableOpacity
+                            key={elementId}
+                            style={styles.itemRow}
+                            onPress={() => toggleDispatchItem(elementId)}
+                            activeOpacity={0.7}
+                          >
+                            <View style={styles.checkboxContainer}>
+                              <View style={[styles.checkbox, isChecked && styles.checkboxSelected]}>
+                                {isChecked && <Text style={styles.checkboxCheck}>✓</Text>}
+                              </View>
+                            </View>
+                            <View style={styles.itemInfo}>
+                              <Text style={styles.itemType}>{item.element_type_name || item.element_type}</Text>
+                              <Text style={styles.itemId}>Weight: {Number(item.weight || 0).toFixed(2)} kg</Text>
+                              <Text style={styles.itemId}>
+                                Tower: {item.tower_name || 'N/A'}, Floor: {item.floor_name || 'N/A'}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </View>
+
+                  <View style={styles.capacityRow}>
+                    <View style={styles.capacityItem}>
+                      <Text style={styles.capacityLabel}>Total Capacity</Text>
+                      <Text style={styles.capacityValuePurple}>{vehicleCapacity} kg</Text>
+                    </View>
+                    <View style={styles.capacityItem}>
+                      <Text style={styles.capacityLabel}>Selected Capacity</Text>
+                      <Text style={styles.capacityValueBlue}>{selectedCapacity.toFixed(2)} kg</Text>
+                    </View>
+                    <View style={styles.capacityItem}>
+                      <Text style={styles.capacityLabel}>Left Capacity</Text>
+                      <Text style={leftCapacity < 0 ? styles.capacityValueRed : styles.capacityValueGreen}>
+                        {leftCapacity} kg
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.sendRow}>
+                    <TouchableOpacity
+                      style={[styles.sendDispatchButton, sendingDispatch && styles.sendDispatchButtonDisabled]}
+                      onPress={handleSendDispatch}
+                      disabled={sendingDispatch}
+                      activeOpacity={0.8}
+                    >
+                      {sendingDispatch ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.sendDispatchText}>Send Dispatch</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  {taskError ? <Text style={styles.errorText}>{taskError}</Text> : null}
+                </View>
+              </View>
+            </>
+          )}
+          </ScrollView>
+
+          {/* Vehicle Selection Modal */}
+          <Modal
+            visible={vehicleModalVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setVehicleModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContentSmall}>
+                <Text style={styles.modalTitle}>Select Vehicle</Text>
+                {loadingVehicles ? (
+                  <ActivityIndicator size="small" color="#007AFF" />
+                ) : (
+                  <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
+                    {vehicles.map((vehicle) => (
+                      <TouchableOpacity
+                        key={vehicle.id}
+                        style={styles.modalListItem}
+                        onPress={() => handleSelectVehicle(vehicle)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.modalListItemText}>
+                          {vehicle.vehicle_number || `Vehicle ${vehicle.id}`}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonCancel]}
+                    onPress={() => setVehicleModalVisible(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalButtonCancelText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Create Vehicle Modal */}
+          <Modal
+            visible={createVehicleVisible}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setCreateVehicleVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <ScrollView
+                  style={styles.modalScroll}
+                  contentContainerStyle={styles.modalScrollContent}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <Text style={styles.modalTitle}>Create Vehicle</Text>
+                  <TextInput
+                    style={styles.taskInput}
+                    placeholder="Vehicle Number"
+                    value={newVehicleNumber}
+                    onChangeText={setNewVehicleNumber}
+                  />
+                  <TextInput
+                    style={styles.taskInput}
+                    placeholder="Capacity"
+                    keyboardType="numeric"
+                    value={newCapacity}
+                    onChangeText={setNewCapacity}
+                  />
+                  <TextInput
+                    style={styles.taskInput}
+                    placeholder="Truck Type (flatbed or type A)"
+                    value={newTruckType}
+                    onChangeText={setNewTruckType}
+                  />
+                  <TextInput
+                    style={styles.taskInput}
+                    placeholder="Driver Name"
+                    value={newDriverName}
+                    onChangeText={setNewDriverName}
+                  />
+                  <TextInput
+                    style={styles.taskInput}
+                    placeholder="Driver Phone No"
+                    keyboardType="number-pad"
+                    value={newDriverPhone}
+                    onChangeText={setNewDriverPhone}
+                  />
+                  <TextInput
+                    style={styles.taskInput}
+                    placeholder="Emergency Contact Phone No"
+                    keyboardType="number-pad"
+                    value={newEmergencyPhone}
+                    onChangeText={setNewEmergencyPhone}
+                  />
+
+                  <Text style={styles.modalLabel}>Select Transporter</Text>
+                  {loadingTransporters ? (
+                    <ActivityIndicator size="small" color="#007AFF" />
+                  ) : (
+                    <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
+                      {transporters.map((transporter) => (
+                        <TouchableOpacity
+                          key={transporter.id}
+                          style={[
+                            styles.modalListItem,
+                            newTransporterId === String(transporter.id) && styles.modalListItemSelected,
+                          ]}
+                          onPress={() => setNewTransporterId(String(transporter.id))}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.modalListItemText,
+                              newTransporterId === String(transporter.id) && styles.modalListItemTextSelected,
+                            ]}
+                          >
+                            {transporter.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.modalButtonCancel]}
+                      onPress={() => setCreateVehicleVisible(false)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.modalButtonCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.modalButtonApprove]}
+                      onPress={handleCreateVehicle}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.modalButtonApproveText}>Create</Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+
+        {!hideBottomNav && (
+          <BottomNavigation
+            activeTab={activeTab}
+            onTabPress={handleTabPress}
+          />
+        )}
+      </View>
+    );
+  }
+
+  // Show dispatch orders in home section when no paperId
   if (!paperId) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.errorText}>Please scan a QR code to view questions</Text>
+      <View style={styles.container}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          {/* Header Section */}
+          
+
+          {/* Project Filter */}
+          <View style={styles.projectDropdownWrapper}>
+            <ProjectDropdown
+              selectedProject={selectedProject}
+              onProjectSelect={handleProjectSelect}
+              navigation={navigation}
+              includeAllOption={false}
+            />
+          </View>
+
+          {/* Show message if no projectId */}
+          {!selectedProjectId ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No project selected</Text>
+              <Text style={styles.emptySubtext}>Select a project to view dispatch orders</Text>
         <TouchableOpacity 
           style={styles.retryButton} 
           onPress={() => navigation.navigate('Scan')}
         >
           <Text style={styles.retryButtonText}>Scan QR Code</Text>
         </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {/* Loading State */}
+              {loadingOrders ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                  <Text style={styles.loadingText}>Loading dispatch orders...</Text>
+                </View>
+              ) : (
+                <>
+                  {(() => {
+                    const { dispatchList, receiveList } = splitDispatchOrders(dispatchOrders);
+                    return (
+                      <>
+                        {/* Dispatch Section */}
+                        <View style={styles.sectionHeader}>
+                          <Text style={styles.sectionTitle}>Dispatch</Text>
+                          <Text style={styles.sectionSubtitle}>Orders to dispatch</Text>
+                        </View>
+                        {renderOrderList(dispatchList, 'No dispatch orders found')}
+
+                        {/* Receive Section */}
+                        <View style={styles.sectionHeader}>
+                          <Text style={styles.sectionTitle}>Receive</Text>
+                          <Text style={styles.sectionSubtitle}>Orders marked as received</Text>
+                        </View>
+                        {renderOrderList(receiveList, 'No received orders found')}
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+            </>
+          )}
+        </ScrollView>
+
+        {/* Bottom Navigation */}
+        {!hideBottomNav && (
+          <BottomNavigation
+            activeTab={activeTab}
+            onTabPress={handleTabPress}
+          />
+        )}
       </View>
     );
   }
@@ -1313,6 +2310,13 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.regular,
     color: BWTheme.textSecondary,
     fontWeight: FontWeights.medium,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textTertiary,
+    textAlign: 'center',
+    marginBottom: 16,
   },
   submitButton: {
     backgroundColor: '#007AFF',
@@ -1429,6 +2433,444 @@ const styles = StyleSheet.create({
     color: BWTheme.textSecondary,
     textAlign: 'center',
     fontWeight: FontWeights.medium,
+  },
+  // Dispatch Orders Home Section Styles
+  homeHeader: {
+    backgroundColor: BWTheme.card,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  homeTitle: {
+    fontSize: FontSizes.large,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 4,
+  },
+  homeSubtitle: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    fontWeight: FontWeights.medium,
+  },
+  projectDropdownWrapper: {
+    marginBottom: 12,
+  },
+  sectionHeader: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+  },
+  sectionSubtitle: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    fontWeight: FontWeights.medium,
+    marginTop: 2,
+  },
+  orderCard: {
+    backgroundColor: BWTheme.card,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: BWTheme.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  orderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: BWTheme.divider,
+  },
+  orderHeaderLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  orderHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  arrowButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  arrowText: {
+    fontSize: FontSizes.medium,
+    color: BWTheme.textSecondary,
+    fontWeight: FontWeights.bold,
+  },
+  orderId: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 4,
+  },
+  projectName: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    fontWeight: FontWeights.medium,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  statusText: {
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.bold,
+    textTransform: 'uppercase',
+  },
+  orderDetails: {
+    marginBottom: 8,
+  },
+  orderDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  orderDetailLabel: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    fontWeight: FontWeights.medium,
+    flex: 1,
+  },
+  orderDetailValue: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+    fontWeight: FontWeights.semiBold,
+    flex: 1,
+    textAlign: 'right',
+  },
+  taskCard: {
+    backgroundColor: BWTheme.card,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  taskGrid: {
+    flexDirection: SCREEN_WIDTH >= 900 ? 'row' : 'column',
+    gap: 12,
+  },
+  taskLeft: {
+    flex: SCREEN_WIDTH >= 900 ? 0.42 : 1,
+  },
+  taskRight: {
+    flex: SCREEN_WIDTH >= 900 ? 0.58 : 1,
+  },
+  taskHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resetButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    backgroundColor: BWTheme.background,
+  },
+  resetButtonText: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+    fontWeight: FontWeights.medium,
+  },
+  elementsCard: {
+    backgroundColor: BWTheme.card,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  taskSectionTitle: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 8,
+  },
+  selectVehicleButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    backgroundColor: BWTheme.background,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectVehicleText: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+    fontWeight: FontWeights.medium,
+  },
+  createVehicleButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: BWTheme.surface,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  createVehicleText: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+    fontWeight: FontWeights.medium,
+  },
+  dropdownArrow: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    marginLeft: 8,
+  },
+  dropdownList: {
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    borderRadius: 8,
+    backgroundColor: BWTheme.background,
+    maxHeight: 220,
+    marginBottom: 8,
+  },
+  dropdownScroll: {
+    maxHeight: 220,
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: BWTheme.divider,
+  },
+  dropdownItemText: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+  },
+  dropdownLoading: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  taskInput: {
+    backgroundColor: BWTheme.background,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    borderRadius: 8,
+    padding: 10,
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+    marginBottom: 8,
+  },
+  capacityRow: {
+    flexDirection: SCREEN_WIDTH >= 900 ? 'row' : 'column',
+    gap: 8,
+    backgroundColor: BWTheme.card,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    marginTop: 12,
+  },
+  capacityItem: {
+    flex: 1,
+  },
+  capacityLabel: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    fontWeight: FontWeights.medium,
+    marginBottom: 4,
+  },
+  capacityValuePurple: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: '#8B5CF6',
+  },
+  capacityValueBlue: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: '#007AFF',
+  },
+  capacityValueGreen: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: '#34C759',
+  },
+  capacityValueRed: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: '#FF3B30',
+  },
+  sendRow: {
+    alignItems: SCREEN_WIDTH >= 900 ? 'flex-end' : 'stretch',
+    marginTop: 12,
+  },
+  capacityCard: {
+    backgroundColor: BWTheme.surface,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  capacityText: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+    fontWeight: FontWeights.medium,
+    marginBottom: 4,
+  },
+  capacityPositive: {
+    color: '#34C759',
+  },
+  capacityNegative: {
+    color: '#FF3B30',
+  },
+  sendDispatchButton: {
+    backgroundColor: '#9CA3AF',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    minWidth: SCREEN_WIDTH >= 900 ? 200 : undefined,
+  },
+  sendDispatchButtonDisabled: {
+    opacity: 0.6,
+  },
+  sendDispatchText: {
+    color: '#fff',
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+  },
+  modalLabel: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  modalList: {
+    maxHeight: 220,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  modalListContent: {
+    paddingVertical: 2,
+  },
+  modalScroll: {
+    width: '100%',
+  },
+  modalScrollContent: {
+    paddingBottom: 8,
+  },
+  modalListItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: BWTheme.divider,
+  },
+  modalListItemSelected: {
+    backgroundColor: '#E3F2FD',
+  },
+  modalListItemText: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textPrimary,
+  },
+  modalListItemTextSelected: {
+    color: '#007AFF',
+    fontWeight: FontWeights.bold,
+  },
+  checkboxContainer: {
+    marginRight: 10,
+    justifyContent: 'center',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: BWTheme.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: BWTheme.background,
+  },
+  checkboxSelected: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  checkboxCheck: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: FontWeights.bold,
+  },
+  itemsSection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: BWTheme.divider,
+  },
+  itemsTitle: {
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 8,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: BWTheme.background,
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  itemInfo: {
+    flex: 1,
+  },
+  itemType: {
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.semiBold,
+    color: BWTheme.textPrimary,
+    marginBottom: 4,
+  },
+  itemId: {
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+  },
+  itemWeight: {
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.medium,
+    color: BWTheme.textSecondary,
   },
 });
 

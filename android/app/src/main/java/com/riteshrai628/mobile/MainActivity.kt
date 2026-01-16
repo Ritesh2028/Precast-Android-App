@@ -2,6 +2,7 @@ package com.riteshrai628.mobile
 
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -17,6 +18,12 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+    
+    // Explicitly allow screen recording and screenshots
+    // Remove FLAG_SECURE if it was set (which blocks screen recording)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+      window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
   }
 
   /**

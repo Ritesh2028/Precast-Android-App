@@ -278,9 +278,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
       headerRight: () => (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <TouchableOpacity
-            onPress={() => {
-              console.log('Notifications pressed');
-            }}
+            onPress={() => navigation.navigate('Notifications')}
             style={{ paddingHorizontal: 8, paddingVertical: 6 }}
             accessibilityRole="button"
             accessibilityLabel="Open notifications"
@@ -1947,7 +1945,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                               <TouchableOpacity
                                 style={styles.expandButton}
                                 onPress={(e) => toggleOrderExpansion(order.id, e)}
-                                activeOpacity={0.7}
+                                activeOpacity={0.5}
                               >
                                 <Text style={[
                                   styles.arrowIcon,
@@ -3975,10 +3973,11 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   arrowIcon: {
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: FontWeights.bold,
-    color: BWTheme.textSecondary,
+    color: '#007AFF',
     transform: [{ rotate: '0deg' }],
+    textDecorationLine: 'none',
   },
   arrowIconExpanded: {
     transform: [{ rotate: '90deg' }],
@@ -4113,10 +4112,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   expandButton: {
-    padding: 8,
+    padding: 12,
     marginLeft: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    minWidth: 48,
+    minHeight: 48,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
   },
   dispatchOrderId: {
     fontSize: FontSizes.medium,

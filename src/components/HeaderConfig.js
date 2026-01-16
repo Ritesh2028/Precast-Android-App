@@ -36,10 +36,7 @@ export const getDefaultHeaderOptions = (navigation) => ({
   headerRight: () => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <TouchableOpacity
-        onPress={() => {
-          // TODO: Navigate to notifications screen when implemented
-          console.log('Notifications pressed');
-        }}
+        onPress={() => navigation.navigate('Notifications')}
         style={{ paddingHorizontal: 8, paddingVertical: 6 }}
         accessibilityRole="button"
         accessibilityLabel="Open notifications"

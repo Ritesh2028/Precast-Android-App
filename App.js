@@ -21,6 +21,7 @@ import StockManagerScreen from './src/screens/StockManagerScreen';
 import ErectionManagerScreen from './src/screens/ErectionManagerScreen';
 import DispatchManagerScreen from './src/screens/DispatchManagerScreen';
 import WebViewScreen from './src/screens/WebViewScreen';
+import NotificationScreen from './src/screens/NotificationScreen';
 
 const Stack = createStackNavigator();
 
@@ -119,6 +120,11 @@ export default function App() {
               headerBackVisible: false,
               headerLeft: () => null
             }}
+          />
+          <Stack.Screen 
+            name="Notifications" 
+            component={NotificationScreen}
+            options={{ title: 'Notifications' }}
           />
         </Stack.Navigator>
       </View>

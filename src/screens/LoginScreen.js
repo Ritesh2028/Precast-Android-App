@@ -241,15 +241,19 @@ const LoginScreen = ({ navigation }) => {
         // Continue with normal login flow
         await handleSuccessfulLogin(responseData);
       } catch (loginError) {
-        // Check if this is a device limit error
+        // Check if this is a device limit error (409 status or requires_logout flag)
+        const errorStatus = loginError?.response?.status;
         const errorResponse = loginError?.response?.data || loginError?.data || {};
         
-        if (errorResponse.requires_logout === true && errorResponse.active_devices) {
-          console.log('📱 [LoginScreen] Device limit reached, showing modal');
+        // Handle 409 status code (device limit reached) or requires_logout flag
+        if (errorStatus === 409 || (errorResponse.requires_logout === true && errorResponse.active_devices)) {
+          console.log('📱 [LoginScreen] Device limit reached (Status:', errorStatus, '), showing modal');
+          console.log('📱 [LoginScreen] Device limit data:', JSON.stringify(errorResponse, null, 2));
+          
           setDeviceLimitData({
-            activeDevices: errorResponse.active_devices,
+            activeDevices: errorResponse.active_devices || [],
             maxDevices: errorResponse.max_devices || 3,
-            currentDevices: errorResponse.current_devices || errorResponse.active_devices.length,
+            currentDevices: errorResponse.current_devices || (errorResponse.active_devices?.length || 0),
             message: errorResponse.message || 'You have reached the maximum limit of 3 active devices.',
           });
           setPendingLoginCredentials({ email: trimmedEmail, password: trimmedPassword, ip });
@@ -263,15 +267,25 @@ const LoginScreen = ({ navigation }) => {
       }
     } catch (err) {
       // Device limit errors are already handled above
-      if (err?.response?.data?.requires_logout) {
+      const errorStatus = err?.response?.status;
+      const errorResponse = err?.response?.data || err?.data || {};
+      
+      if (errorStatus === 409 || errorResponse.requires_logout) {
         return; // Already handled, don't show error
       }
       
-      const message =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        'Network error';
+      // Handle other error status codes
+      let message = 'Network error';
+      if (errorStatus === 401) {
+        message = 'Invalid email or password';
+      } else if (errorStatus === 429) {
+        message = 'Too many attempts. Please try again later.';
+      } else if (errorStatus === 403) {
+        message = 'Account is suspended. Please contact support.';
+      } else {
+        message = errorResponse?.message || errorResponse?.error || err?.message || 'Network error';
+      }
+      
       console.error('❌ [LoginScreen] Login error:', message);
       setError(message);
       Alert.alert('Login Failed', message);
@@ -282,12 +296,21 @@ const LoginScreen = ({ navigation }) => {
 
   const handleDeviceLogout = async (sessionId, deviceIndex) => {
     try {
-      // After device logout, retry login
-      console.log('📱 [LoginScreen] Device logged out, retrying login...');
+      // After device logout, close modal and show success
+      console.log('📱 [LoginScreen] Device logged out, preparing to retry login...');
       setShowDeviceLimitModal(false);
       
+      // Show success message
+      setError('Device logged out successfully. You can now try logging in again.');
+      setTimeout(() => {
+        setError('');
+      }, 4000);
+      
+      // Clear device limit data
+      setDeviceLimitData(null);
+      
       // Small delay to ensure logout completes
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       // Retry login with pending credentials
       if (pendingLoginCredentials) {
@@ -352,15 +375,16 @@ const LoginScreen = ({ navigation }) => {
             await handleSuccessfulLogin(responseData);
           }
         } catch (retryError) {
-          // Check if device limit error again
+          // Check if device limit error again (409 status or requires_logout flag)
+          const errorStatus = retryError?.response?.status;
           const errorResponse = retryError?.response?.data || retryError?.data || {};
           
-          if (errorResponse.requires_logout === true && errorResponse.active_devices) {
+          if (errorStatus === 409 || (errorResponse.requires_logout === true && errorResponse.active_devices)) {
             // Update device list and show modal again
             setDeviceLimitData({
-              activeDevices: errorResponse.active_devices,
+              activeDevices: errorResponse.active_devices || [],
               maxDevices: errorResponse.max_devices || 3,
-              currentDevices: errorResponse.current_devices || errorResponse.active_devices.length,
+              currentDevices: errorResponse.current_devices || (errorResponse.active_devices?.length || 0),
               message: errorResponse.message || 'You have reached the maximum limit of 3 active devices.',
             });
             setShowDeviceLimitModal(true);
@@ -669,13 +693,16 @@ const LoginScreen = ({ navigation }) => {
       <DeviceLimitModal
         visible={showDeviceLimitModal}
         onClose={() => {
+          if (!deviceLimitData?.loggingOutDevice) {
           setShowDeviceLimitModal(false);
           setDeviceLimitData(null);
           setPendingLoginCredentials(null);
+          }
         }}
         activeDevices={deviceLimitData?.activeDevices || []}
         maxDevices={deviceLimitData?.maxDevices || 3}
         currentDevices={deviceLimitData?.currentDevices || 0}
+        message={deviceLimitData?.message}
         onDeviceLogout={handleDeviceLogout}
       />
 </View>

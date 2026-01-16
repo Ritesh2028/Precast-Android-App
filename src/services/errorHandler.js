@@ -31,8 +31,22 @@ export async function handle401Error(response, retryCallback = null, navigation 
     // Try to refresh the token
     const refreshResult = await refreshSession();
     
-    if (refreshResult && (refreshResult.access_token || refreshResult.message)) {
-      console.log('Token refreshed successfully');
+    // Check if refreshSession returned null (no refresh token available)
+    if (refreshResult === null) {
+      console.log('⚠️ refreshSession returned null - no refresh token available');
+      if (navigation) {
+        await logout();
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+      }
+      return false;
+    }
+    
+    // Check if we got a valid response with access_token
+    if (refreshResult && refreshResult.access_token) {
+      console.log('✅ Token refreshed successfully');
       
       // If retry callback provided, retry the request
       if (retryCallback && typeof retryCallback === 'function') {
@@ -45,9 +59,17 @@ export async function handle401Error(response, retryCallback = null, navigation 
       }
       
       return true; // Indicate that retry is possible
-    } else {
-      throw new Error('Token refresh failed - no access token in response');
     }
+    
+    // If we got a response but no access_token, log details and throw error
+    console.error('❌ Token refresh failed - invalid response structure:', {
+      hasRefreshResult: !!refreshResult,
+      hasAccessToken: !!(refreshResult?.access_token),
+      hasMessage: !!(refreshResult?.message),
+      responseKeys: refreshResult ? Object.keys(refreshResult) : 'null',
+      responseData: refreshResult,
+    });
+    throw new Error('Token refresh failed - no access token in response');
   } catch (error) {
     console.error('Token refresh failed:', error);
     

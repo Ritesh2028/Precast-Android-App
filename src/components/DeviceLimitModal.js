@@ -16,8 +16,15 @@ import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
 import { validateSession } from '../services/authService';
 
-const DeviceLimitModal = ({ visible, onClose, activeDevices, onDeviceLogout, maxDevices, currentDevices }) => {
+const DeviceLimitModal = ({ visible, onClose, activeDevices, onDeviceLogout, maxDevices, currentDevices, message }) => {
   const [loggingOutDevice, setLoggingOutDevice] = useState(null);
+  
+  // Prevent closing dialog while logging out
+  const handleClose = () => {
+    if (!loggingOutDevice) {
+      onClose();
+    }
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -41,57 +48,40 @@ const DeviceLimitModal = ({ visible, onClose, activeDevices, onDeviceLogout, max
     try {
       setLoggingOutDevice(sessionId);
       
-      const { accessToken } = await getTokens();
-      if (!accessToken) {
-        Alert.alert('Error', 'Authentication required to logout device.');
-        setLoggingOutDevice(null);
-        return;
-      }
-
+      // Note: User is not logged in yet, so we don't need access token
+      // The logout-device endpoint should work without authentication for this use case
       const apiUrl = `${API_BASE_URL}/api/logout-device`;
       console.log('📱 [DeviceLimitModal] Logging out device:', sessionId);
 
-      // Validate session first
-      let currentToken = accessToken;
-      try {
-        const sessionResult = await validateSession();
-        if (sessionResult && sessionResult.session_id) {
-          currentToken = sessionResult.session_id;
-        }
-      } catch (validateError) {
-        console.log('⚠️ [DeviceLimitModal] Session validation failed, using original token');
-      }
-
-      // Try with Bearer token first
-      let headers = createAuthHeaders(currentToken, { useBearer: true });
+      // Try without authentication first (since user is not logged in)
       let response = await fetch(apiUrl, {
         method: 'POST',
-        headers: headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ session_id: sessionId }),
       });
-
-      // If 401, try without Bearer prefix
-      if (response.status === 401) {
-        headers = createAuthHeaders(currentToken, { useBearer: false });
-        response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify({ session_id: sessionId }),
-        });
-      }
 
       if (response.ok) {
         const responseData = await response.json();
         console.log('✅ [DeviceLimitModal] Device logged out successfully');
         
         // Call the callback to handle the logout (e.g., retry login)
+        // The parent component will show success message
         if (onDeviceLogout) {
           onDeviceLogout(sessionId, deviceIndex);
         }
       } else {
         const errorText = await response.text();
         console.error('❌ [DeviceLimitModal] Error logging out device:', errorText);
-        Alert.alert('Error', 'Failed to logout device. Please try again.');
+        let errorMessage = 'Failed to logout device. Please try again.';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData?.message || errorMessage;
+        } catch {
+          errorMessage = errorText || errorMessage;
+        }
+        Alert.alert('Error', errorMessage);
       }
     } catch (error) {
       console.error('❌ [DeviceLimitModal] Error logging out device:', error);
@@ -108,22 +98,24 @@ const DeviceLimitModal = ({ visible, onClose, activeDevices, onDeviceLogout, max
       visible={visible}
       transparent={true}
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.closeButton} 
-              onPress={onClose}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-            
             <View style={styles.headerContent}>
+              <View style={styles.warningIconContainer}>
+                <View style={styles.warningIconCircle}>
+                  <Text style={styles.warningIcon}>⚠️</Text>
+                </View>
+              </View>
               <Text style={styles.title}>Device Limit Reached</Text>
+              <View style={styles.messageContainer}>
+                <Text style={styles.message}>
+                  {message || `You have reached the maximum limit of ${maxDevices} active devices. Currently, you have ${currentDevices} active session${currentDevices > 1 ? 's' : ''}.`}
+                </Text>
+              </View>
               <View style={styles.actionTextContainer}>
                 <Text style={styles.actionText}>
                   Please logout from one device below to continue.

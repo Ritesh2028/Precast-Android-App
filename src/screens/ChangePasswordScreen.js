@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { FontSizes } from '../styles/fonts';
 import { Colors } from '../styles/colors';
 
 const ChangePasswordScreen = () => {

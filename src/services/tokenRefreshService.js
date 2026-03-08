@@ -1,25 +1,28 @@
 import { isAccessTokenExpired, getTokens } from './tokenManager';
-import { refreshSession } from './authService';
+import { doRefreshToken } from './refreshTokenApi';
 
 let refreshInterval = null;
-const REFRESH_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
+let isRunning = false;
+const REFRESH_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const MIN_REFRESH_INTERVAL_MS = 2 * 60 * 1000; // don't refresh more than once per 2 minutes
+let lastRefreshAt = 0;
 
 /**
  * Start the token refresh service that checks token validity every 5 minutes
- * and automatically refreshes the access token when it expires
+ * and automatically refreshes the access token when it expires.
+ * Idempotent: safe to call multiple times.
  */
 export function startTokenRefreshService() {
-  // Clear any existing interval
-  stopTokenRefreshService();
-  
-  // Check immediately on start
+  if (isRunning) return;
+  isRunning = true;
+  refreshInterval = null;
+
   checkAndRefreshToken();
-  
-  // Then check every 5 minutes
+
   refreshInterval = setInterval(() => {
     checkAndRefreshToken();
   }, REFRESH_CHECK_INTERVAL);
-  
+
   console.log('🔄 Token refresh service started (checking every 5 minutes)');
 }
 
@@ -30,42 +33,43 @@ export function stopTokenRefreshService() {
   if (refreshInterval) {
     clearInterval(refreshInterval);
     refreshInterval = null;
-    console.log('🛑 Token refresh service stopped');
   }
+  isRunning = false;
+  lastRefreshAt = 0;
 }
 
 /**
- * Check if access token is expired and refresh it if needed
+ * Check if access token is expired and refresh it if needed.
+ * Throttled: skips refresh if we refreshed in the last MIN_REFRESH_INTERVAL_MS.
  */
 async function checkAndRefreshToken() {
   try {
     const { accessToken, refreshToken } = await getTokens();
-    
-    // If no tokens exist, stop the service
+
     if (!accessToken || !refreshToken) {
-      console.log('⚠️ No tokens found, stopping refresh service');
       stopTokenRefreshService();
       return;
     }
-    
-    // Check if access token is expired or about to expire
+
+    const now = Date.now();
+    if (now - lastRefreshAt < MIN_REFRESH_INTERVAL_MS) {
+      return; // throttle: avoid refresh storm
+    }
+
     const isExpired = await isAccessTokenExpired();
-    
-    if (isExpired) {
-      console.log('🔄 Access token expired or expiring soon, refreshing...');
-      try {
-        await refreshSession();
-        console.log('✅ Access token refreshed successfully');
-      } catch (error) {
-        console.error('❌ Failed to refresh access token:', error);
-        // If refresh fails, stop the service (user will need to login again)
-        stopTokenRefreshService();
+    if (!isExpired) return;
+
+    try {
+      const result = await doRefreshToken();
+      if (result?.access_token) {
+        lastRefreshAt = Date.now();
       }
-    } else {
-      console.log('✅ Access token is still valid');
+    } catch (error) {
+      console.error('❌ Token refresh service: refresh failed', error?.message);
+      stopTokenRefreshService();
     }
   } catch (error) {
-    console.error('❌ Error checking token:', error);
+    console.error('❌ Token refresh service: check failed', error?.message);
   }
 }
 

@@ -20,6 +20,7 @@ import { Colors } from '../styles/colors';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { logout } from '../services/authService';
 import { getTokens } from '../services/tokenManager';
+import { validateToken } from '../services/tokenUtils';
 import { handle401Error, handleApiError } from '../services/errorHandler';
 
 const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
@@ -59,22 +60,6 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
     // In a real app, you'd fetch user data from API using stored token
     loadUserData();
   }, []);
-
-  const validateToken = (token) => {
-    if (!token) return false;
-    // Check if token is a valid JWT format
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    // Check if token is expired
-    try {
-      const payload = JSON.parse(atob(parts[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp > currentTime;
-    } catch (error) {
-      console.log('Token validation error:', error);
-      return false;
-    }
-  };
 
   const loadUserData = async (showFullLoader = true) => {
     try {
@@ -344,7 +329,7 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
           <View style={styles.profileImage}>
             {userInfo.profile_picture && !imageError ? (
               <Image 
-                source={{ uri: `https://precast.blueinvent.com/api/get-file?file=${userInfo.profile_picture}` }}
+                source={{ uri: `${API_BASE_URL}/api/get-file?file=${userInfo.profile_picture}` }}
                 style={styles.profileImageSource}
                 resizeMode="cover"
                 onError={() => {

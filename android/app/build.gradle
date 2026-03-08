@@ -81,6 +81,14 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Configuration for react-native-vector-icons fonts
+project.ext.vectoricons = [
+    // Add or remove icon font files as needed
+    iconFontNames: [ 'MaterialIcons.ttf', 'FontAwesome.ttf' ]
+]
+
+apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 

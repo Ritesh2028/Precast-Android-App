@@ -20,10 +20,10 @@ import ProjectDropdown from '../components/ProjectDropdown';
 import DrawingFilesModal from '../components/DrawingFilesModal';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
-import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
-import { validateSession, refreshSession } from '../services/authService';
+import { API_BASE_URL, WEB_URL, createAuthHeaders } from '../config/apiConfig';
+import { validateSession, refreshSession, logout } from '../services/authService';
 import { getTokens } from '../services/tokenManager';
-import { logout } from '../services/authService';
+import { validateToken } from '../services/tokenUtils';
 import { handle401Error, handleApiError } from '../services/errorHandler';
 
 const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
@@ -35,6 +35,12 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(true);
+  const [taskCounts, setTaskCounts] = useState({
+    pending: 0,
+    completed: 0,
+    total: 0,
+  });
+  const [taskCountsLoading, setTaskCountsLoading] = useState(false);
   const [drawingFilesModalVisible, setDrawingFilesModalVisible] = useState(false);
   const [selectedElementId, setSelectedElementId] = useState(null);
   const [selectedElementData, setSelectedElementData] = useState(null);
@@ -90,7 +96,7 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
             } else if (isDispatchManager) {
               navigation.replace('DispatchManager');
             } else {
-              navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+              navigation.replace('WebView', { url: WEB_URL });
             }
           }
         }
@@ -101,20 +107,6 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
     
     checkUserRole();
   }, [navigation]);
-
-  const validateTokenLocally = (token) => {
-    if (!token) return false;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    try {
-      const payload = JSON.parse(atob(parts[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp > currentTime;
-    } catch (error) {
-      console.log('Token validation error:', error);
-      return false;
-    }
-  };
 
   const formatDate = (dateString) => {
     try {
@@ -385,6 +377,91 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
     }
   };
 
+  // Helper to load task counts for dashboard charts
+  const loadTaskCounts = async () => {
+    try {
+      setTaskCountsLoading(true);
+
+      const { accessToken } = await getTokens();
+      if (!accessToken) {
+        console.log('No auth token found for task counts');
+        setTaskCountsLoading(false);
+        return;
+      }
+
+      // Build API URL (supports optional project filter, same as tasks API)
+      let apiUrl = `${API_BASE_URL}/api/app/tasks/count`;
+      const queryParams = [];
+
+      if (selectedProjectId && selectedProjectId !== 'all') {
+        queryParams.push(`project_id=${encodeURIComponent(selectedProjectId)}`);
+      }
+
+      if (queryParams.length > 0) {
+        apiUrl += '?' + queryParams.join('&');
+      }
+
+      // Validate session and get the best token to use
+      let currentToken = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult && sessionResult.session_id) {
+          currentToken = sessionResult.session_id;
+        }
+      } catch (validateError) {
+        console.log('[DashboardScreen] Task counts session validation failed, using original token:', validateError);
+      }
+
+      // First try with Bearer token
+      const headersWithBearer = createAuthHeaders(currentToken, { useBearer: true });
+      let response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: headersWithBearer,
+      });
+
+      // If 401, retry without Bearer prefix
+      if (response.status === 401) {
+        console.log('[DashboardScreen] Task counts API returned 401 with Bearer, retrying without Bearer');
+        const headersWithoutBearer = createAuthHeaders(currentToken, { useBearer: false });
+        response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: headersWithoutBearer,
+        });
+      }
+
+      if (!response.ok) {
+        console.log('[DashboardScreen] Task counts API failed, status:', response.status);
+        setTaskCounts({
+          pending: 0,
+          completed: 0,
+          total: 0,
+        });
+        setTaskCountsLoading(false);
+        return;
+      }
+
+      const data = await response.json();
+
+      const pending = Number(data?.pending || 0);
+      const completed = Number(data?.completed || 0);
+      const total = Number(data?.total || 0);
+      setTaskCounts({
+        pending,
+        completed,
+        total,
+      });
+      setTaskCountsLoading(false);
+    } catch (error) {
+      console.log('[DashboardScreen] Error loading task counts:', error);
+      setTaskCounts({
+        pending: 0,
+        completed: 0,
+        total: 0,
+      });
+      setTaskCountsLoading(false);
+    }
+  };
+
   const loadProductionHistory = async (statusFilter = null) => {
     try {
       setJobsLoading(true);
@@ -396,7 +473,7 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
         return;
       }
 
-      if (!validateTokenLocally(accessToken)) {
+      if (!validateToken(accessToken)) {
         console.log('Local token check failed, validating session with backend...');
         try {
           const sessionResult = await validateSession();
@@ -659,6 +736,7 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
 
   useEffect(() => {
     loadProductionHistory();
+    loadTaskCounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -666,6 +744,7 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
     // Reload when project selection changes
     if (selectedProject) {
       loadProductionHistory();
+      loadTaskCounts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject, selectedProjectId]);
@@ -810,16 +889,13 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
   };
 
   const pieChartData = [
-    { label: 'Pending', value: 12, color: '#FF9500' },
-    { label: 'Completed', value: 5, color: '#34C759' },
-    { label: 'In Progress', value: 3, color: '#FF3B30' },
-    
+    { label: 'Pending', value: taskCounts.pending, color: '#FF9500' },
+    { label: 'Completed', value: taskCounts.completed, color: '#34C759' },
   ];
 
   const getStatusColor = (status) => {
     switch (status) {
       case 'Pending': return '#FF9500';
-      case 'In Progress': return '#007AFF';
       case 'Completed': return '#34C759';
       default: return '#8E8E93';
     }
@@ -1380,7 +1456,7 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
                         return;
                       }
 
-                      if (!validateTokenLocally(accessToken)) {
+                      if (!validateToken(accessToken)) {
                         Alert.alert('Session Expired', 'Your session has expired. Please login again.');
                         await logout();
                         navigation.reset({

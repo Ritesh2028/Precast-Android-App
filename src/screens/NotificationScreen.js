@@ -14,7 +14,6 @@ import { FontSizes, FontWeights } from '../styles/fonts';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
 import { validateSession, refreshSession } from '../services/authService';
-import { handleApiError } from '../services/errorHandler';
 import BottomNavigation from '../components/BottomNavigation';
 
 const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
@@ -215,7 +214,7 @@ const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
     // Handle navigation if action exists
     if (notification.action) {
       // Remove base URL from action
-      const action = notification.action.replace('https://precast.blueinvent.com', '');
+      const action = notification.action.replace(API_BASE_URL, '');
       
       if (action) {
         // Try to navigate based on action

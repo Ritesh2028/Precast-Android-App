@@ -19,7 +19,7 @@ import Logo from '../components/Logo';
 import DeviceLimitModal from '../components/DeviceLimitModal';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
-import { API_BASE_URL } from '../config/apiConfig';
+import { API_BASE_URL, WEB_URL } from '../config/apiConfig';
 import { login as loginRequest, logout as logoutService } from '../services/authService';
 import { clearAllTokens } from '../services/tokenManager';
 import { stopTokenRefreshService } from '../services/tokenRefreshService';
@@ -162,7 +162,7 @@ const LoginScreen = ({ navigation }) => {
         if (!userRole) {
           // No role found, navigate to WebView screen
           console.log('📱 [LoginScreen] No role found, navigating to WebView');
-        navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+        navigation.replace('WebView', { url: WEB_URL });
         return;
       }
 
@@ -224,7 +224,7 @@ const LoginScreen = ({ navigation }) => {
           // User doesn't have any recognized role, navigate to WebView screen
           console.log('📱 [LoginScreen] User role is not recognized, navigating to WebView');
           console.log('📱 [LoginScreen] User role value:', userRole);
-          navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+          navigation.replace('WebView', { url: WEB_URL });
           console.log('✅ [LoginScreen] Navigation to WebView initiated');
         }
       };
@@ -368,7 +368,7 @@ const LoginScreen = ({ navigation }) => {
               } else if (isDispatchManager) {
                 navigation.replace('DispatchManager');
               } else {
-                navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+                navigation.replace('WebView', { url: WEB_URL });
               }
             };
             

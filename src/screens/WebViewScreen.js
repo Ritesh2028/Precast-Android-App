@@ -24,26 +24,17 @@ import { OfflineScreen } from '../components/OfflineScreen';
 import { ErrorScreen } from '../components/ErrorScreen';
 import CameraQRScanner from '../components/CameraQRScanner';
 import { Colors } from '../styles/colors';
-import { FontSizes, FontWeights } from '../styles/fonts';
 import { getTokens } from '../services/tokenManager';
+import { validateToken } from '../services/tokenUtils';
 import { validateSession, refreshSession, logout } from '../services/authService';
+import { WEB_URL } from '../config/apiConfig';
 
-const WEB_URL = 'https://precast.blueinvent.com/';
 const RETRY_DELAY = 2000;
 
-/**
- * Safely converts any value to a boolean
- */
 const toBoolean = (value) => {
-  if (value === null || value === undefined) {
-    return false;
-  }
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  if (typeof value === 'number') {
-    return value !== 0 && !isNaN(value);
-  }
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0 && !isNaN(value);
   if (typeof value === 'string') {
     const normalized = String(value).toLowerCase().trim();
     return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'granted';
@@ -51,34 +42,12 @@ const toBoolean = (value) => {
   return Boolean(value);
 };
 
-/**
- * Safely parses JSON string with error handling
- */
 const safeJsonParse = (jsonString, fallback = null) => {
   try {
-    if (typeof jsonString !== 'string') {
-      return fallback;
-    }
+    if (typeof jsonString !== 'string') return fallback;
     return JSON.parse(jsonString);
-  } catch (error) {
-    console.warn('JSON parse error:', error);
+  } catch {
     return fallback;
-  }
-};
-
-/**
- * Validate token locally
- */
-const validateToken = (token) => {
-  if (!token) return false;
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
-  try {
-    const payload = JSON.parse(atob(parts[1]));
-    const currentTime = Math.floor(Date.now() / 1000);
-    return payload.exp > currentTime;
-  } catch (error) {
-    return false;
   }
 };
 
@@ -90,6 +59,7 @@ const WebViewScreen = ({ navigation, route }) => {
   const [errorMessage, setErrorMessage] = useState(undefined);
   const [currentUrl, setCurrentUrl] = useState(WEB_URL);
   const [authToken, setAuthToken] = useState(null);
+  const [refreshTokenForWebView, setRefreshTokenForWebView] = useState(null); // So webpage can use same keys as Chrome (accessToken + refreshToken)
   const [isLoggingOut, setIsLoggingOut] = useState(false); // Flag to prevent auto re-login
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false); // Track if WebView has loaded at least once
   const { isConnected } = useNetworkStatus();
@@ -120,6 +90,7 @@ const WebViewScreen = ({ navigation, route }) => {
       setHasError(false);
       setErrorMessage(undefined);
       setHasLoadedOnce(false); // Reset loaded flag on new login
+      setRefreshTokenForWebView(null);
       // Don't reset authToken here, let the token loading effect handle it
     }, [])
   );
@@ -201,6 +172,7 @@ const WebViewScreen = ({ navigation, route }) => {
             }
             
             setAuthToken(newToken);
+            if (refreshResult.refresh_token) setRefreshTokenForWebView(refreshResult.refresh_token);
             console.log('Token refreshed successfully');
           } else {
             // Refresh failed, redirect to login
@@ -233,6 +205,7 @@ const WebViewScreen = ({ navigation, route }) => {
             console.log('Session validation failed, using access_token');
           }
           setAuthToken(tokenToUse);
+          setRefreshTokenForWebView(refreshToken);
         }
         
         setIsLoading(false);
@@ -281,6 +254,7 @@ const WebViewScreen = ({ navigation, route }) => {
             }
             
             setAuthToken(newToken);
+            if (refreshResult.refresh_token) setRefreshTokenForWebView(refreshResult.refresh_token);
             
             // Reload WebView with new token
             if (webViewRef.current) {
@@ -328,6 +302,7 @@ const WebViewScreen = ({ navigation, route }) => {
                     console.log('Session validation failed');
                   }
                   setAuthToken(newToken);
+                  if (refreshResult.refresh_token) setRefreshTokenForWebView(refreshResult.refresh_token);
                 }
               } else {
                 // Validate session to get updated session_id if needed
@@ -461,6 +436,7 @@ const WebViewScreen = ({ navigation, route }) => {
           }
           
           setAuthToken(newToken);
+          if (refreshResult.refresh_token) setRefreshTokenForWebView(refreshResult.refresh_token);
           
           // Reload WebView with new token
           if (webViewRef.current) {
@@ -503,6 +479,7 @@ const WebViewScreen = ({ navigation, route }) => {
             }
             
             setAuthToken(newToken);
+            if (refreshResult.refresh_token) setRefreshTokenForWebView(refreshResult.refresh_token);
             
             // Reload WebView with new token
             if (webViewRef.current) {
@@ -965,6 +942,7 @@ const WebViewScreen = ({ navigation, route }) => {
               }
               
               setAuthToken(newToken);
+              if (refreshResult.refresh_token) setRefreshTokenForWebView(refreshResult.refresh_token);
               
               // Reload WebView with new token
               if (webViewRef.current) {
@@ -1057,15 +1035,19 @@ const WebViewScreen = ({ navigation, route }) => {
     if (isLoginPage && !urlLower.includes('token=')) {
       return `
         (function() {
-          // On login page, clear any existing tokens
+          // On login page, clear any existing tokens (including website keys accessToken, refreshToken)
           try {
             if (window.authToken) delete window.authToken;
             if (window.sessionToken) delete window.sessionToken;
             localStorage.removeItem('auth_token');
             localStorage.removeItem('token');
             localStorage.removeItem('session_id');
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
             sessionStorage.removeItem('auth_token');
             sessionStorage.removeItem('token');
+            sessionStorage.removeItem('accessToken');
+            sessionStorage.removeItem('refreshToken');
           } catch(e) {}
           true;
         })();
@@ -1097,11 +1079,13 @@ const WebViewScreen = ({ navigation, route }) => {
     }
     
     const escapedToken = authToken.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+    const escapedRefresh = (refreshTokenForWebView || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
     
     return `
       (function() {
         try {
           const token = '${escapedToken}';
+          const refreshToken = '${escapedRefresh}';
           if (token && token.length > 0) {
             // Set cookies
             document.cookie = 'auth_token=' + encodeURIComponent(token) + '; path=/; domain=.blueinvent.com; SameSite=None; Secure';
@@ -1111,13 +1095,17 @@ const WebViewScreen = ({ navigation, route }) => {
             document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; domain=blueinvent.com; SameSite=None; Secure';
             document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; SameSite=None; Secure';
             
-            // Store in storage
+            // Store in storage (same keys as website in Chrome: accessToken, refreshToken)
             try {
+              localStorage.setItem('accessToken', token);
+              if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
               localStorage.setItem('auth_token', token);
               localStorage.setItem('token', token);
               localStorage.setItem('session_id', token);
               sessionStorage.setItem('auth_token', token);
               sessionStorage.setItem('token', token);
+              sessionStorage.setItem('accessToken', token);
+              if (refreshToken) sessionStorage.setItem('refreshToken', refreshToken);
             } catch(e) {}
             
             // Override fetch
@@ -1220,7 +1208,7 @@ const WebViewScreen = ({ navigation, route }) => {
         true;
       })();
     `;
-  }, [authToken, isLoggingOut, currentUrl]);
+  }, [authToken, refreshTokenForWebView, isLoggingOut, currentUrl]);
 
   // Full injected JavaScript with download handling
   const fullInjectedJavaScript = useMemo(() => {

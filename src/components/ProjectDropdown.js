@@ -13,8 +13,9 @@ import {
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
 import { getTokens } from '../services/tokenManager';
+import { validateToken } from '../services/tokenUtils';
 import { logout } from '../services/authService';
-import { createAuthHeaders } from '../config/apiConfig';
+import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 
 const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation, includeAllOption = true }) => {
   const [projects, setProjects] = useState([]);
@@ -26,20 +27,6 @@ const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation, include
   useEffect(() => {
     loadProjects();
   }, []);
-
-  const validateToken = (token) => {
-    if (!token) return false;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    try {
-      const payload = JSON.parse(atob(parts[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp > currentTime;
-    } catch (error) {
-      console.log('Token validation error:', error);
-      return false;
-    }
-  };
 
   const loadProjects = async () => {
     try {
@@ -59,7 +46,7 @@ const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation, include
           return;
         }
 
-        const apiUrl = 'https://precast.blueinvent.com/api/projects/basic';
+        const apiUrl = `${API_BASE_URL}/api/projects/basic`;
         console.log('📱 [ProjectDropdown] Making API call to:', apiUrl);
         console.log('📱 [ProjectDropdown] Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
         

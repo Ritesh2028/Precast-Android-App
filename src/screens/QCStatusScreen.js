@@ -13,9 +13,10 @@ import {
   FlatList,
 } from 'react-native';
 import { getTokens } from '../services/tokenManager';
+import { validateToken } from '../services/tokenUtils';
 import { logout, validateSession, refreshSession } from '../services/authService';
-import { handle401Error, handleApiError } from '../services/errorHandler';
-import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
+import { handle401Error } from '../services/errorHandler';
+import { API_BASE_URL, WEB_URL, createAuthHeaders } from '../config/apiConfig';
 import CameraQRScanner from '../components/CameraQRScanner';
 import BottomNavigation from '../components/BottomNavigation';
 import ProjectDropdown from '../components/ProjectDropdown';
@@ -89,7 +90,7 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
             } else if (isDispatchManager) {
               navigation.replace('DispatchManager');
             } else {
-              navigation.replace('WebView', { url: 'https://precast.blueinvent.com/' });
+              navigation.replace('WebView', { url: WEB_URL });
             }
           }
         }
@@ -100,20 +101,6 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
     
     checkUserRole();
   }, [navigation]);
-
-  const validateToken = (token) => {
-    if (!token) return false;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    try {
-      const payload = JSON.parse(atob(parts[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp > currentTime;
-    } catch (error) {
-      console.log('Token validation error:', error);
-      return false;
-    }
-  };
 
   // Helper function to load tasks from API
   const loadTasksFromAPI = async (token, statusParam, projectId = null) => {
@@ -657,7 +644,7 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
 
   const handleQCItemPress = async (qcItem) => {
     const elementId = qcItem.originalData?.element_id || qcItem.originalData?.id || qcItem.id?.replace('ELEM-', '') || qcItem.id;
-    
+
     try {
       const { accessToken } = await getTokens();
       if (!accessToken) {
@@ -668,49 +655,47 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
       if (!validateToken(accessToken)) {
         Alert.alert('Session Expired', 'Your session has expired. Please login again.');
         await logout();
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Login' }],
-        });
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
         return;
       }
 
-      const apiUrl = `https://precast.blueinvent.com/api/scan_element/${elementId}`;
-      console.log('Fetching element details from:', apiUrl);
+      let tokenToUse = accessToken;
+      try {
+        const sessionResult = await validateSession();
+        if (sessionResult?.session_id) {
+          tokenToUse = sessionResult.session_id;
+        }
+      } catch {}
 
-      const response = await fetch(apiUrl, {
+      const apiUrl = `${API_BASE_URL}/api/scan_element/${elementId}`;
+
+      let response = await fetch(apiUrl, {
         method: 'GET',
-        headers: {
-          'Authorization': token,
-          'session_id': token,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'User-Agent': 'PrecastApp/1.0',
-        },
+        headers: createAuthHeaders(tokenToUse, { useBearer: true }),
       });
+
+      if (response.status === 401) {
+        response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: createAuthHeaders(tokenToUse, { useBearer: false }),
+        });
+      }
 
       if (response.ok) {
         const elementData = await response.json();
-        console.log('Element details fetched successfully:', elementData);
         navigation.navigate('ElementDetails', {
           elementId: elementId,
-          elementData: elementData
+          elementData: elementData,
         });
-      } else {
-        const errorText = await response.text();
-        console.log('Error fetching element details:', errorText);
-        if (response.status === 401) {
-          const shouldRetry = await handle401Error(response, null, navigation);
-          if (!shouldRetry) {
-            Alert.alert('Error', 'Failed to fetch element details. Please try again.');
-          }
-        } else {
-          Alert.alert('Error', `Failed to fetch element details. Status: ${response.status}`);
+      } else if (response.status === 401) {
+        const shouldRetry = await handle401Error(response, null, navigation);
+        if (!shouldRetry) {
+          Alert.alert('Error', 'Failed to fetch element details. Please try again.');
         }
+      } else {
+        Alert.alert('Error', `Failed to fetch element details. Status: ${response.status}`);
       }
     } catch (error) {
-      console.log('Error fetching element details:', error);
       Alert.alert('Network Error', `Failed to fetch element details: ${error.message}`);
     }
   };
@@ -860,9 +845,7 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
       <ProjectDropdown
           selectedProject={typeof selectedProject === 'string' ? selectedProject : (selectedProject?.name || 'All Projects')}
           onProjectSelect={(project) => {
-            const projectName = project?.name || 'All Projects';
-            const projectId = project?.project_id || null;
-            handleProjectSelect(projectName, projectId);
+            handleProjectSelect(project);
           }}
         navigation={navigation}
       />
@@ -1092,7 +1075,7 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
       <BirdsEyeViewModal
         visible={!!birdsEyeViewVisible}
         onClose={() => setBirdsEyeViewVisible(false)}
-        projectId={selectedProjectId || null}
+        projectId={selectedProjectId || jobs[0]?.originalData?.project_id || jobs[0]?.project_id || null}
       />
       </ScrollView>
 

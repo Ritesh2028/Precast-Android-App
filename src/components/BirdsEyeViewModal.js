@@ -8,177 +8,172 @@ import {
   Alert,
   Linking,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import Constants from 'expo-constants';
-
-// Try to load WebView - check multiple ways
-let WebView = null;
-let WebViewAvailable = false;
-
-// Method 1: Try direct import (most common)
-try {
-  const WebViewModule = require('react-native-webview');
-  if (WebViewModule) {
-    // Try WebView property first
-    if (WebViewModule.WebView) {
-      WebView = WebViewModule.WebView;
-      WebViewAvailable = true;
-      console.log('✅ WebView loaded successfully');
-    } 
-    // Try default export
-    else if (WebViewModule.default) {
-      WebView = WebViewModule.default;
-      WebViewAvailable = true;
-      console.log('✅ WebView loaded successfully (default export)');
-    }
-    // Try the module itself
-    else if (typeof WebViewModule === 'function') {
-      WebView = WebViewModule;
-      WebViewAvailable = true;
-      console.log('✅ WebView loaded successfully (direct)');
-    }
-  }
-} catch (e) {
-  console.warn('⚠️ WebView require failed:', e.message);
-}
-
-// Check if running in Expo Go (doesn't support react-native-webview properly)
-const isExpoGo = Constants.executionEnvironment === 'storeClient';
-if (isExpoGo && WebViewAvailable) {
-  console.log('⚠️ Running in Expo Go - WebView may not work properly');
-}
+import { WebView } from 'react-native-webview';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
 import { getTokens } from '../services/tokenManager';
-import { validateSession } from '../services/authService';
+import { validateToken } from '../services/tokenUtils';
+import { validateSession, refreshSession } from '../services/authService';
+import { API_BASE_URL } from '../config/apiConfig';
+
+const MAX_REFRESH_RETRIES = 3;
 
 const BirdsEyeViewModal = ({ visible, onClose, projectId }) => {
-  // Ensure visible is always boolean to prevent type casting errors
   const isVisible = !!visible;
   const [error, setError] = useState(null);
   const [authToken, setAuthToken] = useState(null);
+  const [refreshTokenValue, setRefreshTokenValue] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const webViewRef = useRef(null);
+  const refreshRetryCount = useRef(0);
 
-  // Construct URL with project ID and token - use useMemo to ensure consistent reference
-  const url = useMemo(() => {
-    const baseUrl = 'https://precast.blueinvent.com/project';
-    let finalUrl = projectId 
-      ? `${baseUrl}/${projectId}/plan`
-      : `${baseUrl}/978617912/plan`; // Fallback to default project
-    
-    // Add token as URL parameter if available (some pages check this)
-    if (authToken) {
-      const separator = finalUrl.indexOf('?') === -1 ? '?' : '&';
-      finalUrl = `${finalUrl}${separator}token=${encodeURIComponent(authToken)}&auth_token=${encodeURIComponent(authToken)}`;
-    }
-    
-    return finalUrl;
-  }, [projectId, authToken]);
+  const pageUrl = useMemo(() => {
+    if (!projectId) return null;
+    return `${API_BASE_URL}/project/${projectId}/bird-eye-view`;
+  }, [projectId]);
 
-  // Load token when modal opens - use useCallback to ensure consistent reference
   const loadAuthToken = useCallback(async () => {
     try {
-      const { accessToken } = await getTokens();
-      if (!accessToken) {
-        throw new Error('No authentication token found');
+      const { accessToken, refreshToken } = await getTokens();
+      if (!accessToken && !refreshToken) {
+        setError('No authentication token found. Please log in again.');
+        return null;
       }
-      
-      // Validate session to get session_id (similar to other screens)
+
       let tokenToUse = accessToken;
+
+      if (!validateToken(accessToken)) {
+        if (!refreshToken) {
+          setError('Your session has expired. Please log in again.');
+          return null;
+        }
+        const refreshResult = await refreshSession();
+        if (!refreshResult || !refreshResult.access_token) {
+          setError('Session expired. Please log in again.');
+          return null;
+        }
+        tokenToUse = refreshResult.access_token;
+      }
+
       try {
         const sessionResult = await validateSession();
         if (sessionResult && sessionResult.session_id) {
           tokenToUse = sessionResult.session_id;
-          console.log('✅ [BirdsEyeViewModal] Using validated session_id');
-        } else {
-          console.log('⚠️ [BirdsEyeViewModal] Session validation returned no session_id, using access_token');
         }
-      } catch (validateError) {
-        console.log('⚠️ [BirdsEyeViewModal] Session validation failed, using access_token:', validateError);
+      } catch {
+        // use access_token if validation fails
       }
-      
+
       setAuthToken(tokenToUse);
+      setRefreshTokenValue(refreshToken || null);
+      setError(null);
+      refreshRetryCount.current = 0;
       return tokenToUse;
-    } catch (error) {
-      console.log('❌ [BirdsEyeViewModal] Error loading token:', error);
-      throw error;
+    } catch (err) {
+      setError('Failed to load authentication. Please try again.');
+      throw err;
     }
   }, []);
 
-  // Load token when modal opens
   useEffect(() => {
-    if (isVisible) {
+    if (isVisible && pageUrl) {
       setError(null);
-      // Load token first before showing WebView
-      loadAuthToken().catch((err) => {
+      setIsLoading(true);
+      refreshRetryCount.current = 0;
+      loadAuthToken().catch(() => {
         setError('Failed to load authentication token. Please try again.');
       });
-    } else {
-      // Reset state when modal closes
+    } else if (!isVisible) {
       setError(null);
       setAuthToken(null);
+      setRefreshTokenValue(null);
+      setIsLoading(true);
+      refreshRetryCount.current = 0;
     }
-  }, [isVisible, loadAuthToken]);
+  }, [isVisible, pageUrl, loadAuthToken]);
 
-  // JavaScript to inject token into the page - inject immediately on page load
+  const escapeForJS = (str) =>
+    (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+
+  // Exact same injected JS pattern as WebViewScreen
   const injectedJavaScript = useMemo(() => {
-    if (!authToken) return '';
-    
-    // Escape token for use in JavaScript string
-    const escapedToken = authToken.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
-    
+    if (!authToken) return 'true;';
+    const escapedToken = escapeForJS(authToken);
+    const escapedRefresh = escapeForJS(refreshTokenValue);
+
     return `
       (function() {
         try {
           const token = '${escapedToken}';
+          const refreshToken = '${escapedRefresh}';
           if (token && token.length > 0) {
-            // Set cookies FIRST before anything else loads
             document.cookie = 'auth_token=' + encodeURIComponent(token) + '; path=/; domain=.blueinvent.com; SameSite=None; Secure';
             document.cookie = 'auth_token=' + encodeURIComponent(token) + '; path=/; domain=blueinvent.com; SameSite=None; Secure';
             document.cookie = 'auth_token=' + encodeURIComponent(token) + '; path=/; SameSite=None; Secure';
             document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; domain=.blueinvent.com; SameSite=None; Secure';
             document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; domain=blueinvent.com; SameSite=None; Secure';
             document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; SameSite=None; Secure';
-            
-            // Store in storage
+
             try {
+              localStorage.setItem('accessToken', token);
+              if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
               localStorage.setItem('auth_token', token);
               localStorage.setItem('token', token);
               localStorage.setItem('session_id', token);
               sessionStorage.setItem('auth_token', token);
               sessionStorage.setItem('token', token);
-            } catch(e) {
-              // Storage error handled silently
-            }
-            
-            // Override fetch BEFORE page scripts run
+              sessionStorage.setItem('accessToken', token);
+              if (refreshToken) sessionStorage.setItem('refreshToken', refreshToken);
+            } catch(e) {}
+
             if (window.fetch) {
               const originalFetch = window.fetch;
               window.fetch = function(...args) {
                 const [url, options = {}] = args;
                 const headers = new Headers(options.headers || {});
                 if (!headers.has('Authorization')) {
-                  headers.set('Authorization', token);
+                  headers.set('Authorization', 'Bearer ' + token);
                 }
                 if (!headers.has('session_id')) {
                   headers.set('session_id', token);
                 }
                 options.credentials = options.credentials || 'include';
-                return originalFetch(url, { ...options, headers });
+                return originalFetch(url, { ...options, headers }).then(function(response) {
+                  if (response.status === 401 || response.status === 403) {
+                    if (window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'TOKEN_REFRESH_REQUIRED',
+                        reason: 'fetch_401_error'
+                      }));
+                    }
+                  }
+                  return response;
+                }).catch(function(error) {
+                  if (error && (error.status === 401 || error.status === 403)) {
+                    if (window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'TOKEN_REFRESH_REQUIRED',
+                        reason: 'fetch_401_error'
+                      }));
+                    }
+                  }
+                  throw error;
+                });
               };
             }
-            
-            // Override XMLHttpRequest BEFORE page scripts run
+
             if (window.XMLHttpRequest) {
               const originalOpen = XMLHttpRequest.prototype.open;
               const originalSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
               const originalSend = XMLHttpRequest.prototype.send;
-              
+
               XMLHttpRequest.prototype.open = function(method, url, ...rest) {
                 this._authToken = token;
                 return originalOpen.apply(this, [method, url, ...rest]);
               };
-              
+
               XMLHttpRequest.prototype.setRequestHeader = function(header, value) {
                 const headerLower = header.toLowerCase();
                 if ((headerLower === 'authorization' || headerLower === 'session_id') && !value) {
@@ -186,25 +181,36 @@ const BirdsEyeViewModal = ({ visible, onClose, projectId }) => {
                 }
                 return originalSetRequestHeader.apply(this, [header, value]);
               };
-              
+
               XMLHttpRequest.prototype.send = function(...args) {
                 if (this._authToken) {
                   try {
                     if (!this.getRequestHeader('Authorization')) {
-                      this.setRequestHeader('Authorization', this._authToken);
+                      this.setRequestHeader('Authorization', 'Bearer ' + this._authToken);
                     }
                     if (!this.getRequestHeader('session_id')) {
                       this.setRequestHeader('session_id', this._authToken);
                     }
-                  } catch(e) {
-                    // Header might already be set
-                  }
+                  } catch(e) {}
                 }
+                var originalOnReadyStateChange = this.onreadystatechange;
+                this.onreadystatechange = function() {
+                  if (this.readyState === 4 && (this.status === 401 || this.status === 403)) {
+                    if (window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'TOKEN_REFRESH_REQUIRED',
+                        reason: 'xhr_401_error'
+                      }));
+                    }
+                  }
+                  if (originalOnReadyStateChange) {
+                    originalOnReadyStateChange.apply(this, arguments);
+                  }
+                };
                 return originalSend.apply(this, args);
               };
             }
-            
-            // Make token available globally
+
             window.authToken = token;
             window.sessionToken = token;
           }
@@ -214,47 +220,95 @@ const BirdsEyeViewModal = ({ visible, onClose, projectId }) => {
         true;
       })();
     `;
-  }, [authToken]);
+  }, [authToken, refreshTokenValue]);
+
+  const tryRefreshAndReload = useCallback(async () => {
+    if (refreshRetryCount.current >= MAX_REFRESH_RETRIES) {
+      setError('Authentication failed after multiple attempts. Please log in again.');
+      return;
+    }
+    refreshRetryCount.current += 1;
+
+    try {
+      const refreshResult = await refreshSession();
+      if (refreshResult && refreshResult.access_token) {
+        let newToken = refreshResult.access_token;
+        try {
+          const sessionResult = await validateSession();
+          if (sessionResult && sessionResult.session_id) newToken = sessionResult.session_id;
+        } catch {}
+        setAuthToken(newToken);
+        if (refreshResult.refresh_token) setRefreshTokenValue(refreshResult.refresh_token);
+        if (webViewRef.current) {
+          setTimeout(() => webViewRef.current?.reload(), 500);
+        }
+        return;
+      }
+    } catch {}
+
+    setError('Authentication failed. Your session may have expired. Please log in again.');
+  }, []);
 
   const handleMessage = useCallback(async (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'GET_TOKEN' && authToken && webViewRef.current) {
-        // Send token to WebView
-        webViewRef.current.postMessage(JSON.stringify({
-          type: 'TOKEN',
-          token: authToken
-        }));
+        webViewRef.current.postMessage(JSON.stringify({ type: 'TOKEN', token: authToken }));
+        return;
       }
-    } catch (error) {
-      // Error handling WebView message
-    }
-  }, [authToken]);
+      if (data.type === 'TOKEN_REFRESH_REQUIRED') {
+        await tryRefreshAndReload();
+      }
+    } catch {}
+  }, [authToken, tryRefreshAndReload]);
 
-  const handleError = useCallback((syntheticEvent) => {
-    const { nativeEvent } = syntheticEvent;
-    let errorMessage = nativeEvent.description || nativeEvent.message || 'Failed to load page';
-    
-    // Check for specific security check error
-    if (errorMessage.includes('security check') || errorMessage.includes('Failed to initialize')) {
-      errorMessage = 'Authentication failed. The security check could not be completed. Please ensure you are logged in and try again.';
-    }
-    
-    setError(errorMessage);
+  const handleLoadEnd = useCallback(() => {
+    setIsLoading(false);
   }, []);
 
-  const handleHttpError = useCallback((syntheticEvent) => {
+  const handleError = useCallback(async (syntheticEvent) => {
+    const { nativeEvent } = syntheticEvent;
+    const msg = nativeEvent.description || nativeEvent.message || 'Failed to load page';
+    const statusCode = nativeEvent.statusCode;
+
+    if (msg.includes('security check') || msg.includes('401') || msg.includes('Unauthorized') ||
+        statusCode === 401 || statusCode === 403) {
+      await tryRefreshAndReload();
+      return;
+    }
+    setError(msg);
+  }, [tryRefreshAndReload]);
+
+  const handleHttpError = useCallback(async (syntheticEvent) => {
     const { nativeEvent } = syntheticEvent;
     if (nativeEvent.statusCode >= 400) {
-      let errorMsg = `Failed to load page (Status: ${nativeEvent.statusCode}).`;
       if (nativeEvent.statusCode === 401 || nativeEvent.statusCode === 403) {
-        errorMsg = 'Authentication failed. Your session may have expired. Please login again.';
-      } else if (nativeEvent.statusCode === 500) {
-        errorMsg = 'Server error. Please try again later.';
+        await tryRefreshAndReload();
+        return;
       }
-      setError(errorMsg);
+      if (nativeEvent.statusCode === 500) {
+        setError('Server error. Please try again later.');
+      } else {
+        setError(`Failed to load page (Status: ${nativeEvent.statusCode}).`);
+      }
     }
-  }, []);
+  }, [tryRefreshAndReload]);
+
+  // Same source config as WebViewScreen
+  const webViewSource = useMemo(() => {
+    if (!pageUrl || !authToken) return null;
+    return {
+      uri: pageUrl,
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'session_id': authToken,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'User-Agent': 'PrecastApp/1.0',
+      },
+    };
+  }, [pageUrl, authToken]);
 
   return (
     <Modal
@@ -282,7 +336,9 @@ const BirdsEyeViewModal = ({ visible, onClose, projectId }) => {
               <TouchableOpacity
                 onPress={() => {
                   setError(null);
-                  loadAuthToken().catch((err) => {
+                  setIsLoading(true);
+                  refreshRetryCount.current = 0;
+                  loadAuthToken().catch(() => {
                     setError('Failed to load authentication token. Please try again.');
                   });
                 }}
@@ -293,12 +349,8 @@ const BirdsEyeViewModal = ({ visible, onClose, projectId }) => {
               <TouchableOpacity
                 onPress={async () => {
                   try {
-                    const baseUrl = 'https://precast.blueinvent.com/project';
-                    const finalUrl = projectId 
-                      ? `${baseUrl}/${projectId}/plan`
-                      : `${baseUrl}/978617912/plan`;
-                    await Linking.openURL(finalUrl);
-                  } catch (err) {
+                    await Linking.openURL(pageUrl || API_BASE_URL);
+                  } catch {
                     Alert.alert('Error', 'Could not open in browser');
                   }
                 }}
@@ -310,77 +362,58 @@ const BirdsEyeViewModal = ({ visible, onClose, projectId }) => {
           </View>
         )}
 
-        {isVisible && authToken && (
-          WebViewAvailable && WebView ? (
+        {isVisible && !pageUrl && !error && (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.noProjectText}>Please select a project first.</Text>
+          </View>
+        )}
+
+        {isVisible && pageUrl && !authToken && !error && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Loading…</Text>
+          </View>
+        )}
+
+        {isVisible && webViewSource && !error && (
+          <>
             <WebView
               ref={webViewRef}
-              source={{
-                uri: url,
-                headers: {
-                  'Authorization': authToken,
-                  'session_id': authToken,
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json',
-                  'X-Requested-With': 'XMLHttpRequest',
-                  'User-Agent': 'PrecastApp/1.0',
-                },
-              }}
+              source={webViewSource}
               style={styles.webview}
               injectedJavaScript={injectedJavaScript}
               injectedJavaScriptBeforeContentLoaded={injectedJavaScript}
               onMessage={handleMessage}
+              onLoadEnd={handleLoadEnd}
               onError={handleError}
               onHttpError={handleHttpError}
               javaScriptEnabled={true}
               domStorageEnabled={true}
               originWhitelist={['*']}
+              allowFileAccess={true}
+              allowFileAccessFromFileURLs={true}
+              allowUniversalAccessFromFileURLs={true}
               sharedCookiesEnabled={true}
               thirdPartyCookiesEnabled={true}
               scalesPageToFit={true}
               startInLoadingState={false}
+              mixedContentMode="always"
+              cacheEnabled={true}
+              userAgent={
+                Platform.OS === 'android'
+                  ? 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36'
+                  : undefined
+              }
             />
-          ) : (
-            <View style={styles.fallbackContainer}>
-              <Text style={styles.fallbackTitle}>Bird's Eye View</Text>
-              <Text style={styles.fallbackMessage}>
-                {isExpoGo 
-                  ? 'WebView is not available in Expo Go.\nPlease use development build or open in browser.'
-                  : 'WebView component is not available.\nPlease install react-native-webview or open in browser.'}
-              </Text>
-              <TouchableOpacity
-                style={styles.fallbackButton}
-                onPress={async () => {
-                  try {
-                    const finalUrl = url || (projectId 
-                      ? `https://precast.blueinvent.com/project/${projectId}/plan`
-                      : 'https://precast.blueinvent.com/project/978617912/plan');
-                    const supported = await Linking.canOpenURL(finalUrl);
-                    if (supported) {
-                      await Linking.openURL(finalUrl);
-                      setTimeout(() => {
-                        onClose();
-                      }, 500);
-                    } else {
-                      Alert.alert('Error', `Cannot open URL: ${finalUrl}`);
-                    }
-                  } catch (error) {
-                    console.log('Error opening URL:', error);
-                    Alert.alert('Error', 'Failed to open the plan view');
-                  }
-                }}
-              >
-                <Text style={styles.fallbackButtonText}>Open in Browser</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.fallbackButton, styles.fallbackButtonSecondary]}
-                onPress={onClose}
-              >
-                <Text style={styles.fallbackButtonText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          )
+            {isLoading && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.loadingText}>Loading Bird's Eye View…</Text>
+              </View>
+            )}
+          </>
         )}
-        
+
       </View>
     </Modal>
   );
@@ -401,10 +434,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
@@ -430,6 +460,28 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: FontSizes.regular,
+    color: Colors.textSecondary,
+  },
+  noProjectText: {
+    fontSize: FontSizes.regular,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
   errorContainer: {
     position: 'absolute',
     top: '40%',
@@ -441,10 +493,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
@@ -469,44 +518,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: FontSizes.regular,
-    fontWeight: FontWeights.bold,
-    textAlign: 'center',
-  },
-  fallbackContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: Colors.background,
-  },
-  fallbackTitle: {
-    fontSize: FontSizes.xlarge,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  fallbackMessage: {
-    fontSize: FontSizes.regular,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 24,
-    paddingHorizontal: 20,
-  },
-  fallbackButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-    minWidth: 200,
-  },
-  fallbackButtonSecondary: {
-    backgroundColor: '#8E8E93',
-  },
-  fallbackButtonText: {
     color: '#FFFFFF',
     fontSize: FontSizes.regular,
     fontWeight: FontWeights.bold,

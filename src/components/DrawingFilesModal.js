@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { getTokens } from '../services/tokenManager';
 import { logout } from '../services/authService';
+import { API_BASE_URL } from '../config/apiConfig';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { FontSizes, FontWeights } from '../styles/fonts';
@@ -128,13 +129,12 @@ const DrawingFilesModal = ({ visible, onClose, elementId, elementData }) => {
       }
 
       // Build API URL
-      const apiUrl = `https://precast.blueinvent.com/api/get-file?file=${encodeURIComponent(file.fileName)}`;
+      const apiUrl = `${API_BASE_URL}/api/get-file?file=${encodeURIComponent(file.fileName)}`;
       
-      // Download file
       const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
-          'Authorization': token,
+          'Authorization': accessToken,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
@@ -178,7 +178,7 @@ const DrawingFilesModal = ({ visible, onClose, elementId, elementData }) => {
             // Download the file using FileSystem
             const downloadResult = await FileSystem.downloadAsync(apiUrl, fileUri, {
               headers: {
-                'Authorization': token,
+                'Authorization': accessToken,
               },
             });
             

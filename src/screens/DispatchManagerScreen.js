@@ -23,6 +23,7 @@ import { Colors } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
+import { validateToken } from '../services/tokenUtils';
 import { logout, validateSession, refreshSession } from '../services/authService';
 import { handle401Error, handleApiError } from '../services/errorHandler';
 import BirdsEyeViewModal from '../components/BirdsEyeViewModal';
@@ -81,8 +82,10 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   const [createVehicleVisible, setCreateVehicleVisible] = useState(false);
   const [newVehicleNumber, setNewVehicleNumber] = useState('');
   const [newTransporterId, setNewTransporterId] = useState('');
+  const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
   const [newCapacity, setNewCapacity] = useState('');
-  const [newTruckType, setNewTruckType] = useState('flatbed');
+  const [newTruckType, setNewTruckType] = useState('');
+  const [showTruckTypeDropdown, setShowTruckTypeDropdown] = useState(false);
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverPhone, setNewDriverPhone] = useState('');
   const [newEmergencyPhone, setNewEmergencyPhone] = useState('');
@@ -101,20 +104,6 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   
   // Pen size options
   const penSizes = [3, 5, 7, 10];
-
-  const validateToken = (token) => {
-    if (!token) return false;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    try {
-      const payload = JSON.parse(atob(parts[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp > currentTime;
-    } catch (error) {
-      console.log('Token validation error:', error);
-      return false;
-    }
-  };
 
   useEffect(() => {
     if (paperId) {
@@ -517,16 +506,32 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     setSendingDispatch(true);
     setTaskError('');
     try {
-      const url = `${API_BASE_URL}/dispatch_order`;
+      const url = `${API_BASE_URL}/api/dispatch_order`;
+      
+      // Construct vehicle_details object with correct field names
+      const vehicleDetailsPayload = {
+        vehicle_number: vehicleDetails?.vehicle_number || '',
+        capacity: Number(vehicleCapacity) || Number(vehicleDetails?.capacity) || 0,
+        driver_name: driverName,
+        driver_phone_no: driverPhoneNo,
+        emergency_contact_phone_no: emergencyContactPhoneNo,
+        transporter_id: Number(vehicleDetails?.transporter_id) || 0,
+        truck_type: vehicleDetails?.truck_type || '',
+      };
+      
       const payload = {
-        vehicle_id: selectedVehicleId,
+        vehicle_id: Number(selectedVehicleId),
         project_id: Number(selectedProjectId),
         driver_name: driverName,
         driver_phone_no: driverPhoneNo,
         emergency_contact_phone_no: emergencyContactPhoneNo,
         items: selectedElementIds.map((id) => Number(id)),
-        vehicle_details: vehicleDetails,
+        vehicle_details: vehicleDetailsPayload,
       };
+
+      console.log('📱 [DispatchManagerScreen] Sending dispatch order...');
+      console.log('📱 [DispatchManagerScreen] API URL:', url);
+      console.log('📱 [DispatchManagerScreen] Request Payload:', JSON.stringify(payload, null, 2));
 
       const response = await fetchWithAuthRetry(url, {
         method: 'POST',
@@ -534,18 +539,42 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         body: JSON.stringify(payload),
       });
 
+      console.log('📱 [DispatchManagerScreen] Response Status:', response.status);
+      console.log('📱 [DispatchManagerScreen] Response OK:', response.ok);
+
       if (response.ok) {
-        Alert.alert('Success', 'Dispatch order sent successfully!');
+        const responseData = await response.json();
+        console.log('✅ [DispatchManagerScreen] Dispatch order sent successfully!');
+        console.log('📱 [DispatchManagerScreen] Response Data:', JSON.stringify(responseData, null, 2));
+        
+        // Show success message with order number if available
+        const successMessage = responseData?.order_number 
+          ? `Dispatch order sent successfully!\nOrder Number: ${responseData.order_number}`
+          : 'Dispatch order sent successfully!';
+        
+        Alert.alert('Success', successMessage);
         setSelectedItems({});
         setDriverName('');
         setDriverPhoneNo('');
         setEmergencyContactPhoneNo('');
         await loadDispatchItems();
       } else {
+        const errorText = await response.text();
+        console.log('❌ [DispatchManagerScreen] Dispatch order failed');
+        console.log('📱 [DispatchManagerScreen] Error Status:', response.status);
+        console.log('📱 [DispatchManagerScreen] Error Response:', errorText);
+        try {
+          const errorData = JSON.parse(errorText);
+          console.log('📱 [DispatchManagerScreen] Error Data (parsed):', JSON.stringify(errorData, null, 2));
+        } catch (parseError) {
+          console.log('📱 [DispatchManagerScreen] Error response is not JSON');
+        }
         Alert.alert('Error', 'Failed to send dispatch. Please try again.');
       }
     } catch (error) {
       console.log('❌ [DispatchManagerScreen] Error sending dispatch:', error);
+      console.log('📱 [DispatchManagerScreen] Error Message:', error?.message);
+      console.log('📱 [DispatchManagerScreen] Error Stack:', error?.stack);
       Alert.alert('Error', 'Failed to send dispatch. Please try again.');
     } finally {
       setSendingDispatch(false);
@@ -1330,14 +1359,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     return (
       <View style={styles.container}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-          <View style={styles.homeHeader}>
-            <Text style={styles.homeTitle}>Dispatch Items</Text>
-          {selectedProjectId ? (
-            <Text style={styles.homeSubtitle}>Project ID: {selectedProjectId}</Text>
-          ) : (
-            <Text style={styles.homeSubtitle}>Select a project to dispatch items</Text>
-          )}
-          </View>
+         
 
             <View style={styles.projectDropdownWrapper}>
               <ProjectDropdown
@@ -1573,7 +1595,11 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
             visible={createVehicleVisible}
             transparent
             animationType="slide"
-            onRequestClose={() => setCreateVehicleVisible(false)}
+            onRequestClose={() => {
+              setCreateVehicleVisible(false);
+              setShowTransporterDropdown(false);
+              setShowTruckTypeDropdown(false);
+            }}
           >
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
@@ -1596,12 +1622,91 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                     value={newCapacity}
                     onChangeText={setNewCapacity}
                   />
-                  <TextInput
-                    style={styles.taskInput}
-                    placeholder="Truck Type (flatbed or type A)"
-                    value={newTruckType}
-                    onChangeText={setNewTruckType}
-                  />
+                  {/* Transporter Dropdown */}
+                  <Text style={styles.modalLabel}>Transporter</Text>
+                  <TouchableOpacity
+                    style={styles.selectVehicleButton}
+                    onPress={() => {
+                      setShowTransporterDropdown(!showTransporterDropdown);
+                      setShowTruckTypeDropdown(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.selectVehicleText}>
+                      {newTransporterId
+                        ? transporters.find(t => String(t.id) === newTransporterId)?.name || 'Select Transporter'
+                        : 'Select Transporter'}
+                    </Text>
+                    <Text style={styles.dropdownArrow}>{showTransporterDropdown ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {showTransporterDropdown && (
+                    <View style={styles.dropdownList}>
+                      {loadingTransporters ? (
+                        <View style={styles.dropdownLoading}>
+                          <ActivityIndicator size="small" color="#007AFF" />
+                        </View>
+                      ) : (
+                        <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                          {transporters.map((transporter) => (
+                            <TouchableOpacity
+                              key={transporter.id}
+                              style={styles.dropdownItem}
+                              onPress={() => {
+                                setNewTransporterId(String(transporter.id));
+                                setShowTransporterDropdown(false);
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.dropdownItemText}>{transporter.name}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Truck Type Dropdown */}
+                  <Text style={styles.modalLabel}>Truck Type</Text>
+                  <TouchableOpacity
+                    style={styles.selectVehicleButton}
+                    onPress={() => {
+                      setShowTruckTypeDropdown(!showTruckTypeDropdown);
+                      setShowTransporterDropdown(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.selectVehicleText}>
+                      {newTruckType || 'Select Truck Type'}
+                    </Text>
+                    <Text style={styles.dropdownArrow}>{showTruckTypeDropdown ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {showTruckTypeDropdown && (
+                    <View style={styles.dropdownList}>
+                      <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                        <TouchableOpacity
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setNewTruckType('flatbed');
+                            setShowTruckTypeDropdown(false);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.dropdownItemText}>flatbed</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.dropdownItem}
+                          onPress={() => {
+                            setNewTruckType('type A');
+                            setShowTruckTypeDropdown(false);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.dropdownItemText}>type A</Text>
+                        </TouchableOpacity>
+                      </ScrollView>
+                    </View>
+                  )}
+
                   <TextInput
                     style={styles.taskInput}
                     placeholder="Driver Name"
@@ -1623,38 +1728,14 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                     onChangeText={setNewEmergencyPhone}
                   />
 
-                  <Text style={styles.modalLabel}>Select Transporter</Text>
-                  {loadingTransporters ? (
-                    <ActivityIndicator size="small" color="#007AFF" />
-                  ) : (
-                    <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
-                      {transporters.map((transporter) => (
-                        <TouchableOpacity
-                          key={transporter.id}
-                          style={[
-                            styles.modalListItem,
-                            newTransporterId === String(transporter.id) && styles.modalListItemSelected,
-                          ]}
-                          onPress={() => setNewTransporterId(String(transporter.id))}
-                          activeOpacity={0.7}
-                        >
-                          <Text
-                            style={[
-                              styles.modalListItemText,
-                              newTransporterId === String(transporter.id) && styles.modalListItemTextSelected,
-                            ]}
-                          >
-                            {transporter.name}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  )}
-
                   <View style={styles.modalButtons}>
                     <TouchableOpacity
                       style={[styles.modalButton, styles.modalButtonCancel]}
-                      onPress={() => setCreateVehicleVisible(false)}
+                      onPress={() => {
+                        setCreateVehicleVisible(false);
+                        setShowTransporterDropdown(false);
+                        setShowTruckTypeDropdown(false);
+                      }}
                       activeOpacity={0.7}
                     >
                       <Text style={styles.modalButtonCancelText}>Cancel</Text>
@@ -2774,6 +2855,81 @@ const styles = StyleSheet.create({
     color: BWTheme.textSecondary,
     marginTop: 4,
     marginBottom: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: BWTheme.background,
+    borderRadius: 16,
+    padding: 16,
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalContentSmall: {
+    backgroundColor: BWTheme.background,
+    borderRadius: 16,
+    padding: 14,
+    width: '100%',
+    maxWidth: 360,
+    maxHeight: '70%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: FontSizes.medium,
+    fontWeight: FontWeights.bold,
+    color: BWTheme.textPrimary,
+    marginBottom: 12,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: BWTheme.surface,
+    borderWidth: 1,
+    borderColor: BWTheme.border,
+  },
+  modalButtonApprove: {
+    backgroundColor: '#34C759',
+  },
+  modalButtonCancelText: {
+    color: BWTheme.textPrimary,
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.bold,
+  },
+  modalButtonApproveText: {
+    color: '#fff',
+    fontSize: FontSizes.small,
+    fontWeight: FontWeights.bold,
   },
   modalList: {
     maxHeight: 220,

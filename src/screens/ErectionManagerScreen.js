@@ -24,6 +24,7 @@ import { Colors } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
+import { validateToken } from '../services/tokenUtils';
 import { logout, validateSession, refreshSession } from '../services/authService';
 import { handle401Error, handleApiError } from '../services/errorHandler';
 import BirdsEyeViewModal from '../components/BirdsEyeViewModal';
@@ -123,20 +124,6 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   
   // Pen size options
   const penSizes = [3, 5, 7, 10];
-
-  const validateToken = (token) => {
-    if (!token) return false;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    try {
-      const payload = JSON.parse(atob(parts[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp > currentTime;
-    } catch (error) {
-      console.log('Token validation error:', error);
-      return false;
-    }
-  };
 
   // Extract element_id from QR code data
   const extractElementIdFromQR = (qrData) => {

@@ -9,9 +9,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { getTokens } from '../services/tokenManager';
-import { logout, refreshSession, validateSession } from '../services/authService';
+import { refreshSession, validateSession } from '../services/authService';
+import { validateToken } from '../services/tokenUtils';
 import { handle401Error, handleApiError } from '../services/errorHandler';
-import { createAuthHeaders, API_BASE_URL } from '../config/apiConfig';
+import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import CameraQRScanner from '../components/CameraQRScanner';
 import { Colors } from '../styles/colors';
 
@@ -34,19 +35,6 @@ const JobDetailsScreen = ({ route, navigation }) => {
   const [qrScannerVisible, setQrScannerVisible] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
 
-  const validateToken = (token) => {
-    if (!token) return false;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    try {
-      const payload = JSON.parse(atob(parts[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp > currentTime;
-    } catch (error) {
-      console.log('Token validation error:', error);
-      return false;
-    }
-  };
 
   const handleStatusUpdate = async (newStatus) => {
     // If status is "Completed", call the complete-production API

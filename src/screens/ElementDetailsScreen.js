@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTokens } from '../services/tokenManager';
 import { logout, validateSession, refreshSession } from '../services/authService';
 import { handle401Error, handleApiError } from '../services/errorHandler';
+import { validateToken } from '../services/tokenUtils';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -81,20 +82,6 @@ const ElementDetailsScreen = ({ route, navigation }) => {
     if (statusLower.includes('pending')) return '#4A4A4A';
     if (statusLower.includes('rejected')) return '#808080';
     return '#000000';
-  };
-
-  const validateToken = (token) => {
-    if (!token) return false;
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    try {
-      const payload = JSON.parse(atob(parts[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp > currentTime;
-    } catch (error) {
-      console.log('[ElementDetailsScreen] Token validation error:', error);
-      return false;
-    }
   };
 
   const fetchElementDetails = async (elementId) => {
@@ -285,7 +272,7 @@ const ElementDetailsScreen = ({ route, navigation }) => {
         return;
       }
 
-      const apiUrl = `https://precast.blueinvent.com/api/get-file?file=${encodeURIComponent(fileName)}`;
+      const apiUrl = `${API_BASE_URL}/api/get-file?file=${encodeURIComponent(fileName)}`;
       
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -641,11 +628,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 50,
   },
-  // Hero Section
   heroSection: {
     backgroundColor: BWTheme.surface,
-    paddingVertical: 32,
-    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: BWTheme.border,
   },
@@ -653,41 +639,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroId: {
-    fontSize: 32,
+    fontSize: 20,
     fontWeight: FontWeights.bold,
     color: BWTheme.textPrimary,
-    letterSpacing: 2,
-    marginBottom: 16,
+    letterSpacing: 1,
+    marginBottom: 8,
   },
   statusBadge: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 1.5,
     backgroundColor: 'transparent',
   },
   statusText: {
-    fontSize: FontSizes.small,
+    fontSize: 11,
     fontWeight: FontWeights.bold,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   heroDivider: {
     height: 1,
     backgroundColor: BWTheme.border,
-    marginTop: 24,
-    width: '60%',
+    marginTop: 12,
+    width: '50%',
     alignSelf: 'center',
   },
-  // Main Content
   mainContent: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingHorizontal: 12,
+    paddingTop: 12,
   },
-  // Section Card
   sectionCard: {
     backgroundColor: BWTheme.card,
-    borderRadius: 0,
-    marginBottom: 24,
+    borderRadius: 8,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: BWTheme.border,
     overflow: 'hidden',
@@ -695,8 +679,8 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
     borderBottomColor: BWTheme.border,
   },
@@ -706,70 +690,67 @@ const styles = StyleSheet.create({
     backgroundColor: BWTheme.border,
   },
   sectionTitle: {
-    fontSize: FontSizes.small,
+    fontSize: 11,
     fontWeight: FontWeights.bold,
     color: BWTheme.textPrimary,
-    letterSpacing: 3,
-    marginHorizontal: 16,
+    letterSpacing: 2,
+    marginHorizontal: 10,
   },
-  // Info Grid
   infoGrid: {
-    padding: 24,
+    padding: 12,
   },
   infoItem: {
-    marginBottom: 20,
+    marginBottom: 10,
   },
   infoLabel: {
-    fontSize: FontSizes.small,
+    fontSize: 11,
     color: BWTheme.textSecondary,
     fontWeight: FontWeights.medium,
-    letterSpacing: 0.5,
-    marginBottom: 8,
+    letterSpacing: 0.3,
+    marginBottom: 3,
     textTransform: 'uppercase',
   },
   infoValue: {
-    fontSize: FontSizes.regular,
+    fontSize: 13,
     color: BWTheme.textPrimary,
     fontWeight: FontWeights.regular,
-    marginBottom: 12,
+    marginBottom: 6,
   },
   infoDivider: {
     height: 1,
     backgroundColor: BWTheme.border,
   },
-  // Dimensions Grid
   dimensionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 24,
+    padding: 12,
     paddingTop: 0,
-    gap: 12,
+    gap: 8,
   },
   dimensionCard: {
     width: '48%',
     backgroundColor: BWTheme.surface,
-    padding: 20,
+    padding: 10,
     borderWidth: 1,
     borderColor: BWTheme.border,
+    borderRadius: 6,
     alignItems: 'center',
-    minHeight: 100,
+    minHeight: 56,
     justifyContent: 'center',
   },
   dimensionLabel: {
-    fontSize: FontSizes.small,
+    fontSize: 10,
     color: BWTheme.textSecondary,
     fontWeight: FontWeights.medium,
-    letterSpacing: 1,
-    marginBottom: 12,
+    letterSpacing: 0.5,
+    marginBottom: 4,
     textTransform: 'uppercase',
   },
   dimensionValue: {
-    fontSize: FontSizes.large,
+    fontSize: 15,
     color: BWTheme.textPrimary,
     fontWeight: FontWeights.bold,
-    letterSpacing: 1,
   },
-  // Table Styles
   tableWrapper: {
     borderTopWidth: 1,
     borderTopColor: BWTheme.border,
@@ -777,30 +758,31 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: BWTheme.surface,
-    borderBottomWidth: 2,
+    borderBottomWidth: 1,
     borderBottomColor: BWTheme.border,
-    paddingVertical: 16,
+    paddingVertical: 8,
   },
   tableHeaderText: {
     flex: 1,
-    fontSize: FontSizes.small,
+    fontSize: 10,
     fontWeight: FontWeights.bold,
     color: BWTheme.textPrimary,
     textAlign: 'center',
-    letterSpacing: 1.5,
+    letterSpacing: 1,
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: BWTheme.border,
-    paddingVertical: 16,
+    paddingVertical: 8,
+    alignItems: 'center',
   },
   tableRowLast: {
     borderBottomWidth: 0,
   },
   tableCell: {
     flex: 1,
-    fontSize: FontSizes.regular,
+    fontSize: 12,
     color: BWTheme.textPrimary,
     textAlign: 'center',
     fontWeight: FontWeights.regular,
@@ -811,51 +793,50 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   viewButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     borderWidth: 1,
     borderColor: BWTheme.textPrimary,
+    borderRadius: 4,
     backgroundColor: 'transparent',
   },
   viewButtonText: {
-    fontSize: FontSizes.small,
+    fontSize: 10,
     color: BWTheme.textPrimary,
     fontWeight: FontWeights.bold,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
-  // BOM Styles
   bomWrapper: {
-    padding: 24,
+    padding: 12,
     paddingTop: 0,
     borderTopWidth: 1,
     borderTopColor: BWTheme.border,
-    marginTop: 24,
+    marginTop: 12,
   },
   bomTitle: {
-    fontSize: FontSizes.small,
+    fontSize: 11,
     fontWeight: FontWeights.bold,
     color: BWTheme.textPrimary,
-    letterSpacing: 2,
-    marginBottom: 20,
+    letterSpacing: 1.5,
+    marginBottom: 10,
     textTransform: 'uppercase',
   },
-  // Lifecycle Styles
   lifecycleContainer: {
-    padding: 24,
+    padding: 12,
   },
   lifecycleItem: {
     flexDirection: 'row',
-    marginBottom: 32,
+    marginBottom: 16,
   },
   lifecycleTimeline: {
-    width: 40,
+    width: 28,
     alignItems: 'center',
-    marginRight: 20,
+    marginRight: 12,
   },
   lifecycleDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     borderWidth: 2,
     borderColor: BWTheme.border,
     backgroundColor: BWTheme.surface,
@@ -868,48 +849,47 @@ const styles = StyleSheet.create({
     width: 2,
     flex: 1,
     backgroundColor: BWTheme.border,
-    marginTop: 4,
-    minHeight: 40,
+    marginTop: 3,
+    minHeight: 24,
   },
   lifecycleContent: {
     flex: 1,
     paddingTop: 0,
   },
   lifecycleLabel: {
-    fontSize: FontSizes.regular,
+    fontSize: 13,
     fontWeight: FontWeights.bold,
     color: BWTheme.textPrimary,
-    marginBottom: 8,
-    letterSpacing: 0.5,
+    marginBottom: 3,
   },
   lifecycleDateTime: {
-    marginTop: 4,
+    marginTop: 2,
   },
   lifecycleDateText: {
-    fontSize: FontSizes.small,
+    fontSize: 11,
     color: BWTheme.textSecondary,
-    marginBottom: 4,
+    marginBottom: 2,
     fontWeight: FontWeights.regular,
   },
   lifecycleTimeText: {
-    fontSize: FontSizes.small,
+    fontSize: 11,
     color: BWTheme.textTertiary,
     fontWeight: FontWeights.regular,
   },
   lifecyclePendingText: {
-    fontSize: FontSizes.small,
+    fontSize: 11,
     color: BWTheme.textTertiary,
     fontStyle: 'italic',
-    marginTop: 4,
-    letterSpacing: 1,
+    marginTop: 2,
+    letterSpacing: 0.5,
   },
   emptyStateContainer: {
-    padding: 40,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyStateText: {
-    fontSize: FontSizes.regular,
+    fontSize: 13,
     color: BWTheme.textTertiary,
     textAlign: 'center',
   },

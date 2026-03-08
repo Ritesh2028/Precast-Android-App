@@ -1,4 +1,5 @@
-export const API_BASE_URL = 'https://precast.blueinvent.com';
+export const API_BASE_URL = 'https://precastezy.blueinvent.com';
+export const WEB_URL = `${API_BASE_URL}/`;
 
 /**
  * Build standard JSON headers for API requests.

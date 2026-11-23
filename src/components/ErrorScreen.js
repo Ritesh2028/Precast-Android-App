@@ -1,21 +1,21 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
+import AppButton from './AppButton';
+import Icon from './ui/Icon';
 
 export const ErrorScreen = ({ onReload, errorMessage }) => {
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>⚠️</Text>
-      <Text style={styles.title}>Error Loading Page</Text>
-      {errorMessage && (
-        <Text style={styles.message}>{errorMessage}</Text>
-      )}
-      {onReload && (
-        <TouchableOpacity style={styles.reloadButton} onPress={onReload}>
-          <Text style={styles.reloadButtonText}>Reload</Text>
-        </TouchableOpacity>
-      )}
+      <View style={styles.iconCircle}>
+        <Icon name="alert-circle" size={34} color={Colors.error} />
+      </View>
+      <Text style={styles.title}>Something went wrong</Text>
+      {errorMessage ? <Text style={styles.message}>{errorMessage}</Text> : null}
+      {onReload ? (
+        <AppButton title="Reload" onPress={onReload} style={styles.reloadButton} />
+      ) : null}
     </View>
   );
 };
@@ -28,8 +28,13 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: Colors.background,
   },
-  icon: {
-    fontSize: 64,
+  iconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.errorSoft,
     marginBottom: 20,
   },
   title: {
@@ -47,15 +52,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   reloadButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  reloadButtonText: {
-    color: '#FFFFFF',
-    fontSize: FontSizes.regular,
-    fontWeight: FontWeights.bold,
+    minWidth: 160,
   },
 });
-

@@ -39,7 +39,7 @@ fi
 if [ -z "$SDK_FOUND" ]; then
     echo "⚠️  Android SDK not found in common locations."
     echo ""
-    echo "Please choose one of the following options:"
+    echo "Please select one of the following options:"
     echo "1. If you have Android Studio installed, the SDK is usually at:"
     echo "   $HOME/Library/Android/sdk"
     echo ""

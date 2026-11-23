@@ -32,110 +32,75 @@ const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation, include
     try {
       setProjectsLoading(true);
       const { accessToken } = await getTokens();
-      console.log('Loading projects with token:', accessToken ? 'Yes' : 'No');
-      
-      if (accessToken) {
-        if (!validateToken(accessToken)) {
-          console.log('Token is invalid or expired');
-          Alert.alert('Session Expired', 'Your session has expired. Please login again.');
-          await logout();
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
-          return;
-        }
 
-        const apiUrl = `${API_BASE_URL}/api/projects/basic`;
-        console.log('📱 [ProjectDropdown] Making API call to:', apiUrl);
-        console.log('📱 [ProjectDropdown] Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
-        
-        // Try with Bearer token first (standard format)
-        const headersWithBearer = createAuthHeaders(accessToken, { useBearer: true });
-        console.log('📱 [ProjectDropdown] Request headers (Bearer):', JSON.stringify(headersWithBearer, null, 2));
-        
-        let response = await fetch(apiUrl, {
-          method: 'GET',
-          headers: headersWithBearer,
-        });
-        
-        console.log('📱 [ProjectDropdown] Projects API Response 1 - Status:', response.status);
-        console.log('📱 [ProjectDropdown] Projects API Response 1 - Headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
-        
-        // If 401, try without Bearer prefix (some APIs expect just the token)
-        if (response.status === 401) {
-          const errorText1 = await response.text().catch(() => '');
-          console.log('❌ [ProjectDropdown] Projects API returned 401 with Bearer token');
-          console.log('📱 [ProjectDropdown] Error response:', errorText1);
-          console.log('📱 [ProjectDropdown] Trying without Bearer prefix...');
-          
-          const headersWithoutBearer = createAuthHeaders(accessToken, { useBearer: false });
-          console.log('📱 [ProjectDropdown] Request headers (no Bearer):', JSON.stringify(headersWithoutBearer, null, 2));
-          
-          response = await fetch(apiUrl, {
-            method: 'GET',
-            headers: headersWithoutBearer,
-          });
-          
-          console.log('📱 [ProjectDropdown] Projects API Response 2 - Status:', response.status);
-        }
-        
-        console.log('📱 [ProjectDropdown] Projects API final response status:', response.status);
-        
-        if (response.ok) {
-          const projectsData = await response.json();
-          console.log('✅ [ProjectDropdown] Projects API Success!');
-          console.log('📱 [ProjectDropdown] Projects loaded successfully:', JSON.stringify(projectsData, null, 2));
-          
-          // Transform API data and optionally include \"All Projects\" option; filter out suspended projects
-          let transformedProjects = projectsData.filter(project => !project.suspend); // Only show non-suspended projects
-          if (includeAllOption) {
-            transformedProjects = [
-            { project_id: 'all', name: 'All Projects', suspend: false },
-              ...transformedProjects,
-          ];
-          }
-          
-          setProjects(transformedProjects);
-          setProjectsLoading(false);
-
-          // For screens like StockManager where we don't show "All Projects",
-          // automatically select the first available project once, so a project is always selected.
-          if (!includeAllOption && !hasAutoSelected && transformedProjects.length > 0) {
-            if (typeof onProjectSelect === 'function') {
-              onProjectSelect(transformedProjects[0]);
-            }
-            setHasAutoSelected(true);
-          }
-        } else {
-          const errorText = await response.text();
-          console.log('❌ [ProjectDropdown] Projects API Error');
-          console.log('📱 [ProjectDropdown] Error status:', response.status);
-          console.log('📱 [ProjectDropdown] Error response:', errorText);
-          console.log('📱 [ProjectDropdown] Error response (parsed):', JSON.parse(errorText || '{}'));
-          
-          if (response.status === 401) {
-            console.log('⚠️ [ProjectDropdown] 401 Authentication Error from Projects API - token may need refresh, but continuing with app');
-            // Don't logout immediately - let token refresh service handle it
-            // Just show empty projects list and let user continue
-            setProjects(includeAllOption ? [{ project_id: 'all', name: 'All Projects', suspend: false }] : []);
-            setProjectsLoading(false);
-            // Token refresh service will handle token refresh automatically
-          } else {
-            console.log(`❌ [ProjectDropdown] Projects API Error Status: ${response.status}`);
-            // For other errors, just show empty projects list (or only All Projects if allowed)
-            setProjects(includeAllOption ? [{ project_id: 'all', name: 'All Projects', suspend: false }] : []);
-            setProjectsLoading(false);
-          }
-        }
-      } else {
-        console.log('No auth token found - user needs to login');
+      if (!accessToken) {
         setProjects([]);
-        setProjectsLoading(false);
+        return;
+      }
+
+      if (!validateToken(accessToken)) {
+        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
+        await logout();
+        navigation?.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+        return;
+      }
+
+      // Member project list (includes suspend). Prefer /api/projects over
+      // /api/project_by_role with no filter — that path incorrectly required a feature permission.
+      const response = await fetch(`${API_BASE_URL}/api/projects`, {
+        method: 'GET',
+        headers: createAuthHeaders(accessToken),
+      });
+
+      if (!response.ok) {
+        setProjects(
+          includeAllOption ? [{ project_id: 'all', name: 'All Projects', suspend: false }] : []
+        );
+        return;
+      }
+
+      const projectsData = await response.json();
+      // /api/projects returns [{ project_id, name, suspend, ... }, ...]
+      const list = Array.isArray(projectsData)
+        ? projectsData
+        : Array.isArray(projectsData?.projects)
+          ? projectsData.projects
+          : [];
+
+      let transformedProjects = list
+        .filter((project) => project && !project.suspend)
+        .map((project) => ({
+          project_id: project.project_id ?? project.id,
+          name: project.name || project.project_name || `Project ${project.project_id ?? project.id}`,
+          suspend: !!project.suspend,
+        }))
+        .filter((project) => project.project_id != null);
+
+      if (includeAllOption) {
+        transformedProjects = [
+          { project_id: 'all', name: 'All Projects', suspend: false },
+          ...transformedProjects,
+        ];
+      }
+
+      setProjects(transformedProjects);
+
+      // Screens without "All Projects" auto-select the first project once.
+      if (!includeAllOption && !hasAutoSelected && transformedProjects.length > 0) {
+        if (typeof onProjectSelect === 'function') {
+          onProjectSelect(transformedProjects[0]);
+        }
+        setHasAutoSelected(true);
       }
     } catch (error) {
-      console.log('Projects API Network/Request Error:', error);
-      Alert.alert('Network Error', 'Failed to load projects. Please check your internet connection and try again.');
+      Alert.alert(
+        'Network Error',
+        'Failed to load projects. Please check your internet connection and try again.'
+      );
+    } finally {
       setProjectsLoading(false);
     }
   };
@@ -224,7 +189,7 @@ const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation, include
             
             {projectsLoading ? (
               <View style={styles.modalLoadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
+                <ActivityIndicator size="large" color={Colors.primary} />
                 <Text style={styles.modalLoadingText}>Loading Projects...</Text>
               </View>
             ) : (
@@ -318,7 +283,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -371,7 +336,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: Colors.border,
   },
   modalDropdownTitle: {
     fontSize: FontSizes.large,
@@ -404,7 +369,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.divider,
     backgroundColor: Colors.background,
   },
   modalDropdownItemSelected: {

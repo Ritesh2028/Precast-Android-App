@@ -1,39 +1,32 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-  Image,
-  Animated,
-} from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Icon from './ui/Icon';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
 
-const TabButton = ({ label, icon, tintColor, onPress }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const handlePress = () => {
-    Animated.sequence([
-      Animated.spring(scale, { toValue: 0.9, useNativeDriver: true, speed: 30, bounciness: 6 }),
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 6 }),
-    ]).start();
-    setTimeout(() => {
-      onPress && onPress();
-    }, 90);
-  };
+const TABS = [
+  { id: 'home', label: 'Home', icon: 'home', screen: 'Dashboard' },
+  { id: 'task', label: 'Tasks', icon: 'list-checks', screen: 'QCStatus' },
+  { id: 'me', label: 'Profile', icon: 'user', screen: 'UserProfile' },
+];
+
+const TabButton = ({ tab, active, onPress }) => {
+  const tint = active ? Colors.primary : Colors.textSecondary;
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={handlePress}
+    <Pressable
+      onPress={onPress}
       style={styles.tab}
+      android_ripple={{ color: Colors.primarySoft, borderless: true, radius: 40 }}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={tab.label}
     >
-      <Animated.View style={{ transform: [{ scale }] }}>
-        <Image source={icon} style={[styles.tabIconImg, { tintColor }]} resizeMode="contain" />
-        <Text style={[styles.tabLabel, { color: tintColor === '#007AFF' ? '#007AFF' : '#38393c' }]}>{label}</Text>
-      </Animated.View>
-    </TouchableOpacity>
+      <View style={[styles.iconWrap, active && styles.iconWrapActive]}>
+        <Icon name={tab.icon} size={22} color={tint} strokeWidth={active ? 2.3 : 2} />
+      </View>
+      <Text style={[styles.tabLabel, { color: tint }, active && styles.tabLabelActive]}>{tab.label}</Text>
+    </Pressable>
   );
 };
 
@@ -42,50 +35,25 @@ const BottomNavigation = ({ activeTab, onTabPress }) => {
   const [localActive, setLocalActive] = useState(activeTab || 'home');
 
   useEffect(() => {
-    if (activeTab && activeTab !== localActive) {
-      setLocalActive(activeTab);
-    }
+    if (activeTab) setLocalActive(activeTab);
   }, [activeTab]);
-  
-  const tabs = useMemo(() => [
-    {
-      id: 'home',
-      label: 'Home',
-      icon: require('../icons/home.png'),
-      screen: 'Dashboard'
-    },
-    {
-      id: 'task',
-      label: 'Task',
-      icon: require('../icons/to-do-list.png'),
-      screen: 'QCStatus'
-    },
-    {
-      id: 'me',
-      label: 'Me',
-      icon: require('../icons/user.png'),
-      screen: 'UserProfile'
-    }
-  ], []);
+
+  const tabs = useMemo(() => TABS, []);
 
   return (
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-      {tabs.map((tab) => {
-        const isActive = localActive === tab.id;
-        const tint = isActive ? Colors.primary : '#38393c';
-        return (
-          <TabButton
-            key={tab.id}
-            label={tab.label}
-            icon={tab.icon}
-            tintColor={tint}
-            onPress={() => {
-              setLocalActive(tab.id);
-              onTabPress && onTabPress(tab.id, tab.screen);
-            }}
-          />
-        );
-      })}
+      {tabs.map((tab) => (
+        <TabButton
+          key={tab.id}
+          tab={tab}
+          active={localActive === tab.id}
+          onPress={() => {
+            // Respond instantly — no artificial delay before switching.
+            setLocalActive(tab.id);
+            onTabPress && onTabPress(tab.id, tab.screen);
+          }}
+        />
+      ))}
     </View>
   );
 };
@@ -94,36 +62,38 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: '#d6dee6',
-    paddingTop: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -4,
-    },
-    shadowOpacity: 0.15,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.headerBorder,
+    paddingTop: 6,
+    shadowColor: Colors.brandNavy,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 10,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
-  tabIconImg: {
-    width: 26,
-    height: 26,
-    marginBottom: 4,
+  iconWrap: {
+    width: 56,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconWrapActive: {
+    backgroundColor: Colors.primarySoft,
   },
   tabLabel: {
-    fontSize: FontSizes.tabLabel,
-    color: Colors.textSecondary,
+    fontSize: FontSizes.tabLabel + 1,
     fontWeight: FontWeights.medium,
-    textAlign: 'center',
+    marginTop: 3,
   },
-  
+  tabLabelActive: {
+    fontWeight: FontWeights.bold,
+  },
 });
 
-export default React.memo(BottomNavigation, () => true);
+export default React.memo(BottomNavigation);

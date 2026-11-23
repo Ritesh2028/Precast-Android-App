@@ -5,7 +5,7 @@ import { Colors } from '../styles/colors';
 export const LoadingIndicator = () => {
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#007AFF" />
+      <ActivityIndicator size="large" color={Colors.primary} />
     </View>
   );
 };

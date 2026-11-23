@@ -18,31 +18,20 @@ import {
 import Logo from '../components/Logo';
 import DeviceLimitModal from '../components/DeviceLimitModal';
 import { FontSizes, FontWeights } from '../styles/fonts';
-import { Colors } from '../styles/colors';
-import { API_BASE_URL, WEB_URL } from '../config/apiConfig';
-import { login as loginRequest, logout as logoutService } from '../services/authService';
-import { clearAllTokens } from '../services/tokenManager';
+import { Colors, Theme } from '../styles/colors';
+import { API_BASE_URL } from '../config/apiConfig';
+import { login as loginRequest, logout as logoutService, getClientIp } from '../services/authService';
+import { completeLoginAndNavigate } from '../services/appAccess';
 import { stopTokenRefreshService } from '../services/tokenRefreshService';
 
 const { width } = Dimensions.get('window');
-
-// Get public IP function
-async function getPublicIp() {
-  try {
-    const response = await fetch('https://api.ipify.org?format=json');
-    if (!response.ok) return undefined;
-    const json = await response.json();
-    return json && json.ip ? json.ip : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loginStatus, setLoginStatus] = useState('');
   const [error, setError] = useState('');
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -108,18 +97,22 @@ const LoginScreen = ({ navigation }) => {
 
   const handleLogin = async () => {
     const trimmedEmail = email.trim();
-    const trimmedPassword = password.trim();
+    // Send the password exactly as typed (same as the web app); only use trim to reject blank input.
+    const trimmedPassword = password;
 
-    if (trimmedEmail === '' || trimmedPassword === '') {
+    if (trimmedEmail === '' || password.trim() === '') {
       setError('Please enter both email and password');
       return;
     }
 
     setIsLoading(true);
     setError('');
+    setLoginStatus('Preparing login...');
+    console.log('📱 [LoginScreen] handleLogin started', { email: trimmedEmail });
 
     try {
       // Clear any previous session before new login
+      setLoginStatus('Clearing previous session...');
       console.log('🔄 [LoginScreen] Clearing previous session...');
       try {
         stopTokenRefreshService();
@@ -132,114 +125,25 @@ const LoginScreen = ({ navigation }) => {
       // Small delay to ensure cleanup completes
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const ip = await getPublicIp();
+      const ip = await getClientIp();
+      setLoginStatus(`Contacting server (IP: ${ip})...`);
+      console.log('📱 [LoginScreen] Client IP for login:', ip);
 
-      console.log('📱 [LoginScreen] Attempting login...');
-      
-      // Helper function to handle successful login
-      const handleSuccessfulLogin = async (responseData) => {
-        // Check if user has role access (case-insensitive)
-      // Try multiple possible role fields: role, role_name, user_role
-      const userRole = (
-        responseData?.role || 
-        responseData?.role_name || 
-        responseData?.user_role ||
-        ''
-      ).toString().toLowerCase().trim();
-
-      console.log('📱 [LoginScreen] User role detected:', userRole);
-        console.log('📱 [LoginScreen] Full role data from response:', {
-          role: responseData?.role,
-          role_name: responseData?.role_name,
-          user_role: responseData?.user_role,
-          normalized: userRole
-        });
-      
-      // Small delay before navigation to ensure state is ready
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-        // Check role and navigate to appropriate screen
-        if (!userRole) {
-          // No role found, navigate to WebView screen
-          console.log('📱 [LoginScreen] No role found, navigating to WebView');
-        navigation.replace('WebView', { url: WEB_URL });
-        return;
-      }
-
-        // Check for QA/QC role (case-insensitive, handle variations)
-        const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc' || userRole === 'qa qc';
-        
-        // Check for ErectionManager role (handle various formats and typos)
-        const isErectionManager = 
-          userRole === 'erectionmanager' || 
-          userRole === 'erection_manager' || 
-          userRole === 'erection manager' ||
-          userRole === 'erectionmanger' || // Common typo
-          userRole === 'erection managaer' || // API typo: "managaer" instead of "manager"
-          userRole === 'erectionmanagaer' ||
-          (userRole.includes('erection') && (userRole.includes('manager') || userRole.includes('managaer')));
-        
-        // Check for StockManager role (handle various formats and typos)
-        const isStockManager = 
-          userRole === 'stockmanager' || 
-          userRole === 'stock_manager' || 
-          userRole === 'stock manager' ||
-          userRole === 'stockmanger' || // Common typo
-          userRole === 'stock managaer' || // API typo: "managaer" instead of "manager"
-          userRole === 'stockmanagaer' ||
-          (userRole.includes('stock') && (userRole.includes('manager') || userRole.includes('managaer')));
-        
-        // Check for DispatchManager role (handle various formats and typos)
-        const isDispatchManager = 
-          userRole === 'dispatchmanager' || 
-          userRole === 'dispatch_manager' || 
-          userRole === 'dispatch manager' ||
-          userRole === 'dispatchmanger' || // Common typo
-          userRole === 'dispatch managaer' || // API typo: "managaer" instead of "manager"
-          userRole === 'dispatchmanagaer' ||
-          (userRole.includes('dispatch') && (userRole.includes('manager') || userRole.includes('managaer')));
-
-        if (isQAQC) {
-      // User has QA/QC role, navigate to Dashboard
-      console.log('📱 [LoginScreen] User has QA/QC role, navigating to Dashboard');
-      navigation.replace('Dashboard');
-      console.log('✅ [LoginScreen] Navigation to Dashboard initiated');
-        } else if (isErectionManager) {
-          // User has ErectionManager role, navigate to ErectionManagerScreen
-          console.log('📱 [LoginScreen] User has ErectionManager role, navigating to ErectionManagerScreen');
-          navigation.replace('ErectionManager');
-          console.log('✅ [LoginScreen] Navigation to ErectionManagerScreen initiated');
-        } else if (isStockManager) {
-          // User has StockManager role, navigate to StockManagerScreen
-          console.log('📱 [LoginScreen] User has StockManager role, navigating to StockManagerScreen');
-          console.log('📱 [LoginScreen] Detected role value:', userRole);
-          navigation.replace('StockManager');
-          console.log('✅ [LoginScreen] Navigation to StockManagerScreen initiated');
-        } else if (isDispatchManager) {
-          // User has DispatchManager role, navigate to DispatchManagerScreen
-          console.log('📱 [LoginScreen] User has DispatchManager role, navigating to DispatchManagerScreen');
-          navigation.replace('DispatchManager');
-          console.log('✅ [LoginScreen] Navigation to DispatchManagerScreen initiated');
-        } else {
-          // User doesn't have any recognized role, navigate to WebView screen
-          console.log('📱 [LoginScreen] User role is not recognized, navigating to WebView');
-          console.log('📱 [LoginScreen] User role value:', userRole);
-          navigation.replace('WebView', { url: WEB_URL });
-          console.log('✅ [LoginScreen] Navigation to WebView initiated');
-        }
-      };
+      console.log('📱 [LoginScreen] Attempting login...', {
+        email: trimmedEmail,
+        api: API_BASE_URL,
+      });
       
       try {
+        setLoginStatus('Sending login request...');
         const responseData = await loginRequest({ email: trimmedEmail, password: trimmedPassword, ip });
-        console.log('📱 [LoginScreen] Login response data:', JSON.stringify(responseData, null, 2));
         
-        // Check if login was successful (has access_token)
         if (!responseData?.access_token) {
           throw new Error('Login failed: No access token received');
         }
         
-        // Continue with normal login flow
-        await handleSuccessfulLogin(responseData);
+        setLoginStatus('Loading access...');
+        await completeLoginAndNavigate(navigation, responseData);
       } catch (loginError) {
         // Check if this is a device limit error (409 status or requires_logout flag)
         const errorStatus = loginError?.response?.status;
@@ -276,21 +180,51 @@ const LoginScreen = ({ navigation }) => {
       
       // Handle other error status codes
       let message = 'Network error';
-      if (errorStatus === 401) {
-        message = 'Invalid email or password';
+      const rawMessage = (err?.message || '').toLowerCase();
+      if (
+        err?.code === 'ECONNABORTED' ||
+        rawMessage.includes('timeout') ||
+        err?.name === 'AbortError'
+      ) {
+        message = 'Connection timed out. Check your internet and try again.';
+      } else if (
+        rawMessage === 'network error' ||
+        rawMessage === 'network request failed' ||
+        rawMessage.includes('failed to fetch')
+      ) {
+        message = `Cannot reach server (${API_BASE_URL.replace(/^https?:\/\//, '')}). Check your internet connection.`;
+      } else if (errorStatus === 400) {
+        message = errorResponse?.message || errorResponse?.error || 'Invalid login request. Please check email and password.';
+      } else if (errorStatus === 401) {
+        message = errorResponse?.message || errorResponse?.error || 'Invalid email or password';
       } else if (errorStatus === 429) {
         message = 'Too many attempts. Please try again later.';
       } else if (errorStatus === 403) {
-        message = 'Account is suspended. Please contact support.';
+        const errText = String(errorResponse?.error || errorResponse?.message || '').toLowerCase();
+        if (errText.includes('password_reset_required')) {
+          message = 'You must reset your password before signing in. Use Forgot Password.';
+        } else {
+          message = errorResponse?.message || errorResponse?.error || 'Account is suspended. Please contact support.';
+        }
+      } else if (!err?.response && err?.message) {
+        message = `Unable to reach server. (${err.message})`;
       } else {
         message = errorResponse?.message || errorResponse?.error || err?.message || 'Network error';
       }
       
       console.error('❌ [LoginScreen] Login error:', message);
+      console.error('❌ [LoginScreen] Login error details:', {
+        message: err?.message,
+        code: err?.code,
+        status: errorStatus,
+        data: errorResponse,
+        api: API_BASE_URL,
+      });
       setError(message);
       Alert.alert('Login Failed', message);
     } finally {
       setIsLoading(false);
+      setLoginStatus('');
     }
   };
 
@@ -321,58 +255,7 @@ const LoginScreen = ({ navigation }) => {
           const responseData = await loginRequest(pendingLoginCredentials);
           
           if (responseData?.access_token) {
-            // Helper function to handle successful login (same as in handleLogin)
-            const handleSuccessfulLogin = async (responseData) => {
-              const userRole = (
-                responseData?.role || 
-                responseData?.role_name || 
-                responseData?.user_role ||
-                ''
-              ).toString().toLowerCase().trim();
-
-              await new Promise(resolve => setTimeout(resolve, 300));
-              
-              // Check role and navigate accordingly
-              const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc' || userRole === 'qa qc';
-              const isErectionManager = 
-                userRole === 'erectionmanager' || 
-                userRole === 'erection_manager' || 
-                userRole === 'erection manager' ||
-                userRole === 'erectionmanger' || // Common typo
-                userRole === 'erection managaer' || // API typo: "managaer" instead of "manager"
-                userRole === 'erectionmanagaer' ||
-                (userRole.includes('erection') && (userRole.includes('manager') || userRole.includes('managaer')));
-              const isStockManager = 
-                userRole === 'stockmanager' || 
-                userRole === 'stock_manager' || 
-                userRole === 'stock manager' ||
-                userRole === 'stockmanger' || // Common typo
-                userRole === 'stock managaer' || // API typo: "managaer" instead of "manager"
-                userRole === 'stockmanagaer' ||
-                (userRole.includes('stock') && (userRole.includes('manager') || userRole.includes('managaer')));
-              const isDispatchManager = 
-                userRole === 'dispatchmanager' || 
-                userRole === 'dispatch_manager' || 
-                userRole === 'dispatch manager' ||
-                userRole === 'dispatchmanger' || // Common typo
-                userRole === 'dispatch managaer' || // API typo: "managaer" instead of "manager"
-                userRole === 'dispatchmanagaer' ||
-                (userRole.includes('dispatch') && (userRole.includes('manager') || userRole.includes('managaer')));
-
-              if (isQAQC) {
-                navigation.replace('Dashboard');
-              } else if (isErectionManager) {
-                navigation.replace('ErectionManager');
-              } else if (isStockManager) {
-                navigation.replace('StockManager');
-              } else if (isDispatchManager) {
-                navigation.replace('DispatchManager');
-              } else {
-                navigation.replace('WebView', { url: WEB_URL });
-              }
-            };
-            
-            await handleSuccessfulLogin(responseData);
+            await completeLoginAndNavigate(navigation, responseData);
           }
         } catch (retryError) {
           // Check if device limit error again (409 status or requires_logout flag)
@@ -480,31 +363,24 @@ const LoginScreen = ({ navigation }) => {
       <View style={styles.backgroundContainer}>
         <KeyboardAvoidingView 
           style={styles.keyboardContainer} 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-          enabled={true}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={0}
+          // Android already uses windowSoftInputMode=adjustResize — KAV "height"
+          // remounts layout and often dismisses the soft keyboard in the emulator.
+          enabled={Platform.OS === 'ios'}
         >
           <ScrollView 
             style={styles.scrollContainer}
-            contentContainerStyle={[
-              styles.scrollContent,
-              isKeyboardVisible && {
-                ...styles.scrollContentKeyboard,
-                paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 20,
-              }
-            ]}
+            contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             scrollEnabled={true}
             bounces={false}
           >
-        <View style={[
-          styles.content,
-          isKeyboardVisible && styles.contentKeyboard
-        ]}>
+        <View style={styles.content}>
           <Animated.View style={[
             styles.header,
-            isKeyboardVisible && styles.headerKeyboard,
             {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }],
@@ -513,32 +389,26 @@ const LoginScreen = ({ navigation }) => {
             <Animated.View style={{
               transform: [{ scale: logoScaleAnim }],
             }}>
-              <Logo 
-                size={isKeyboardVisible ? "small" : "medium"} 
+              <Logo
+                size="medium"
+                variant="light"
+                iconOnly
+                showName
               />
             </Animated.View>
             
             
-            <Text style={[
-              styles.subtitle,
-              isKeyboardVisible && styles.subtitleKeyboard
-            ]}>
+            <Text style={styles.subtitle}>
               {showForgotPassword ? 'Enter your email address and we\'ll send you a link to reset your password.' : 'Sign in to your account'}
             </Text>
           </Animated.View>
 
           <View style={styles.formContainer}>
-            <View style={[
-              styles.form,
-              isKeyboardVisible && styles.formKeyboard
-            ]}>
+            <View style={styles.form}>
               {!showForgotPassword ? (
                 // Login Form
                 <>
-                  <View style={[
-                    styles.inputContainer,
-                    isKeyboardVisible && styles.inputContainerKeyboard
-                  ]}>
+                  <View style={styles.inputContainer}>
                     <Text style={styles.label}>Email</Text>
                     <TextInput
                       style={styles.input}
@@ -550,13 +420,14 @@ const LoginScreen = ({ navigation }) => {
                       keyboardType="email-address"
                       returnKeyType="next"
                       blurOnSubmit={false}
+                      showSoftInputOnFocus={true}
+                      importantForAutofill="yes"
+                      textContentType="emailAddress"
+                      autoComplete="email"
                     />
                   </View>
 
-                  <View style={[
-                    styles.inputContainer,
-                    isKeyboardVisible && styles.inputContainerKeyboard
-                  ]}>
+                  <View style={styles.inputContainer}>
                     <Text style={styles.label}>Password</Text>
                     <View style={styles.passwordContainer}>
                       <TextInput
@@ -569,6 +440,9 @@ const LoginScreen = ({ navigation }) => {
                         autoCorrect={false}
                         returnKeyType="done"
                         onSubmitEditing={handleLogin}
+                        showSoftInputOnFocus={true}
+                        textContentType="password"
+                        autoComplete="password"
                       />
                       <TouchableOpacity
                         style={styles.eyeButton}
@@ -583,6 +457,9 @@ const LoginScreen = ({ navigation }) => {
                     </View>
                     {error ? (
                       <Text style={styles.errorText}>⚠️ {error}</Text>
+                    ) : null}
+                    {isLoading && loginStatus ? (
+                      <Text style={styles.statusText}>{loginStatus}</Text>
                     ) : null}
                   </View>
 
@@ -612,10 +489,7 @@ const LoginScreen = ({ navigation }) => {
                 <>
                   {!resetSent ? (
                     <>
-                      <View style={[
-                        styles.inputContainer,
-                        isKeyboardVisible && styles.inputContainerKeyboard
-                      ]}>
+                      <View style={styles.inputContainer}>
                         <Text style={styles.label}>Email Address</Text>
                         <View style={styles.forgotInputWrapper}>
                           <Text style={styles.emailIcon}>✉</Text>
@@ -630,6 +504,9 @@ const LoginScreen = ({ navigation }) => {
                             autoCorrect={false}
                             returnKeyType="done"
                             onSubmitEditing={handleSendResetLink}
+                            showSoftInputOnFocus={true}
+                            textContentType="emailAddress"
+                            autoComplete="email"
                           />
                         </View>
                       </View>
@@ -703,6 +580,8 @@ const LoginScreen = ({ navigation }) => {
         maxDevices={deviceLimitData?.maxDevices || 3}
         currentDevices={deviceLimitData?.currentDevices || 0}
         message={deviceLimitData?.message}
+        email={pendingLoginCredentials?.email}
+        password={pendingLoginCredentials?.password}
         onDeviceLogout={handleDeviceLogout}
       />
 </View>
@@ -792,7 +671,7 @@ const styles = StyleSheet.create({
   },
   successIcon: {
     fontSize: 48,
-    color: '#22C55E',
+    color: Colors.success,
     lineHeight: 48,
   },
   successHeading: {
@@ -863,7 +742,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
   },
   formKeyboard: {
     padding: 24,
@@ -884,7 +763,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: '#e3f2fd',
+    borderColor: Colors.primarySoft,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -909,27 +788,27 @@ const styles = StyleSheet.create({
   loginButton: {
     flex: 1,
     backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: Theme.radius,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-    shadowColor: '#007AFF',
+    shadowColor: Colors.brandNavy,
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.18,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: '#0056CC',
+    borderColor: Colors.primaryDark,
   },
   loginButtonText: {
-    color: Colors.textWhite,
+    color: Colors.primaryForeground,
     fontSize: FontSizes.regular,
-    fontWeight: FontWeights.bold,
-    letterSpacing: 0.8,
+    fontWeight: FontWeights.semiBold,
+    letterSpacing: 0.2,
   },
   loginButtonDisabled: {
     opacity: 0.6,
@@ -954,12 +833,18 @@ const styles = StyleSheet.create({
   eyeIcon: {
     width: 22,
     height: 22,
-    tintColor: '#6B7280',
+    tintColor: Colors.textSecondary,
   },
   errorText: {
-    color: '#FF3B30',
+    color: Colors.error,
     fontSize: FontSizes.small,
     marginTop: 8,
+  },
+  statusText: {
+    color: Colors.primary,
+    fontSize: FontSizes.small,
+    marginTop: 8,
+    textAlign: 'center',
   },
   forgotPasswordContainer: {
     alignItems: 'center',
@@ -971,7 +856,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
   },
   forgotPasswordButton: {
     flex: 1,
@@ -981,7 +866,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -1003,7 +888,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1027,7 +912,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: 'center',
     marginTop: 16,
-    shadowColor: '#007AFF',
+    shadowColor: Colors.primary,
     shadowOffset: {
       width: 0,
       height: 4,
@@ -1067,7 +952,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: '#e3f2fd',
+    borderColor: Colors.primarySoft,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1094,7 +979,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 16,
-    shadowColor: '#007AFF',
+    shadowColor: Colors.primary,
     shadowOffset: {
       width: 0,
       height: 4,
@@ -1121,7 +1006,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
   },
   forgotBackIcon: {
     fontSize: FontSizes.medium + 2,

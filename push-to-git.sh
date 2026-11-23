@@ -72,7 +72,7 @@ if git remote | grep -q "^origin$"; then
         if echo "$PUSH_OUTPUT" | grep -q "could not read Username\|Authentication failed\|Device not configured"; then
             echo -e "${RED}❌ Authentication required${NC}"
             echo ""
-            echo -e "${YELLOW}💡 To fix authentication, choose one:${NC}"
+            echo -e "${YELLOW}💡 To fix authentication, select one:${NC}"
             echo -e "${YELLOW}   1. Use SSH (recommended):${NC}"
             echo -e "${YELLOW}      git remote set-url origin git@github.com:Ritesh2028/Precast-Android-App.git${NC}"
             echo ""

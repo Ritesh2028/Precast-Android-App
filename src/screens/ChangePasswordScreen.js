@@ -56,9 +56,9 @@ const styles = StyleSheet.create({
   content: { padding: 24 },
   title: { fontSize: 20, fontWeight: 'bold', color: Colors.textDark, textAlign: 'center', marginBottom: 8 },
   subtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginBottom: 20 },
-  inputGroup: { backgroundColor: Colors.background, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#e0e0e0', marginBottom: 16 },
+  inputGroup: { backgroundColor: Colors.background, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, marginBottom: 16 },
   label: { fontSize: 12, color: Colors.textSecondary, marginBottom: 8 },
-  input: { backgroundColor: Colors.background, borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, fontSize: 14, color: Colors.textDark },
+  input: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, fontSize: 14, color: Colors.textDark },
   primaryButton: { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 8 },
   primaryButtonText: { color: Colors.textWhite, fontSize: 16, fontWeight: '600' },
 });

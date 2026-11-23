@@ -64,12 +64,11 @@ async function checkAndRefreshToken() {
       if (result?.access_token) {
         lastRefreshAt = Date.now();
       }
-    } catch (error) {
-      console.error('❌ Token refresh service: refresh failed', error?.message);
-      stopTokenRefreshService();
+    } catch {
+      // Network or server error -- silently skip; will retry next interval
     }
-  } catch (error) {
-    console.error('❌ Token refresh service: check failed', error?.message);
+  } catch {
+    // Token read error -- silently skip
   }
 }
 

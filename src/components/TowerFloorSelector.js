@@ -177,11 +177,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     minHeight: 44,
   },
   selectButtonDisabled: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.surface,
     opacity: 0.6,
   },
   selectButtonText: {
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: Colors.border,
   },
   modalTitle: {
     fontSize: FontSizes.medium,
@@ -246,10 +246,10 @@ const styles = StyleSheet.create({
   modalItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: Colors.divider,
   },
   modalItemSelected: {
-    backgroundColor: '#F0F7FF',
+    backgroundColor: Colors.primarySoft,
   },
   modalItemText: {
     fontSize: FontSizes.regular,
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   },
   modalItemTextSelected: {
     fontWeight: FontWeights.bold,
-    color: '#007AFF',
+    color: Colors.primary,
   },
 });
 

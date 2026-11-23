@@ -12,7 +12,7 @@ const LineChart = ({
   showLegend = true,
   lines = [
     { key: 'adjustments', label: 'Adjustments', color: '#8B5CF6' },
-    { key: 'checkins', label: 'Checkins', color: '#10B981' },
+    { key: 'checkins', label: 'Checkins', color: Colors.success },
     { key: 'checkouts', label: 'Checkouts', color: '#F59E42' },
   ],
   hideCheckouts = false,
@@ -118,7 +118,7 @@ const LineChart = ({
               y1={y}
               x2={padding.left + graphWidth}
               y2={y}
-              stroke="#E0E0E0"
+              stroke={Colors.border}
               strokeWidth="1"
               strokeDasharray="3 3"
             />

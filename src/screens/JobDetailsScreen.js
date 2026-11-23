@@ -8,11 +8,6 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { getTokens } from '../services/tokenManager';
-import { refreshSession, validateSession } from '../services/authService';
-import { validateToken } from '../services/tokenUtils';
-import { handle401Error, handleApiError } from '../services/errorHandler';
-import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import CameraQRScanner from '../components/CameraQRScanner';
 import { Colors } from '../styles/colors';
 
@@ -37,7 +32,8 @@ const JobDetailsScreen = ({ route, navigation }) => {
 
 
   const handleStatusUpdate = async (newStatus) => {
-    // If status is "Completed", call the complete-production API
+    // Completing a job requires the QC questions flow — there is no POST on
+    // /api/app/complete-production (that route is GET list-only).
     if (newStatus === 'Completed') {
       await handleCompleteProduction();
     } else {
@@ -49,232 +45,42 @@ const JobDetailsScreen = ({ route, navigation }) => {
   const handleCompleteProduction = async () => {
     try {
       setIsCompleting(true);
-      
-      // Get auth token
-      const { accessToken } = await getTokens();
-      if (!accessToken) {
-        Alert.alert('Error', 'Authentication required. Please login again.');
-        setIsCompleting(false);
-        return;
-      }
 
-      if (!validateToken(accessToken)) {
-        // Try to refresh token instead of logging out immediately
-        const shouldContinue = await handle401Error(null, null, navigation);
-        if (!shouldContinue) {
-        setIsCompleting(false);
-        return;
-        }
-      }
+      const paperId =
+        jobData?.paper_id ||
+        jobData?.paperId ||
+        jobData?.qc_paper_id ||
+        jobData?.originalData?.paper_id;
+      const taskId = jobData?.task_id || jobData?.id || jobData?.originalData?.id;
+      const projectId =
+        jobData?.project_id ||
+        jobData?.projectId ||
+        jobData?.originalData?.project_id;
+      const stageId =
+        jobData?.stage_id ||
+        jobData?.stage?.id ||
+        jobData?.originalData?.stage_id ||
+        jobData?.originalData?.stage?.id;
+      const activityId = jobData?.activity_id || jobData?.originalData?.activity_id || taskId;
 
-      // Get task_id or element_id from jobData
-      const taskId = jobData?.task_id || jobData?.id;
-      const elementId = jobData?.element_id;
-      
-      if (!taskId && !elementId) {
-        Alert.alert('Error', 'Task information not available. Cannot complete production.');
-        setIsCompleting(false);
-        return;
-      }
-
-      // Build API URL
-      const apiUrl = `${API_BASE_URL}/api/app/complete-production`;
-      
-      // Prepare request body
-      const requestBody = {};
-      if (taskId) {
-        requestBody.task_id = taskId;
-      }
-      if (elementId) {
-        requestBody.element_id = elementId;
-      }
-
-      console.log('📱 [JobDetailsScreen] Completing production:', JSON.stringify(requestBody, null, 2));
-      console.log('📱 [JobDetailsScreen] API URL:', apiUrl);
-      console.log('📱 [JobDetailsScreen] Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
-
-      // First, validate the session to ensure it exists in the database
-      let currentToken = accessToken;
-      try {
-        console.log('📱 [JobDetailsScreen] Validating session before complete-production API call...');
-        const sessionResult = await validateSession();
-        console.log('📱 [JobDetailsScreen] Session validation response:', JSON.stringify(sessionResult, null, 2));
-        
-        if (sessionResult && sessionResult.session_id) {
-          // Use the validated session_id as the token
-          currentToken = sessionResult.session_id;
-          console.log('✅ [JobDetailsScreen] Session validated, using session_id for complete-production API');
-          console.log('📱 [JobDetailsScreen] Session_id (first 20 chars):', currentToken.substring(0, 20) + '...');
-        } else {
-          console.log('⚠️ [JobDetailsScreen] Session validation returned no session_id, using original token');
-        }
-      } catch (validateError) {
-        console.log('❌ [JobDetailsScreen] Session validation failed, using original token:', validateError);
-        console.log('📱 [JobDetailsScreen] Validation error details:', JSON.stringify(validateError, null, 2));
-        // Continue with original token
-      }
-
-      // Try with Bearer token first (standard format)
-      const headersWithBearer = createAuthHeaders(currentToken, { useBearer: true });
-      console.log('📱 [JobDetailsScreen] Complete-production API - Attempt 1: With Bearer token');
-      console.log('📱 [JobDetailsScreen] Request headers:', JSON.stringify(headersWithBearer, null, 2));
-      console.log('📱 [JobDetailsScreen] Request body:', JSON.stringify(requestBody, null, 2));
-      
-      let response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: headersWithBearer,
-        body: JSON.stringify(requestBody),
-      });
-
-      console.log('📱 [JobDetailsScreen] Complete-production Response 1 - Status:', response.status);
-      console.log('📱 [JobDetailsScreen] Complete-production Response 1 - Headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
-
-      // If 401, try without Bearer prefix (some APIs expect just the token)
-      if (response.status === 401) {
-        const errorText1 = await response.text().catch(() => '');
-        console.log('❌ [JobDetailsScreen] Complete-production API returned 401 with Bearer token');
-        console.log('📱 [JobDetailsScreen] Error response:', errorText1);
-        console.log('📱 [JobDetailsScreen] Complete-production API - Attempt 2: Without Bearer prefix...');
-        
-        const headersWithoutBearer = createAuthHeaders(currentToken, { useBearer: false });
-        console.log('📱 [JobDetailsScreen] Request headers (no Bearer):', JSON.stringify(headersWithoutBearer, null, 2));
-        
-        response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: headersWithoutBearer,
-          body: JSON.stringify(requestBody),
-        });
-        
-        console.log('📱 [JobDetailsScreen] Complete-production Response 2 - Status:', response.status);
-      }
-
-      // If still 401, try to refresh token and retry
-      if (response.status === 401) {
-        try {
-          const { refreshToken } = await getTokens();
-          console.log('📱 [JobDetailsScreen] Refresh token available:', refreshToken ? 'Yes' : 'No');
-          
-          if (refreshToken) {
-            console.log('🔄 [JobDetailsScreen] Complete-production API 401 - attempting token refresh...');
-            const refreshResult = await refreshSession();
-            console.log('📱 [JobDetailsScreen] Token refresh response:', JSON.stringify(refreshResult, null, 2));
-            
-            if (refreshResult && refreshResult.access_token) {
-              console.log('✅ [JobDetailsScreen] Token refreshed successfully');
-              console.log('📱 [JobDetailsScreen] New access_token (first 20 chars):', refreshResult.access_token.substring(0, 20) + '...');
-              console.log('📱 [JobDetailsScreen] Validating new session before retry...');
-              
-              // Validate the new session to get session_id
-              let newToken = refreshResult.access_token;
-              try {
-                const newSessionResult = await validateSession();
-                console.log('📱 [JobDetailsScreen] New session validation response:', JSON.stringify(newSessionResult, null, 2));
-                
-                if (newSessionResult && newSessionResult.session_id) {
-                  newToken = newSessionResult.session_id;
-                  console.log('✅ [JobDetailsScreen] New session validated, using session_id for retry');
-                  console.log('📱 [JobDetailsScreen] New session_id (first 20 chars):', newToken.substring(0, 20) + '...');
-                } else {
-                  console.log('⚠️ [JobDetailsScreen] New session validation returned no session_id, using access_token');
-                }
-              } catch (validateError) {
-                console.log('❌ [JobDetailsScreen] New session validation failed, using access_token:', validateError);
-              }
-              
-              console.log('🔄 [JobDetailsScreen] Retrying complete-production API with refreshed token...');
-              console.log('📱 [JobDetailsScreen] Retry URL:', apiUrl);
-              
-              // Retry with new token - try Bearer first
-              const retryHeadersWithBearer = createAuthHeaders(newToken, { useBearer: true });
-              console.log('📱 [JobDetailsScreen] Retry headers (Bearer):', JSON.stringify(retryHeadersWithBearer, null, 2));
-              
-              response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: retryHeadersWithBearer,
-                body: JSON.stringify(requestBody),
-              });
-              
-              console.log('📱 [JobDetailsScreen] Retry Response 1 - Status:', response.status);
-              
-              // If still 401, try without Bearer
-              if (response.status === 401) {
-                const retryErrorText1 = await response.text().catch(() => '');
-                console.log('❌ [JobDetailsScreen] Retry with Bearer failed');
-                console.log('📱 [JobDetailsScreen] Retry error response:', retryErrorText1);
-                console.log('📱 [JobDetailsScreen] Retry - Attempt 2: Without Bearer...');
-                
-                const retryHeadersWithoutBearer = createAuthHeaders(newToken, { useBearer: false });
-                console.log('📱 [JobDetailsScreen] Retry headers (no Bearer):', JSON.stringify(retryHeadersWithoutBearer, null, 2));
-                
-                response = await fetch(apiUrl, {
-                  method: 'POST',
-                  headers: retryHeadersWithoutBearer,
-                  body: JSON.stringify(requestBody),
-                });
-                
-                console.log('📱 [JobDetailsScreen] Retry Response 2 - Status:', response.status);
-              }
-            } else {
-              console.log('❌ [JobDetailsScreen] Token refresh did not return access_token');
-              console.log('📱 [JobDetailsScreen] Refresh result:', JSON.stringify(refreshResult, null, 2));
-            }
-          } else {
-            console.log('❌ [JobDetailsScreen] No refresh token available');
-          }
-        } catch (refreshError) {
-          console.log('❌ [JobDetailsScreen] Token refresh failed for complete-production API');
-          console.log('📱 [JobDetailsScreen] Refresh error:', refreshError);
-          console.log('📱 [JobDetailsScreen] Refresh error details:', JSON.stringify(refreshError, null, 2));
-        }
-      }
-
-      console.log('📱 [JobDetailsScreen] Complete production API final response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ [JobDetailsScreen] Complete-production API Success!');
-        console.log('📱 [JobDetailsScreen] Production completed successfully:', JSON.stringify(data, null, 2));
-        
-        setStatus('Completed');
+      if (!paperId) {
         Alert.alert(
-          'Success',
-          'Production has been marked as completed successfully.',
-          [
-            { 
-              text: 'OK', 
-              onPress: () => {
-                // Navigate back to dashboard to refresh the list
-                navigation.goBack();
-              }
-            }
-          ]
+          'Cannot Complete',
+          'This job has no QC paper assigned. Open the task from Dashboard / QC Status and use QC Proceed.',
         );
-      } else {
-        const errorText = await response.text().catch(() => '');
-        console.log('❌ [JobDetailsScreen] Complete-production API Error');
-        console.log('📱 [JobDetailsScreen] Error status:', response.status);
-        console.log('📱 [JobDetailsScreen] Error response:', errorText);
-        console.log('📱 [JobDetailsScreen] Error response (parsed):', JSON.parse(errorText || '{}'));
-        
-        const errorInfo = await handleApiError(response, 'Complete-production API');
-        
-        if (response.status === 401) {
-          Alert.alert('Error', 'Failed to complete production. Your session may have expired. Please try again.');
-        } else {
-          Alert.alert(
-            'Error',
-            errorInfo.message || `Failed to complete production. Status: ${response.status}`,
-            [{ text: 'OK' }]
-          );
-        }
+        return;
       }
+
+      navigation.navigate('Questions', {
+        paperId,
+        taskId,
+        projectId,
+        stageId,
+        activityId,
+      });
     } catch (error) {
-      console.log('Complete production Network/Request Error:', error);
-      Alert.alert(
-        'Network Error',
-        `Failed to complete production: ${error.message}`,
-        [{ text: 'OK' }]
-      );
+      console.log('Complete production navigation error:', error);
+      Alert.alert('Error', `Failed to open QC questions: ${error.message}`);
     } finally {
       setIsCompleting(false);
     }
@@ -355,9 +161,9 @@ const JobDetailsScreen = ({ route, navigation }) => {
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'High': return '#FF3B30';
-      case 'Medium': return '#FF9500';
-      case 'Low': return '#34C759';
+      case 'High': return Colors.error;
+      case 'Medium': return Colors.warning;
+      case 'Low': return Colors.success;
       default: return '#8E8E93';
     }
   };
@@ -504,7 +310,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   qrButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -578,7 +384,7 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -1 }],
   },
   profileButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -666,8 +472,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activeStatusButton: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   statusButtonText: {
     fontSize: 14,
@@ -683,7 +489,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   submitButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',

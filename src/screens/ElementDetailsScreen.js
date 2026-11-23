@@ -19,23 +19,10 @@ import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { FontSizes, FontWeights } from '../styles/fonts';
-import { Colors } from '../styles/colors';
+import { Colors, BWTheme } from '../styles/colors';
 import DrawingFilesModal from '../components/DrawingFilesModal';
 
 // Black and White Theme Colors - White Background
-const BWTheme = {
-  background: '#FFFFFF',
-  card: '#FAFAFA',
-  surface: '#F5F5F5',
-  textPrimary: '#000000',
-  textSecondary: '#4A4A4A',
-  textTertiary: '#808080',
-  border: '#E0E0E0',
-  borderLight: '#D0D0D0',
-  divider: '#E0E0E0',
-  accent: '#000000',
-  shadow: 'rgba(0, 0, 0, 0.1)',
-};
 
 const ElementDetailsScreen = ({ route, navigation }) => {
   const { elementData: initialElementData, elementId } = route.params || {};
@@ -448,10 +435,12 @@ const ElementDetailsScreen = ({ route, navigation }) => {
             
             {/* Dimensions Grid */}
             <View style={styles.dimensionsGrid}>
-              <DimensionCard label="Thickness" value={elementData.element_type?.thickness || '-'} />
-              <DimensionCard label="Length" value={elementData.element_type?.length || '-'} />
-              <DimensionCard label="Height" value={elementData.element_type?.height || '-'} />
-              <DimensionCard label="Weight" value={elementData.element_type?.mass || '-'} />
+              <DimensionCard label="Thickness in MM" value={elementData.element_type?.thickness ?? '-'} />
+              <DimensionCard label="Length in MM" value={elementData.element_type?.length ?? '-'} />
+              <DimensionCard label="Height in MM" value={elementData.element_type?.height ?? '-'} />
+              <DimensionCard label="Weight in ton" value={elementData.element_type?.weight ?? elementData.element_type?.mass ?? '-'} />
+              <DimensionCard label="Volume in Cubic meter" value={elementData.element_type?.volume ?? '-'} />
+              <DimensionCard label="Area in Square meter" value={elementData.element_type?.area ?? '-'} />
             </View>
           </View>
 
@@ -501,11 +490,13 @@ const ElementDetailsScreen = ({ route, navigation }) => {
                   <View style={styles.tableHeader}>
                     <Text style={styles.tableHeaderText}>PRODUCT NAME</Text>
                     <Text style={styles.tableHeaderText}>QUANTITY</Text>
+                    <Text style={styles.tableHeaderText}>UNIT</Text>
                   </View>
                   {elementData.element_type.products.map((product, index) => (
                     <View key={index} style={[styles.tableRow, index === elementData.element_type.products.length - 1 && styles.tableRowLast]}>
                       <Text style={styles.tableCell}>{product.product_name || 'N/A'}</Text>
                       <Text style={styles.tableCell}>{product.quantity || 'N/A'}</Text>
+                      <Text style={styles.tableCell}>{product.unit || 'N/A'}</Text>
                     </View>
                   ))}
                 </View>
@@ -592,10 +583,17 @@ const InfoItem = ({ label, value }) => (
 );
 
 // Dimension Card Component
+const formatMeasure = (value) => {
+  if (value === null || value === undefined || value === '') return '-';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+};
+
 const DimensionCard = ({ label, value }) => (
   <View style={styles.dimensionCard}>
     <Text style={styles.dimensionLabel}>{label}</Text>
-    <Text style={styles.dimensionValue}>{value}</Text>
+    <Text style={styles.dimensionValue}>{formatMeasure(value)}</Text>
   </View>
 );
 

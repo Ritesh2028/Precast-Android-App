@@ -1,27 +1,46 @@
 {
   "expo": {
-    "name": "Precast App",
+    "name": "PrecastEzy",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/precast.png",
+    "icon": "./assets/precastezy-icon.png",
+    "scheme": "precastezy",
     "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.riteshrai628.mobile",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
+        "NSCameraUsageDescription": "Scan QR codes and capture element photos."
+      }
+    },
     "android": {
-      "edgeToEdgeEnabled": true,
       "package": "com.riteshrai628.mobile",
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "POST_NOTIFICATIONS",
+        "VIBRATE"
       ],
-      "icon": "./assets/precast.png",
+      "icon": "./assets/precastezy-icon.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/precast.png",
-        "backgroundColor": "#e8eff4"
-      },
-      "enableProguardInReleaseBuilds": true,
-      "enableShrinkResourcesInReleaseBuilds": true
+        "foregroundImage": "./assets/precastezy-icon.png",
+        "backgroundColor": "#F1F5FE"
+      }
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default"
+        }
+      ],
+      "expo-sharing",
+      "expo-splash-screen",
+      "expo-status-bar"
     ],
     "owner": "ritesh_628",
     "extra": {

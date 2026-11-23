@@ -12,16 +12,15 @@ import {
   TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import BottomNavigation from '../components/BottomNavigation';
 import CameraQRScanner from '../components/CameraQRScanner';
 import { FontSizes, FontWeights } from '../styles/fonts';
-import { Colors } from '../styles/colors';
+import { Colors, Theme } from '../styles/colors';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { logout } from '../services/authService';
 import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
-import { handle401Error, handleApiError } from '../services/errorHandler';
+import { handle401Error } from '../services/errorHandler';
 
 const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
   const [userInfo, setUserInfo] = useState({
@@ -61,129 +60,63 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
     loadUserData();
   }, []);
 
+  const applyUserPayload = (payload) => {
+    // /api/get_user returns { user, capabilities, impersonation }
+    const user = payload?.user && typeof payload.user === 'object' ? payload.user : payload;
+    if (!user || typeof user !== 'object') return;
+    setUserInfo((prev) => ({
+      ...prev,
+      ...user,
+      phone_code_name: user.phone_code_name || prev.phone_code_name || '',
+    }));
+    setImageError(false);
+  };
+
   const loadUserData = async (showFullLoader = true) => {
     try {
       if (showFullLoader) setLoading(true);
       const { accessToken } = await getTokens();
-      console.log('Auth token found:', accessToken ? 'Yes' : 'No');
-      
-      if (accessToken) {
-        // Validate token format and expiration
-        if (!validateToken(accessToken)) {
-          console.log('Token is invalid or expired, attempting refresh...');
-          // Try to refresh token instead of logging out immediately
-          const shouldContinue = await handle401Error(null, null, navigation);
-          if (!shouldContinue) {
-          return;
-          }
-        }
-        const apiUrl = `${API_BASE_URL}/api/get_user`;
-        console.log('Making API call to:', apiUrl);
-        console.log('Using token:', accessToken.substring(0, 20) + '...');
-        
-        const response = await fetch(apiUrl, {
-          method: 'GET',
-          headers: createAuthHeaders(accessToken),
-        });
-        
-        console.log('Full token:', accessToken);
-        console.log('Token length:', accessToken.length);
-        console.log('Request headers:', createAuthHeaders(accessToken));
 
-        console.log('Response status:', response.status);
-        console.log('Response headers:', response.headers);
-        
-        if (response.ok) {
-          const userData = await response.json();
-          console.log('User data loaded successfully:', userData);
-          setUserInfo(userData);
-          if (showFullLoader) setLoading(false);
-        } else {
-          const errorText = await response.text();
-          console.log('API Error Response:', errorText);
-          console.log('Response status:', response.status);
-          console.log('Response statusText:', response.statusText);
-          
-          if (response.status === 404) {
-            console.log('404 Error - Session not found');
-            // Check if it's a session issue
-            if (errorText.includes('Session not found')) {
-              console.log('Session not found - trying alternative authentication methods');
-              
-              // Try with Bearer prefix
-              console.log('Trying authentication with Bearer prefix...');
-              const altResponse = await fetch(apiUrl, {
-                method: 'GET',
-                headers: createAuthHeaders(accessToken, { useBearer: true }),
-              });
-              
-              console.log('Alternative auth response status:', altResponse.status);
-              
-              if (altResponse.ok) {
-                const userData = await altResponse.json();
-                console.log('User data loaded with alternative auth:', userData);
-                setUserInfo(userData);
-                if (showFullLoader) setLoading(false);
-                return;
-              }
-              
-              // Try with different header name
-              console.log('Trying with X-Auth-Token header...');
-              const tokenResponse = await fetch(apiUrl, {
-                method: 'GET',
-                headers: {
-                  ...createAuthHeaders(accessToken),
-                  'X-Auth-Token': accessToken,
-                },
-              });
-              
-              console.log('X-Auth-Token response status:', tokenResponse.status);
-              
-              if (tokenResponse.ok) {
-                const userData = await tokenResponse.json();
-                console.log('User data loaded with X-Auth-Token:', userData);
-                setUserInfo(userData);
-                if (showFullLoader) setLoading(false);
-                return;
-              }
-              
-              console.log('All authentication methods failed - redirecting to login');
-              await logout();
-              Alert.alert('Session Expired', 'Your session has expired. Please login again.');
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Login' }],
-              });
-              return;
-            } else {
-              console.log('404 Error - User not found');
-              Alert.alert('Error', 'User not found. Please contact support.');
-              if (showFullLoader) setLoading(false);
-            }
-          } else if (response.status === 401) {
-            console.log('401 Authentication Error - attempting token refresh');
-            const shouldRetry = await handle401Error(response, null, navigation);
-            if (!shouldRetry) {
-              Alert.alert('Error', 'Failed to load user data. Please try again.');
-            }
-          } else {
-            console.log(`API Error Status: ${response.status}`);
-            Alert.alert('Error', `Failed to load user data. Status: ${response.status}`);
-            if (showFullLoader) setLoading(false);
-          }
-        }
-      } else {
-        console.log('No auth token found - redirecting to login');
+      if (!accessToken) {
         Alert.alert('Authentication Required', 'Please login to access your profile.');
         navigation.reset({
           index: 0,
           routes: [{ name: 'Login' }],
         });
+        return;
       }
+
+      if (!validateToken(accessToken)) {
+        const shouldContinue = await handle401Error(null, null, navigation);
+        if (!shouldContinue) return;
+      }
+
+      const apiUrl = `${API_BASE_URL}/api/get_user`;
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: createAuthHeaders(accessToken),
+      });
+
+      if (response.ok) {
+        applyUserPayload(await response.json());
+        return;
+      }
+
+      if (response.status === 401) {
+        const shouldRetry = await handle401Error(response, null, navigation);
+        if (!shouldRetry) {
+          Alert.alert('Error', 'Failed to load user data. Please try again.');
+        }
+        return;
+      }
+
+      Alert.alert('Error', `Failed to load user data. Status: ${response.status}`);
     } catch (error) {
-      console.log('Network/Request Error:', error);
-      console.log('Error message:', error.message);
-      Alert.alert('Network Error', 'Failed to load user data. Please check your internet connection and try again.');
+      Alert.alert(
+        'Network Error',
+        'Failed to load user data. Please check your internet connection and try again.'
+      );
+    } finally {
       if (showFullLoader) setLoading(false);
     }
   };
@@ -238,6 +171,7 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
   };
 
   const handleChangePassword = () => {
+    setChangeEmail((prev) => prev || userInfo.email || '');
     setShowChangePassword((prev) => !prev);
   };
 
@@ -247,11 +181,23 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
       return;
     }
     try {
-      // Plug real API call here
-      Alert.alert('Email sent', 'If this email is registered, a reset link has been sent.');
+      const resp = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: changeEmail.trim() }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        Alert.alert('Error', data?.message || data?.error || 'Could not send the reset link.');
+        return;
+      }
+      Alert.alert(
+        'Email sent',
+        data?.message || 'If this email is registered, a reset link has been sent.'
+      );
       setShowChangePassword(false);
       setChangeEmail('');
-    } catch (e) {
+    } catch {
       Alert.alert('Error', 'Could not send the reset link. Please try again.');
     }
   };
@@ -314,8 +260,8 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#007AFF"
-            colors={["#007AFF"]}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
           />
         }
         alwaysBounceVertical
@@ -364,7 +310,9 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Phone</Text>
-              <Text style={styles.infoValue}>{userInfo.phone_code_name} {userInfo.phone_no}</Text>
+              <Text style={styles.infoValue}>
+                {[userInfo.phone_code_name, userInfo.phone_no].filter(Boolean).join(' ') || '—'}
+              </Text>
             </View>
           </View>
           <View style={styles.infoRow}>
@@ -373,7 +321,9 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Address</Text>
-              <Text style={styles.infoValue}>{userInfo.address}, {userInfo.city}</Text>
+              <Text style={styles.infoValue}>
+                {[userInfo.address, userInfo.city].filter(Boolean).join(', ') || '—'}
+              </Text>
             </View>
           </View>
           <View style={styles.infoRow}>
@@ -382,7 +332,9 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Location</Text>
-              <Text style={styles.infoValue}>{userInfo.state}, {userInfo.country}</Text>
+              <Text style={styles.infoValue}>
+                {[userInfo.state, userInfo.country].filter(Boolean).join(', ') || '—'}
+              </Text>
             </View>
           </View>
           <View style={styles.infoRow}>
@@ -391,7 +343,7 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Zip Code</Text>
-              <Text style={styles.infoValue}>{userInfo.zip_code}</Text>
+              <Text style={styles.infoValue}>{userInfo.zip_code || '—'}</Text>
             </View>
           </View>
           <View style={styles.infoRow}>
@@ -400,7 +352,11 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Join Date</Text>
-              <Text style={styles.infoValue}>{userInfo.created_at ? new Date(userInfo.created_at).toLocaleDateString() : 'N/A'}</Text>
+              <Text style={styles.infoValue}>
+                {userInfo.created_at && !String(userInfo.created_at).startsWith('0001-')
+                  ? new Date(userInfo.created_at).toLocaleDateString()
+                  : 'N/A'}
+              </Text>
             </View>
           </View>
         </View>
@@ -535,7 +491,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   adminBadge: {
-    backgroundColor: '#FF9500',
+    backgroundColor: Colors.warning,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -594,7 +550,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
   },
   statusBadge: {
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -754,7 +710,7 @@ const styles = StyleSheet.create({
   inlineInputWrapper: {
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
     borderRadius: 10,
   },
   inlineInput: {
@@ -765,7 +721,7 @@ const styles = StyleSheet.create({
   },
   inlinePrimaryButton: {
     marginTop: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
@@ -804,23 +760,25 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   logoutButton: {
-    backgroundColor: '#FF3B30',
-    paddingVertical: 20,
-    borderRadius: 16,
+    backgroundColor: Colors.destructive,
+    paddingVertical: 16,
+    borderRadius: Theme.radius,
     alignItems: 'center',
-    shadowColor: '#FF3B30',
+    borderWidth: 1,
+    borderColor: Colors.destructive,
+    shadowColor: Colors.brandNavy,
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 4,
   },
   logoutButtonText: {
-    color: Colors.textWhite,
+    color: Colors.primaryForeground,
     fontSize: FontSizes.medium,
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.semiBold,
   },
   loadingContainer: {
     justifyContent: 'center',

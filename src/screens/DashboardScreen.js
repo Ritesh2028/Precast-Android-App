@@ -6,27 +6,40 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  Animated,
-  Modal,
-  FlatList,
-  ActivityIndicator,
-  Image,
   RefreshControl,
 } from 'react-native';
 import CameraQRScanner from '../components/CameraQRScanner';
 import BottomNavigation from '../components/BottomNavigation';
-import PieChart from '../components/PieChart';
 import ProjectDropdown from '../components/ProjectDropdown';
 import DrawingFilesModal from '../components/DrawingFilesModal';
 import { FontSizes, FontWeights } from '../styles/fonts';
-import { Colors } from '../styles/colors';
-import { API_BASE_URL, WEB_URL, createAuthHeaders } from '../config/apiConfig';
+import { Colors, Theme } from '../styles/colors';
+import {
+  Icon,
+  Card,
+  SectionHeader,
+  StatusPill,
+  SegmentedControl,
+  IconButton,
+  EmptyState,
+  SkeletonList,
+  Skeleton,
+  ActionSheet,
+  BusyOverlay,
+  Tone,
+} from '../components/ui';
+import { openElementDetails, resolveElementId } from '../services/elementNavigation';
+import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { validateSession, refreshSession, logout } from '../services/authService';
+import { useNativeAccessGuard } from '../services/appAccess';
 import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { handle401Error, handleApiError } from '../services/errorHandler';
 
+const PAGE_SIZE = 25;
+
 const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
+  useNativeAccessGuard(navigation, 'Dashboard');
   const [qrScannerVisible, setQrScannerVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [selectedFilters, setSelectedFilters] = useState(['All']);
@@ -46,67 +59,8 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
   const [selectedElementData, setSelectedElementData] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedJobForMenu, setSelectedJobForMenu] = useState(null);
-
-  // Check user role on mount - redirect if not QA/QC
-  useEffect(() => {
-    const checkUserRole = async () => {
-      try {
-        const sessionResult = await validateSession();
-        if (sessionResult && sessionResult.role_name) {
-          const userRole = sessionResult.role_name.toString().toLowerCase().trim();
-          const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc' || userRole === 'qa qc';
-          
-          if (!isQAQC) {
-            // User is not QA/QC, redirect to appropriate screen
-            console.log('📱 [DashboardScreen] User is not QA/QC, redirecting...');
-            console.log('📱 [DashboardScreen] User role:', userRole);
-            
-            // Check which manager role
-            const isStockManager = 
-              userRole === 'stockmanager' || 
-              userRole === 'stock_manager' || 
-              userRole === 'stock manager' ||
-              userRole === 'stockmanger' ||
-              userRole === 'stock managaer' ||
-              userRole === 'stockmanagaer' ||
-              (userRole.includes('stock') && (userRole.includes('manager') || userRole.includes('managaer')));
-            
-            const isErectionManager = 
-              userRole === 'erectionmanager' || 
-              userRole === 'erection_manager' || 
-              userRole === 'erection manager' ||
-              userRole === 'erectionmanger' ||
-              userRole === 'erection managaer' ||
-              userRole === 'erectionmanagaer' ||
-              (userRole.includes('erection') && (userRole.includes('manager') || userRole.includes('managaer')));
-            
-            const isDispatchManager = 
-              userRole === 'dispatchmanager' || 
-              userRole === 'dispatch_manager' || 
-              userRole === 'dispatch manager' ||
-              userRole === 'dispatchmanger' ||
-              userRole === 'dispatch managaer' ||
-              userRole === 'dispatchmanagaer' ||
-              (userRole.includes('dispatch') && (userRole.includes('manager') || userRole.includes('managaer')));
-            
-            if (isStockManager) {
-              navigation.replace('StockManager');
-            } else if (isErectionManager) {
-              navigation.replace('ErectionManager');
-            } else if (isDispatchManager) {
-              navigation.replace('DispatchManager');
-            } else {
-              navigation.replace('WebView', { url: WEB_URL });
-            }
-          }
-        }
-      } catch (error) {
-        console.log('❌ [DashboardScreen] Error checking user role:', error);
-      }
-    };
-    
-    checkUserRole();
-  }, [navigation]);
+  const [openingElement, setOpeningElement] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const formatDate = (dateString) => {
     try {
@@ -123,7 +77,6 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
   // Helper function to load tasks from API for a specific status
   const loadTasksFromAPI = async (token, statusParam) => {
     try {
-      console.log('🔍 loadTasksFromAPI called with statusParam:', statusParam);
       
       // Build API URL with query parameters
       let apiUrl = `${API_BASE_URL}/api/app/tasks`;
@@ -133,14 +86,11 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
       // Convert to string, trim, and ensure it's not empty
       const statusValue = statusParam ? String(statusParam).trim().toLowerCase() : '';
       
-      console.log('🔍 Processed statusValue:', statusValue);
       
       // Add status parameter to query string if it's a valid non-empty value
       if (statusValue && statusValue.length > 0) {
         queryParams.push(`status=${encodeURIComponent(statusValue)}`);
-        console.log('✅ Status parameter added to queryParams');
       } else {
-        console.log('❌ Status parameter NOT added - statusValue is empty or invalid');
       }
       
       if (selectedProjectId && selectedProjectId !== 'all') {
@@ -153,76 +103,47 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
         apiUrl += '?' + queryParams.join('&');
       }
 
-      console.log('Loading tasks from API:');
-      console.log('  Status Param (input):', statusParam);
-      console.log('  Status Param (type):', typeof statusParam);
-      console.log('  Status Param (processed):', statusParam ? String(statusParam).trim().toLowerCase() : 'N/A');
-      console.log('  Full URL:', apiUrl);
-      console.log('  Query Params Count:', queryParams.length);
-      console.log('  Query Params:', queryParams);
 
       // First, validate the session to ensure it exists in the database
       let currentToken = token;
-      console.log('📱 [DashboardScreen] loadTasksFromAPI - Starting API call');
-      console.log('📱 [DashboardScreen] Original token (first 20 chars):', token ? token.substring(0, 20) + '...' : 'null');
       
       try {
-        console.log('📱 [DashboardScreen] Validating session before Tasks API call...');
         const sessionResult = await validateSession();
-        console.log('📱 [DashboardScreen] Session validation response:', JSON.stringify(sessionResult, null, 2));
         
         if (sessionResult && sessionResult.session_id) {
           // Use the validated session_id as the token
           currentToken = sessionResult.session_id;
-          console.log('✅ [DashboardScreen] Session validated, using session_id for Tasks API');
-          console.log('📱 [DashboardScreen] Session_id (first 20 chars):', currentToken.substring(0, 20) + '...');
         } else {
-          console.log('⚠️ [DashboardScreen] Session validation returned no session_id, using original token');
         }
       } catch (validateError) {
-        console.log('❌ [DashboardScreen] Session validation failed, using original token:', validateError);
-        console.log('📱 [DashboardScreen] Validation error details:', JSON.stringify(validateError, null, 2));
         // Continue with original token
       }
 
       // Try with Bearer token first (standard format)
       const headersWithBearer = createAuthHeaders(currentToken, { useBearer: true });
-      console.log('📱 [DashboardScreen] Tasks API - Attempt 1: With Bearer token');
-      console.log('📱 [DashboardScreen] Request URL:', apiUrl);
-      console.log('📱 [DashboardScreen] Request headers:', JSON.stringify(headersWithBearer, null, 2));
       
       let response = await fetch(apiUrl, {
         method: 'GET',
         headers: headersWithBearer,
       });
 
-      console.log('📱 [DashboardScreen] Tasks API Response 1 - Status:', response.status);
-      console.log('📱 [DashboardScreen] Tasks API Response 1 - Headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
 
       // If 401, try without Bearer prefix (some APIs expect just the token)
       if (response.status === 401) {
         const responseText1 = await response.text().catch(() => '');
-        console.log('❌ [DashboardScreen] Tasks API returned 401 with Bearer token');
-        console.log('📱 [DashboardScreen] Response body:', responseText1);
-        console.log('📱 [DashboardScreen] Tasks API - Attempt 2: Without Bearer prefix...');
         
         const headersWithoutBearer = createAuthHeaders(currentToken, { useBearer: false });
-        console.log('📱 [DashboardScreen] Request headers (no Bearer):', JSON.stringify(headersWithoutBearer, null, 2));
         
         response = await fetch(apiUrl, {
           method: 'GET',
           headers: headersWithoutBearer,
         });
         
-        console.log('📱 [DashboardScreen] Tasks API Response 2 - Status:', response.status);
       }
 
-      console.log('📱 [DashboardScreen] Tasks API Final response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ [DashboardScreen] Tasks API Success!');
-        console.log('📱 [DashboardScreen] Tasks loaded successfully:', JSON.stringify(data, null, 2));
         
         // Transform API data to match UI format
         // API returns: { tasks: [...], total_count: 85, filter: "pending" }
@@ -254,80 +175,54 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
         return transformedJobs;
       } else {
         const errorText = await response.text();
-        console.log('❌ [DashboardScreen] Tasks API Error');
-        console.log('📱 [DashboardScreen] Error status:', response.status);
-        console.log('📱 [DashboardScreen] Error response:', errorText);
-        console.log('📱 [DashboardScreen] Error response (parsed):', JSON.parse(errorText || '{}'));
         
         // If 401, try to refresh token and retry once
         if (response.status === 401) {
           try {
             const { refreshToken } = await getTokens();
-            console.log('📱 [DashboardScreen] Refresh token available:', refreshToken ? 'Yes' : 'No');
             
             if (refreshToken) {
-              console.log('🔄 [DashboardScreen] Tasks API 401 - attempting token refresh...');
               const refreshResult = await refreshSession();
-              console.log('📱 [DashboardScreen] Token refresh response:', JSON.stringify(refreshResult, null, 2));
               
               if (refreshResult && refreshResult.access_token) {
-                console.log('✅ [DashboardScreen] Token refreshed successfully');
-                console.log('📱 [DashboardScreen] New access_token (first 20 chars):', refreshResult.access_token.substring(0, 20) + '...');
-                console.log('📱 [DashboardScreen] Validating new session before retry...');
                 
                 // Validate the new session to get session_id
                 let newToken = refreshResult.access_token;
                 try {
                   const newSessionResult = await validateSession();
-                  console.log('📱 [DashboardScreen] New session validation response:', JSON.stringify(newSessionResult, null, 2));
                   
                   if (newSessionResult && newSessionResult.session_id) {
                     newToken = newSessionResult.session_id;
-                    console.log('✅ [DashboardScreen] New session validated, using session_id for retry');
-                    console.log('📱 [DashboardScreen] New session_id (first 20 chars):', newToken.substring(0, 20) + '...');
                   } else {
-                    console.log('⚠️ [DashboardScreen] New session validation returned no session_id, using access_token');
                   }
                 } catch (validateError) {
-                  console.log('❌ [DashboardScreen] New session validation failed, using access_token:', validateError);
                 }
                 
-                console.log('🔄 [DashboardScreen] Retrying Tasks API with refreshed token...');
-                console.log('📱 [DashboardScreen] Retry URL:', apiUrl);
                 
                 // Retry with new token - try Bearer first
                 const retryHeadersWithBearer = createAuthHeaders(newToken, { useBearer: true });
-                console.log('📱 [DashboardScreen] Retry headers (Bearer):', JSON.stringify(retryHeadersWithBearer, null, 2));
                 
                 let retryResponse = await fetch(apiUrl, {
                   method: 'GET',
                   headers: retryHeadersWithBearer,
                 });
                 
-                console.log('📱 [DashboardScreen] Retry Response 1 - Status:', retryResponse.status);
                 
                 // If still 401, try without Bearer
                 if (retryResponse.status === 401) {
                   const retryErrorText1 = await retryResponse.text().catch(() => '');
-                  console.log('❌ [DashboardScreen] Retry with Bearer failed');
-                  console.log('📱 [DashboardScreen] Retry error response:', retryErrorText1);
-                  console.log('📱 [DashboardScreen] Retry - Attempt 2: Without Bearer...');
                   
                   const retryHeadersWithoutBearer = createAuthHeaders(newToken, { useBearer: false });
-                  console.log('📱 [DashboardScreen] Retry headers (no Bearer):', JSON.stringify(retryHeadersWithoutBearer, null, 2));
                   
                   retryResponse = await fetch(apiUrl, {
                     method: 'GET',
                     headers: retryHeadersWithoutBearer,
                   });
                   
-                  console.log('📱 [DashboardScreen] Retry Response 2 - Status:', retryResponse.status);
                 }
                 
                 if (retryResponse.ok) {
-                  console.log('✅ [DashboardScreen] Tasks API retry successful!');
                   const data = await retryResponse.json();
-                  console.log('📱 [DashboardScreen] Retry response data:', JSON.stringify(data, null, 2));
                   const tasks = data.tasks || [];
                   const transformedJobs = tasks.map((item) => {
                     let mappedStatus = item.status || 'Pending';
@@ -351,113 +246,109 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
                   return transformedJobs;
                 } else {
                   const retryErrorText = await retryResponse.text().catch(() => '');
-                  console.log('❌ [DashboardScreen] Tasks API retry still failed');
-                  console.log('📱 [DashboardScreen] Retry error status:', retryResponse.status);
-                  console.log('📱 [DashboardScreen] Retry error response:', retryErrorText);
                 }
               } else {
-                console.log('❌ [DashboardScreen] Token refresh did not return access_token');
-                console.log('📱 [DashboardScreen] Refresh result:', JSON.stringify(refreshResult, null, 2));
               }
             } else {
-              console.log('❌ [DashboardScreen] No refresh token available');
             }
           } catch (refreshError) {
-            console.log('❌ [DashboardScreen] Token refresh failed for Tasks API');
-            console.log('📱 [DashboardScreen] Refresh error:', refreshError);
-            console.log('📱 [DashboardScreen] Refresh error details:', JSON.stringify(refreshError, null, 2));
           }
         }
         
         return [];
       }
     } catch (error) {
-      console.log('Error in loadTasksFromAPI:', error);
       return [];
     }
   };
 
-  // Helper to load task counts for dashboard charts
+  // QC distribution: prefer dedicated count API, fall back to list totals
+  // (same sources as Recent Jobs — pending from /tasks, completed from /complete-production).
   const loadTaskCounts = async () => {
     try {
       setTaskCountsLoading(true);
 
       const { accessToken } = await getTokens();
       if (!accessToken) {
-        console.log('No auth token found for task counts');
-        setTaskCountsLoading(false);
+        setTaskCounts({ pending: 0, completed: 0, total: 0 });
         return;
       }
 
-      // Build API URL (supports optional project filter, same as tasks API)
-      let apiUrl = `${API_BASE_URL}/api/app/tasks/count`;
-      const queryParams = [];
-
-      if (selectedProjectId && selectedProjectId !== 'all') {
-        queryParams.push(`project_id=${encodeURIComponent(selectedProjectId)}`);
-      }
-
-      if (queryParams.length > 0) {
-        apiUrl += '?' + queryParams.join('&');
-      }
-
-      // Validate session and get the best token to use
       let currentToken = accessToken;
       try {
         const sessionResult = await validateSession();
-        if (sessionResult && sessionResult.session_id) {
+        if (sessionResult?.session_id) {
           currentToken = sessionResult.session_id;
         }
-      } catch (validateError) {
-        console.log('[DashboardScreen] Task counts session validation failed, using original token:', validateError);
+      } catch (_) {
+        // keep access token
       }
 
-      // First try with Bearer token
-      const headersWithBearer = createAuthHeaders(currentToken, { useBearer: true });
-      let response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: headersWithBearer,
-      });
+      const headers = createAuthHeaders(currentToken);
+      const projectQuery =
+        selectedProjectId && selectedProjectId !== 'all'
+          ? `?project_id=${encodeURIComponent(selectedProjectId)}`
+          : '';
 
-      // If 401, retry without Bearer prefix
-      if (response.status === 401) {
-        console.log('[DashboardScreen] Task counts API returned 401 with Bearer, retrying without Bearer');
-        const headersWithoutBearer = createAuthHeaders(currentToken, { useBearer: false });
-        response = await fetch(apiUrl, {
+      // 1) Dedicated count endpoint (use only when it reports real work)
+      try {
+        const countRes = await fetch(`${API_BASE_URL}/api/app/tasks/count${projectQuery}`, {
           method: 'GET',
-          headers: headersWithoutBearer,
+          headers,
         });
+        if (countRes.ok) {
+          const data = await countRes.json();
+          const pending = Number(data?.pending ?? 0);
+          const completed = Number(data?.completed ?? 0);
+          if (pending > 0 || completed > 0) {
+            setTaskCounts({
+              pending,
+              completed,
+              total: pending + completed,
+            });
+            return;
+          }
+        }
+      } catch (_) {
+        // fall through to list-based counts
       }
 
-      if (!response.ok) {
-        console.log('[DashboardScreen] Task counts API failed, status:', response.status);
-        setTaskCounts({
-          pending: 0,
-          completed: 0,
-          total: 0,
-        });
-        setTaskCountsLoading(false);
-        return;
+      // 2) Derive from the same APIs that power Recent Jobs (handles broken/zero count API)
+      const [tasksRes, completeRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/app/tasks${projectQuery}`, { method: 'GET', headers }),
+        fetch(`${API_BASE_URL}/api/app/complete-production${projectQuery}`, {
+          method: 'GET',
+          headers,
+        }),
+      ]);
+
+      let pending = 0;
+      let completed = 0;
+
+      if (tasksRes.ok) {
+        const tasksData = await tasksRes.json();
+        pending = Number(
+          tasksData?.total_count ??
+            (Array.isArray(tasksData?.tasks) ? tasksData.tasks.length : 0)
+        );
       }
 
-      const data = await response.json();
+      if (completeRes.ok) {
+        const completeData = await completeRes.json();
+        completed = Number(
+          completeData?.total_count ??
+            (Array.isArray(completeData?.tasks) ? completeData.tasks.length : 0)
+        );
+      }
 
-      const pending = Number(data?.pending || 0);
-      const completed = Number(data?.completed || 0);
-      const total = Number(data?.total || 0);
       setTaskCounts({
         pending,
         completed,
-        total,
+        total: pending + completed,
       });
-      setTaskCountsLoading(false);
     } catch (error) {
-      console.log('[DashboardScreen] Error loading task counts:', error);
-      setTaskCounts({
-        pending: 0,
-        completed: 0,
-        total: 0,
-      });
+      setTaskCounts({ pending: 0, completed: 0, total: 0 });
+    } finally {
       setTaskCountsLoading(false);
     }
   };
@@ -468,20 +359,17 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
       const { accessToken } = await getTokens();
       
       if (!accessToken) {
-        console.log('No auth token found');
         setJobsLoading(false);
         return;
       }
 
       if (!validateToken(accessToken)) {
-        console.log('Local token check failed, validating session with backend...');
         try {
           const sessionResult = await validateSession();
           if (!sessionResult?.session_id) {
             throw new Error('Invalid session');
           }
         } catch (e) {
-          console.log('Server session validation failed:', e);
           // Try to refresh token before logging out
           const shouldContinue = await handle401Error(null, null, navigation);
           if (!shouldContinue) {
@@ -496,7 +384,6 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
 
       // If "All" filter is selected, call both APIs in parallel
       if (filterLower === 'all') {
-        console.log('Loading all tasks: Calling both tasks API and complete-production API in parallel...');
         
         try {
           // Call both APIs in parallel
@@ -507,52 +394,39 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
             (async () => {
               try {
                 const apiUrl = `${API_BASE_URL}/api/app/complete-production`;
-                console.log('📱 [DashboardScreen] Complete-production API - Starting call');
-                console.log('📱 [DashboardScreen] Complete-production URL:', apiUrl);
                 
                 // Validate session first
                 let completeToken = accessToken;
                 try {
                   const sessionResult = await validateSession();
-                  console.log('📱 [DashboardScreen] Complete-production - Session validation:', JSON.stringify(sessionResult, null, 2));
                   if (sessionResult && sessionResult.session_id) {
                     completeToken = sessionResult.session_id;
-                    console.log('✅ [DashboardScreen] Using validated session_id for complete-production');
                   }
                 } catch (validateError) {
-                  console.log('⚠️ [DashboardScreen] Session validation failed for complete-production, using original token');
                 }
                 
                 // Try with Bearer token first
                 const completeHeaders = createAuthHeaders(completeToken, { useBearer: true });
-                console.log('📱 [DashboardScreen] Complete-production headers:', JSON.stringify(completeHeaders, null, 2));
                 
                 let response = await fetch(apiUrl, {
                   method: 'GET',
                   headers: completeHeaders,
                 });
                 
-                console.log('📱 [DashboardScreen] Complete-production Response 1 - Status:', response.status);
                 
                 // If 401, try without Bearer prefix
                 if (response.status === 401) {
                   const errorText1 = await response.text().catch(() => '');
-                  console.log('❌ [DashboardScreen] Complete-production API returned 401 with Bearer');
-                  console.log('📱 [DashboardScreen] Error response:', errorText1);
-                  console.log('📱 [DashboardScreen] Trying without Bearer...');
                   
                   response = await fetch(apiUrl, {
                     method: 'GET',
                     headers: createAuthHeaders(completeToken, { useBearer: false }),
                   });
                   
-                  console.log('📱 [DashboardScreen] Complete-production Response 2 - Status:', response.status);
                 }
 
                 if (response.ok) {
                   const data = await response.json();
-                  console.log('✅ [DashboardScreen] Complete-production API Success!');
-                  console.log('📱 [DashboardScreen] Complete-production response:', JSON.stringify(data, null, 2));
                   const tasks = data.tasks || data || [];
                   // Transform completed tasks to match UI format
                   return Array.isArray(tasks) ? tasks.map((item) => {
@@ -579,7 +453,6 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
                 }
                 return [];
               } catch (error) {
-                console.log('Error fetching completed tasks:', error);
                 return [];
               }
             })()
@@ -587,12 +460,10 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
           
           // Combine results from both APIs
           const allTasks = [...(pendingTasks || []), ...(completedTasksResponse || [])];
-          console.log(`Loaded ${allTasks.length} total tasks (${pendingTasks?.length || 0} from tasks API + ${completedTasksResponse?.length || 0} from complete-production API)`);
           
           setJobs(allTasks);
           setJobsLoading(false);
         } catch (error) {
-          console.log('Error loading all tasks:', error);
           // Fallback to just tasks API
           const allTasks = await loadTasksFromAPI(accessToken, null);
           setJobs(allTasks || []);
@@ -600,7 +471,6 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
         }
       } else if (filterLower === 'pending') {
         // Call tasks API without status parameter, then filter on frontend
-        console.log('Loading all tasks, then filtering for pending...');
         const allTasks = await loadTasksFromAPI(accessToken, null); // Get all tasks without status filter
         // Filter for pending/inprogress tasks on frontend
         const pendingTasks = (allTasks || []).filter(task => {
@@ -608,12 +478,10 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
           const statusLower = taskStatus.toLowerCase();
           return statusLower === 'inprogress' || statusLower === 'pending' || statusLower === 'in progress';
         });
-        console.log(`Filtered ${pendingTasks.length} pending tasks from ${allTasks?.length || 0} total tasks`);
         setJobs(pendingTasks);
         setJobsLoading(false);
       } else if (filterLower === 'completed') {
         // Call complete-production API to get completed tasks
-        console.log('Loading completed tasks from complete-production API...');
         try {
           const apiUrl = `${API_BASE_URL}/api/app/complete-production`;
           
@@ -621,48 +489,35 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
           let completeToken = accessToken;
           try {
             const sessionResult = await validateSession();
-            console.log('📱 [DashboardScreen] Complete-production (filter) - Session validation:', JSON.stringify(sessionResult, null, 2));
             if (sessionResult && sessionResult.session_id) {
               completeToken = sessionResult.session_id;
-              console.log('✅ [DashboardScreen] Using validated session_id for complete-production');
             }
           } catch (validateError) {
-            console.log('⚠️ [DashboardScreen] Session validation failed, using original token');
           }
           
           // Try GET request first to fetch completed tasks
           // Try with Bearer token first
-          console.log('📱 [DashboardScreen] Complete-production API (filter) - Starting call');
-          console.log('📱 [DashboardScreen] URL:', apiUrl);
           
           let response = await fetch(apiUrl, {
             method: 'GET',
             headers: createAuthHeaders(completeToken, { useBearer: true }),
           });
           
-          console.log('📱 [DashboardScreen] Complete-production Response 1 - Status:', response.status);
           
           // If 401, try without Bearer prefix
           if (response.status === 401) {
             const errorText1 = await response.text().catch(() => '');
-            console.log('❌ [DashboardScreen] Complete-production API returned 401 with Bearer');
-            console.log('📱 [DashboardScreen] Error response:', errorText1);
-            console.log('📱 [DashboardScreen] Trying without Bearer...');
             
             response = await fetch(apiUrl, {
               method: 'GET',
               headers: createAuthHeaders(completeToken, { useBearer: false }),
             });
             
-            console.log('📱 [DashboardScreen] Complete-production Response 2 - Status:', response.status);
           }
 
-          console.log('📱 [DashboardScreen] Complete-production API final response status:', response.status);
 
           if (response.ok) {
             const data = await response.json();
-            console.log('✅ [DashboardScreen] Complete-production API Success!');
-            console.log('📱 [DashboardScreen] Completed tasks loaded successfully:', JSON.stringify(data, null, 2));
             
             // Transform API data to match UI format
             // API might return tasks array or different structure
@@ -695,9 +550,7 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
             setJobsLoading(false);
           } else {
             const errorText = await response.text();
-            console.log('Complete-production API Error:', errorText);
             // Fallback to filtering from tasks API if complete-production doesn't work
-            console.log('Falling back to tasks API with frontend filtering...');
             const allTasks = await loadTasksFromAPI(accessToken, null);
             const completedTasks = (allTasks || []).filter(task => {
               const taskStatus = task.originalData?.status || task.status || '';
@@ -708,9 +561,7 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
             setJobsLoading(false);
           }
         } catch (error) {
-          console.log('Complete-production API Error:', error);
           // Fallback to filtering from tasks API
-          console.log('Falling back to tasks API with frontend filtering...');
           const allTasks = await loadTasksFromAPI(accessToken, null);
           const completedTasks = (allTasks || []).filter(task => {
             const taskStatus = task.originalData?.status || task.status || '';
@@ -721,13 +572,11 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
         }
       } else {
         // Default to pending if unknown filter
-        console.log('Unknown filter, defaulting to pending...');
         const tasks = await loadTasksFromAPI(accessToken, 'pending');
         setJobs(tasks || []);
         setJobsLoading(false);
       }
     } catch (error) {
-      console.log('Tasks Network/Request Error:', error);
       Alert.alert('Network Error', 'Failed to load tasks. Please check your internet connection and try again.');
       setJobs([]);
       setJobsLoading(false);
@@ -803,27 +652,6 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
     setSelectedProjectId(id);
   };
 
-  const scrollUp = () => {
-    if (scrollViewRef) {
-      scrollViewRef.scrollTo({ y: 0, animated: true });
-    }
-  };
-
-  const scrollDown = () => {
-    if (scrollViewRef) {
-      scrollViewRef.scrollToEnd({ animated: true });
-    }
-  };
-
-  const onDragStart = () => {
-    setIsDragging(true);
-  };
-
-  const onDragEnd = () => {
-    setIsDragging(false);
-  };
-
-
   const handleTabPress = useCallback((tabId, screenName) => {
     setActiveTab(tabId);
     const state = navigation.getState?.();
@@ -841,1173 +669,361 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
     setQrScannerVisible(true);
   };
 
-  const filterOptions = ['All',  'Completed','Pending' ];
-  
+  const FILTERS = ['All', 'Pending', 'Completed'];
+
   const toggleFilter = (filter) => {
-    // Single selection behavior - only one filter can be active at a time
+    if (selectedFilters.includes(filter)) return;
     setSelectedFilters([filter]);
-    // Reload data with new filter - pass "All" explicitly for All filter
+    setVisibleCount(PAGE_SIZE);
     loadProductionHistory(filter === 'All' ? 'All' : filter);
   };
 
-  // Use API jobs directly
-  const availableJobs = jobs || [];
+  const activeFilter = selectedFilters[0] || 'All';
+  const filteredJobs = jobs || [];
+  const visibleJobs = filteredJobs.slice(0, visibleCount);
 
-  // Since API already filters by status, we just use the jobs directly
-  // Frontend filtering is only needed for "All" filter case or when API doesn't filter
-  const filteredJobs = availableJobs || [];
-  
+  const pending = Number(taskCounts.pending) || 0;
+  const completed = Number(taskCounts.completed) || 0;
+  const total = Math.max(Number(taskCounts.total) || 0, pending + completed);
+  const completionPct = total ? Math.round((completed / total) * 100) : 0;
 
-  const getFilterColor = (filter) => {
-    switch (filter) {
-      case 'All': return Colors.primary;
-      case 'Pending': return '#FF9500';
-      case 'Completed': return '#34C759';
-     
-      default: return Colors.primary;
+  const isJobCompleted = (job) =>
+    job.fromCompleteProduction || String(job.status).toLowerCase() === 'completed';
+
+  const handleOpenElement = async (job) => {
+    if (openingElement) return;
+    setOpeningElement(true);
+    try {
+      await openElementDetails(navigation, resolveElementId(job));
+    } finally {
+      setOpeningElement(false);
     }
   };
 
-  const getFilterIcon = (filter) => {
-    switch (filter) {
-      case 'All': return '📋';
-      case 'Pending': return '⏳';
-      case 'Completed': return '✅';
-     
-      default: return '📋';
+  const openDrawings = (job) => {
+    setSelectedElementId(resolveElementId(job));
+    setSelectedElementData(job.originalData || job);
+    setDrawingFilesModalVisible(true);
+  };
+
+  const proceedToQC = async (job) => {
+    setMenuVisible(false);
+    if (!job || job.fromCompleteProduction) return;
+    try {
+      const { accessToken } = await getTokens();
+      if (!accessToken || !validateToken(accessToken)) {
+        Alert.alert('Session expired', 'Please log in again.');
+        await logout();
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        return;
+      }
+      const d = job.originalData || {};
+      const paperId = d.paper_id || d.paper?.id || job.paper_id;
+      if (!paperId) {
+        Alert.alert('QC checklist unavailable', 'No QC paper is linked to this task.');
+        return;
+      }
+      const taskId = d.id || d.task_id || job.id;
+      navigation.navigate('Questions', {
+        paperId,
+        taskId,
+        projectId: d.project_id || selectedProjectId,
+        stageId: d.stage_id || d.stage?.id,
+        activityId: d.activity_id || taskId,
+      });
+    } catch (error) {
+      Alert.alert("Couldn't open QC", error?.message || 'Please try again.');
     }
   };
 
-  const getTestIcon = (testType) => {
-    switch (testType) {
-      case 'play': return '▶️';
-      case 'fast-forward': return '⏩';
-      case 'checklist': return '✅';
-      case 'edit': return '✏️';
-      default: return '▶️';
-    }
+  const onRefresh = async () => {
+    setRefreshing(true);
+    const currentFilter = selectedFilters.includes('All') ? null : selectedFilters[0];
+    await Promise.all([loadProductionHistory(currentFilter), loadTaskCounts()]);
+    setRefreshing(false);
   };
 
-  const pieChartData = [
-    { label: 'Pending', value: taskCounts.pending, color: '#FF9500' },
-    { label: 'Completed', value: taskCounts.completed, color: '#34C759' },
-  ];
+  // ---------- Render pieces ----------
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Pending': return '#FF9500';
-      case 'Completed': return '#34C759';
-      default: return '#8E8E93';
-    }
+  const renderOverview = () => (
+    <View style={styles.overview}>
+      <View style={styles.overviewTop}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.overviewEyebrow}>QC OVERVIEW</Text>
+          <Text style={styles.overviewTitle} numberOfLines={1}>
+            {selectedProject && selectedProject !== 'All Projects' ? selectedProject : 'All projects'}
+          </Text>
+        </View>
+        {taskCountsLoading ? (
+          <Skeleton width={56} height={28} style={{ opacity: 0.3 }} />
+        ) : (
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={styles.overviewPct}>{completionPct}%</Text>
+            <Text style={styles.overviewPctLabel}>completed</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Stacked completion bar */}
+      <View style={styles.stackTrack}>
+        {total > 0 && (
+          <>
+            <View style={{ flex: completed, backgroundColor: Tone.success.solid }} />
+            <View style={{ flex: pending, backgroundColor: Tone.warning.solid }} />
+          </>
+        )}
+      </View>
+
+      <View style={styles.tiles}>
+        <StatTile label="Total" value={total} icon="layers" loading={taskCountsLoading} />
+        <StatTile label="Pending" value={pending} icon="clock" color={Tone.warning.solid} loading={taskCountsLoading} />
+        <StatTile label="Completed" value={completed} icon="check-circle" color={Tone.success.solid} loading={taskCountsLoading} />
+      </View>
+    </View>
+  );
+
+  const renderJob = (job, index) => {
+    const done = isJobCompleted(job);
+    const d = job.originalData || {};
+    const subtitle = [d.element_type_name, d.stage_name || job.assignedDate]
+      .filter((v) => v && v !== 'N/A')
+      .join(' · ');
+    return (
+      <Card
+        key={`${job.id}-${index}`}
+        style={styles.jobCard}
+        onPress={() => handleOpenElement(job)}
+        accessibilityRole="button"
+        accessibilityLabel={`Open element ${job.id}`}
+      >
+        <View style={[styles.jobAccent, { backgroundColor: done ? Tone.success.solid : Tone.warning.solid }]} />
+        <View style={styles.jobBody}>
+          <View style={styles.jobTopRow}>
+            <Text style={styles.jobCode} numberOfLines={1}>{job.id}</Text>
+            <StatusPill label={done ? 'Completed' : 'Pending'} tone={done ? 'success' : 'warning'} />
+          </View>
+          {!!subtitle && <Text style={styles.jobSub} numberOfLines={1}>{subtitle}</Text>}
+          <View style={styles.jobActions}>
+            <TouchableOpacity style={styles.jobChipBtn} onPress={() => openDrawings(job)} activeOpacity={0.7}>
+              <Icon name="file-text" size={15} color={Colors.primary} />
+              <Text style={styles.jobChipText}>Drawings</Text>
+            </TouchableOpacity>
+            {!done && (
+              <TouchableOpacity style={styles.jobChipBtn} onPress={() => proceedToQC(job)} activeOpacity={0.7}>
+                <Icon name="clipboard-check" size={15} color={Colors.primary} />
+                <Text style={styles.jobChipText}>Start QC</Text>
+              </TouchableOpacity>
+            )}
+            <View style={{ flex: 1 }} />
+            <IconButton
+              name="more-vertical"
+              label="More actions"
+              size={18}
+              style={styles.moreBtn}
+              onPress={() => {
+                setSelectedJobForMenu(job);
+                setMenuVisible(true);
+              }}
+            />
+          </View>
+        </View>
+      </Card>
+    );
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'High': return '#FF3B30';
-      case 'Medium': return '#FF9500';
-      case 'Low': return '#34C759';
-      default: return '#8E8E93';
+  const renderJobs = () => {
+    if (jobsLoading) return <SkeletonList rows={5} />;
+    if (filteredJobs.length === 0) {
+      return (
+        <Card>
+          <EmptyState
+            icon={activeFilter === 'Completed' ? 'check-circle' : 'clipboard'}
+            tone={activeFilter === 'Completed' ? 'success' : 'info'}
+            title={activeFilter === 'All' ? 'No jobs yet' : `No ${activeFilter.toLowerCase()} jobs`}
+            message="Pull down to refresh, or pick another project or filter."
+            actionLabel="Refresh"
+            onAction={onRefresh}
+          />
+        </Card>
+      );
     }
+    return (
+      <View style={{ gap: 10 }}>
+        {visibleJobs.map(renderJob)}
+        {filteredJobs.length > visibleCount && (
+          <TouchableOpacity
+            style={styles.showMore}
+            onPress={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.showMoreText}>
+              Show more ({filteredJobs.length - visibleCount} remaining)
+            </Text>
+            <Icon name="chevron-down" size={16} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
   };
+
+  const menuJob = selectedJobForMenu;
+  const menuDone = menuJob ? isJobCompleted(menuJob) : false;
 
   return (
     <View style={styles.mainContainer}>
-      <ScrollView 
+      <ScrollView
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: 20, flexGrow: 1 }}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        nestedScrollEnabled={false}
-        keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
-        alwaysBounceVertical
-        bounces
-        overScrollMode="always"
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true);
-              const currentFilter = selectedFilters.includes('All') ? null : selectedFilters[0];
-              await loadProductionHistory(currentFilter);
-              setRefreshing(false);
-            }}
-            tintColor="#007AFF"
-            colors={["#007AFF"]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} colors={[Colors.primary]} />
         }
       >
+        <View style={styles.projectDropdownWrapper}>
+          <ProjectDropdown
+            selectedProject={typeof selectedProject === 'string' ? selectedProject : (selectedProject?.name || 'All Projects')}
+            onProjectSelect={(project) => {
+              handleProjectSelect(project?.name || 'All Projects', project?.project_id || null);
+            }}
+            navigation={navigation}
+          />
+        </View>
 
-      {/* Project Dropdown Component */}
-      <View style={styles.projectDropdownWrapper}>
-      <ProjectDropdown
-        selectedProject={typeof selectedProject === 'string' ? selectedProject : (selectedProject?.name || 'All Projects')}
-        onProjectSelect={(project) => {
-          // Ensure we extract the name and ID from the project object
-          const projectName = project?.name || 'All Projects';
-          const projectId = project?.project_id || null;
-          handleProjectSelect(projectName, projectId);
-        }}
+        <View style={styles.section}>{renderOverview()}</View>
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Recent jobs"
+            subtitle={jobsLoading ? 'Loading…' : `${filteredJobs.length} ${filteredJobs.length === 1 ? 'job' : 'jobs'}`}
+          />
+          <SegmentedControl
+            options={FILTERS.map((f) => ({ key: f, label: f }))}
+            value={activeFilter}
+            onChange={toggleFilter}
+            style={{ marginBottom: 12 }}
+          />
+          {renderJobs()}
+        </View>
+      </ScrollView>
+
+      <CameraQRScanner
+        visible={qrScannerVisible}
+        onClose={() => setQrScannerVisible(false)}
+        onScan={handleQRScanned}
         navigation={navigation}
       />
-      </View>
 
-      <View style={styles.chartCard}>
-        <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>QC Jobs Status Distribution</Text>
-        </View>
-      <View style={styles.pieChartContainer}>
-        <PieChart 
-          data={pieChartData}
-            title=""
-            size={300}
-        />
-        </View>
-      </View>
+      <DrawingFilesModal
+        visible={drawingFilesModalVisible}
+        onClose={() => {
+          setDrawingFilesModalVisible(false);
+          setSelectedElementId(null);
+          setSelectedElementData(null);
+        }}
+        elementId={selectedElementId}
+        elementData={selectedElementData}
+      />
 
-      <View style={styles.jobsSection}>
-        <Text style={styles.sectionTitle}>Recent Jobs</Text>
-        
-        {/* Filter Buttons */}
-        <View style={styles.filterWrapper}>
-          <View style={styles.filterContainer}>
-            {(filterOptions || []).map((filter) => {
-              const isSelected = selectedFilters.includes(filter);
-              return (
-                <TouchableOpacity
-                  key={filter}
-                  style={[
-                    styles.filterButton,
-                    isSelected && styles.filterButtonSelected,
-                    { 
-                      backgroundColor: isSelected ? getFilterColor(filter) : '#FFFFFF',
-                      borderColor: getFilterColor(filter),
-                      borderWidth: isSelected ? 2 : 1,
-                    }
-                  ]}
-                  onPress={() => toggleFilter(filter)}
-                >
-                  <Text style={[
-                    styles.filterText,
-                    { 
-                      color: isSelected ? '#FFFFFF' : getFilterColor(filter),
-                      fontWeight: isSelected ? '700' : '600'
-                    }
-                  ]}>
-                    {filter}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
+      <ActionSheet
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        title={menuJob?.id}
+        subtitle={menuJob?.originalData?.stage_name || menuJob?.assignedDate}
+        actions={[
+          {
+            key: 'detail',
+            label: 'Element details',
+            icon: 'box',
+            onPress: () => {
+              setMenuVisible(false);
+              if (menuJob) handleOpenElement(menuJob);
+            },
+          },
+          {
+            key: 'drawings',
+            label: 'Drawings',
+            icon: 'file-text',
+            onPress: () => {
+              setMenuVisible(false);
+              if (menuJob) openDrawings(menuJob);
+            },
+          },
+          {
+            key: 'qc',
+            label: 'Proceed with QC',
+            icon: 'clipboard-check',
+            hint: menuDone ? 'Already completed' : 'Open the QC checklist',
+            disabled: menuDone,
+            onPress: () => proceedToQC(menuJob),
+          },
+        ]}
+      />
 
-        {/* Table Header */}
-        <View style={styles.tableHeader}>
-          <Text style={styles.elementHeaderText}>Element</Text>
-          <Text style={styles.assignedHeaderText}>Stage</Text>
-          <Text style={styles.tableHeaderText}>Drawing</Text>
-          <Text style={styles.menuHeaderText}></Text>
-        </View>
+      <BusyOverlay visible={openingElement} label="Opening element…" />
 
-        {/* Table Rows */}
-        <View style={styles.tableWrapper}>
-          {jobsLoading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#007AFF" />
-              <Text style={styles.loadingText}>Loading jobs...</Text>
-            </View>
-          ) : (
-            <ScrollView 
-              style={styles.tableContainer} 
-              showsVerticalScrollIndicator={true}
-              nestedScrollEnabled={true}
-              scrollEnabled={true}
-            >
-              {(filteredJobs || []).length > 0 ? (
-                (filteredJobs || []).map((job, index) => (
-                  <View
-                    key={`${job.id}-${index}`}
-                    style={[
-                      styles.tableRow,
-                      job.fromCompleteProduction && styles.tableRowCompleted,
-                      !job.fromCompleteProduction && selectedFilters.includes('All') && styles.tableRowPending,
-                      index === 0 && styles.firstTableRow,
-                      index === (filteredJobs || []).length - 1 && styles.lastTableRow
-                    ]}
-                  >
-                    <TouchableOpacity
-                      style={styles.elementTextContainer}
-                      onPress={async () => {
-                        const elementId = job.originalData?.element_id || job.originalData?.id || job.id?.replace('ELEM-', '') || job.id;
-                        
-                        // Call the scan_element API (same as QR Scanner)
-                        try {
-                          const { accessToken } = await getTokens();
-                          if (!accessToken) {
-                            Alert.alert('Authentication Required', 'Please login to fetch element details.');
-                            return;
-                          }
-
-                          // Validate session first to get session_id (same pattern as tasks API)
-                          let tokenToUse = accessToken;
-                          console.log('📱 [DashboardScreen] Element Details - Validating session before API call...');
-                          try {
-                            const sessionResult = await validateSession();
-                            console.log('📱 [DashboardScreen] Element Details - Session validation response:', JSON.stringify(sessionResult, null, 2));
-                            
-                            if (sessionResult && sessionResult.session_id) {
-                              // Use the validated session_id as the token
-                              tokenToUse = sessionResult.session_id;
-                              console.log('✅ [DashboardScreen] Element Details - Session validated, using session_id');
-                            } else {
-                              console.log('⚠️ [DashboardScreen] Element Details - Session validation returned no session_id, using original token');
-                            }
-                          } catch (validateError) {
-                            console.log('❌ [DashboardScreen] Element Details - Session validation failed, using original token:', validateError);
-                          }
-
-                          const apiUrl = `${API_BASE_URL}/api/scan_element/${elementId}`;
-                          console.log('📱 [DashboardScreen] Element Details - Fetching from:', apiUrl);
-
-                          // Try with Bearer token first (standard format)
-                          let headers = createAuthHeaders(tokenToUse, { useBearer: true });
-                          console.log('📱 [DashboardScreen] Element Details - Attempt 1: With Bearer token');
-                          
-                          let response = await fetch(apiUrl, {
-                            method: 'GET',
-                            headers: headers,
-                          });
-
-                          console.log('📱 [DashboardScreen] Element Details - Response 1 - Status:', response.status);
-
-                          // If 401, try without Bearer prefix (some APIs expect just the token)
-                          if (response.status === 401) {
-                            const responseText1 = await response.text().catch(() => '');
-                            console.log('❌ [DashboardScreen] Element Details - 401 with Bearer token');
-                            console.log('📱 [DashboardScreen] Element Details - Response body:', responseText1);
-                            console.log('📱 [DashboardScreen] Element Details - Attempt 2: Without Bearer prefix...');
-                            
-                            headers = createAuthHeaders(tokenToUse, { useBearer: false });
-                            response = await fetch(apiUrl, {
-                              method: 'GET',
-                              headers: headers,
-                            });
-                            
-                            console.log('📱 [DashboardScreen] Element Details - Response 2 - Status:', response.status);
-                          }
-
-                          if (response.ok) {
-                            const elementData = await response.json();
-                            console.log('✅ [DashboardScreen] Element Details - Fetched successfully');
-                            // Navigate to ElementDetails screen with fetched data
-                            navigation.navigate('ElementDetails', {
-                              elementId: elementId,
-                              elementData: elementData
-                            });
-                          } else {
-                            // If still 401, try to refresh token and retry once
-                            if (response.status === 401) {
-                              try {
-                                const { refreshToken } = await getTokens();
-                                console.log('📱 [DashboardScreen] Element Details - Refresh token available:', refreshToken ? 'Yes' : 'No');
-                                
-                                if (refreshToken) {
-                                  console.log('🔄 [DashboardScreen] Element Details - 401 error, attempting token refresh...');
-                                  const refreshResult = await refreshSession();
-                                  console.log('📱 [DashboardScreen] Element Details - Token refresh response:', JSON.stringify(refreshResult, null, 2));
-                                  
-                                  if (refreshResult && (refreshResult.access_token || refreshResult.message)) {
-                                    // Get new token after refresh
-                                    const { accessToken: newAccessToken } = await getTokens();
-                                    let newToken = newAccessToken;
-                                    
-                                    // Validate new session
-                                    try {
-                                      const newSessionResult = await validateSession();
-                                      if (newSessionResult && newSessionResult.session_id) {
-                                        newToken = newSessionResult.session_id;
-                                        console.log('✅ [DashboardScreen] Element Details - New session validated, using session_id');
-                                      }
-                                    } catch (validateError) {
-                                      console.log('⚠️ [DashboardScreen] Element Details - New session validation failed, using access_token');
-                                    }
-                                    
-                                    console.log('🔄 [DashboardScreen] Element Details - Retrying with refreshed token...');
-                                    
-                                    // Retry with new token - try Bearer first
-                                    let retryHeaders = createAuthHeaders(newToken, { useBearer: true });
-                                    let retryResponse = await fetch(apiUrl, {
-                                      method: 'GET',
-                                      headers: retryHeaders,
-                                    });
-                                    
-                                    console.log('📱 [DashboardScreen] Element Details - Retry Response 1 - Status:', retryResponse.status);
-                                    
-                                    // If still 401, try without Bearer
-                                    if (retryResponse.status === 401) {
-                                      retryHeaders = createAuthHeaders(newToken, { useBearer: false });
-                                      retryResponse = await fetch(apiUrl, {
-                                        method: 'GET',
-                                        headers: retryHeaders,
-                                      });
-                                      
-                                      console.log('📱 [DashboardScreen] Element Details - Retry Response 2 - Status:', retryResponse.status);
-                                    }
-                                    
-                                    if (retryResponse.ok) {
-                                      const elementData = await retryResponse.json();
-                                      console.log('✅ [DashboardScreen] Element Details - Fetched successfully after retry');
-                                      navigation.navigate('ElementDetails', {
-                                        elementId: elementId,
-                                        elementData: elementData
-                                      });
-                                      return;
-                                    } else {
-                                      const errorInfo = await handleApiError(retryResponse, 'Element Details API');
-                                      Alert.alert('Error', errorInfo.message);
-                                    }
-                                  } else {
-                                    throw new Error('Token refresh failed - no access token in response');
-                                  }
-                                } else {
-                                  throw new Error('No refresh token available');
-                                }
-                              } catch (refreshError) {
-                                console.error('❌ [DashboardScreen] Element Details - Token refresh failed:', refreshError);
-                                Alert.alert('Session Expired', 'Your session has expired. Please login again.');
-                                await logout();
-                                navigation.reset({
-                                  index: 0,
-                                  routes: [{ name: 'Login' }],
-                                });
-                              }
-                            } else {
-                              const errorInfo = await handleApiError(response, 'Element Details API');
-                              Alert.alert('Error', errorInfo.message);
-                            }
-                          }
-                        } catch (error) {
-                          console.error('[DashboardScreen] Element Details - Error:', error);
-                          const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
-                          Alert.alert('Network Error', `Failed to fetch element details: ${errorMessage}`);
-                        }
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.elementText}>{job.id}</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.assignedText}>{job.assignedDate}</Text>
-                    <View style={styles.iconContainer}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          const elementId = job.originalData?.element_id || job.originalData?.id || job.id?.replace('ELEM-', '') || job.id;
-                          setSelectedElementId(elementId);
-                          setSelectedElementData(job.originalData || job);
-                          setDrawingFilesModalVisible(true);
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Image source={require('../icons/downloads.png')} style={styles.downloadImg} resizeMode="contain" />
-                      </TouchableOpacity>
-                    </View>
-                    <View style={styles.menuIconContainer}>
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setSelectedJobForMenu(job);
-                          setMenuVisible(true);
-                        }}
-                        activeOpacity={0.7}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        style={styles.menuIconButton}
-                      >
-                        <Text style={[
-                          styles.menuIcon,
-                          job.fromCompleteProduction && styles.menuIconCompleted,
-                          !job.fromCompleteProduction && selectedFilters.includes('All') && styles.menuIconPending
-                        ]}>⋯</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>No jobs found for selected filters</Text>
-                </View>
-              )}
-            </ScrollView>
-          )}
-        </View>
-      </View>
-
-        <CameraQRScanner
-          visible={qrScannerVisible}
-          onClose={() => setQrScannerVisible(false)}
-          onScan={handleQRScanned}
-          navigation={navigation}
-        />
-
-        <DrawingFilesModal
-          visible={drawingFilesModalVisible}
-          onClose={() => {
-            setDrawingFilesModalVisible(false);
-            setSelectedElementId(null);
-            setSelectedElementData(null);
-          }}
-          elementId={selectedElementId}
-          elementData={selectedElementData}
-        />
-
-        {/* Menu Popup */}
-        <Modal
-          visible={menuVisible}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setMenuVisible(false)}
-        >
-          <TouchableOpacity
-            style={styles.menuOverlay}
-            activeOpacity={1}
-            onPress={() => setMenuVisible(false)}
-          >
-            <View style={styles.menuContainer}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                activeOpacity={0.7}
-                onPress={async () => {
-                  if (selectedJobForMenu) {
-                    setMenuVisible(false);
-                    const elementId = selectedJobForMenu.originalData?.element_id || selectedJobForMenu.originalData?.id || selectedJobForMenu.id?.replace('ELEM-', '') || selectedJobForMenu.id;
-                    
-                    // Call the scan_element API (same as QR Scanner)
-                    try {
-                      const { accessToken } = await getTokens();
-                      if (!accessToken) {
-                        Alert.alert('Authentication Required', 'Please login to fetch element details.');
-                        return;
-                      }
-
-                      // Validate session first to get session_id (same pattern as tasks API)
-                      let tokenToUse = accessToken;
-                      console.log('📱 [DashboardScreen] Element Details (Menu) - Validating session before API call...');
-                      try {
-                        const sessionResult = await validateSession();
-                        console.log('📱 [DashboardScreen] Element Details (Menu) - Session validation response:', JSON.stringify(sessionResult, null, 2));
-                        
-                        if (sessionResult && sessionResult.session_id) {
-                          // Use the validated session_id as the token
-                          tokenToUse = sessionResult.session_id;
-                          console.log('✅ [DashboardScreen] Element Details (Menu) - Session validated, using session_id');
-                        } else {
-                          console.log('⚠️ [DashboardScreen] Element Details (Menu) - Session validation returned no session_id, using original token');
-                        }
-                      } catch (validateError) {
-                        console.log('❌ [DashboardScreen] Element Details (Menu) - Session validation failed, using original token:', validateError);
-                      }
-
-                      const apiUrl = `${API_BASE_URL}/api/scan_element/${elementId}`;
-                      console.log('📱 [DashboardScreen] Element Details (Menu) - Fetching from:', apiUrl);
-
-                      // Try with Bearer token first (standard format)
-                      let headers = createAuthHeaders(tokenToUse, { useBearer: true });
-                      console.log('📱 [DashboardScreen] Element Details (Menu) - Attempt 1: With Bearer token');
-                      
-                      let response = await fetch(apiUrl, {
-                        method: 'GET',
-                        headers: headers,
-                      });
-
-                      console.log('📱 [DashboardScreen] Element Details (Menu) - Response 1 - Status:', response.status);
-
-                      // If 401, try without Bearer prefix (some APIs expect just the token)
-                      if (response.status === 401) {
-                        const responseText1 = await response.text().catch(() => '');
-                        console.log('❌ [DashboardScreen] Element Details (Menu) - 401 with Bearer token');
-                        console.log('📱 [DashboardScreen] Element Details (Menu) - Response body:', responseText1);
-                        console.log('📱 [DashboardScreen] Element Details (Menu) - Attempt 2: Without Bearer prefix...');
-                        
-                        headers = createAuthHeaders(tokenToUse, { useBearer: false });
-                        response = await fetch(apiUrl, {
-                          method: 'GET',
-                          headers: headers,
-                        });
-                        
-                        console.log('📱 [DashboardScreen] Element Details (Menu) - Response 2 - Status:', response.status);
-                      }
-
-                      if (response.ok) {
-                        const elementData = await response.json();
-                        console.log('✅ [DashboardScreen] Element Details (Menu) - Fetched successfully');
-                        // Navigate to ElementDetails screen with fetched data
-                        navigation.navigate('ElementDetails', {
-                          elementId: elementId,
-                          elementData: elementData
-                        });
-                      } else {
-                        // If still 401, try to refresh token and retry once
-                        if (response.status === 401) {
-                          try {
-                            const { refreshToken } = await getTokens();
-                            console.log('📱 [DashboardScreen] Element Details (Menu) - Refresh token available:', refreshToken ? 'Yes' : 'No');
-                            
-                            if (refreshToken) {
-                              console.log('🔄 [DashboardScreen] Element Details (Menu) - 401 error, attempting token refresh...');
-                              const refreshResult = await refreshSession();
-                              console.log('📱 [DashboardScreen] Element Details (Menu) - Token refresh response:', JSON.stringify(refreshResult, null, 2));
-                              
-                              if (refreshResult && (refreshResult.access_token || refreshResult.message)) {
-                                // Get new token after refresh
-                                const { accessToken: newAccessToken } = await getTokens();
-                                let newToken = newAccessToken;
-                                
-                                // Validate new session
-                                try {
-                                  const newSessionResult = await validateSession();
-                                  if (newSessionResult && newSessionResult.session_id) {
-                                    newToken = newSessionResult.session_id;
-                                    console.log('✅ [DashboardScreen] Element Details (Menu) - New session validated, using session_id');
-                                  }
-                                } catch (validateError) {
-                                  console.log('⚠️ [DashboardScreen] Element Details (Menu) - New session validation failed, using access_token');
-                                }
-                                
-                                console.log('🔄 [DashboardScreen] Element Details (Menu) - Retrying with refreshed token...');
-                                
-                                // Retry with new token - try Bearer first
-                                let retryHeaders = createAuthHeaders(newToken, { useBearer: true });
-                                let retryResponse = await fetch(apiUrl, {
-                                  method: 'GET',
-                                  headers: retryHeaders,
-                                });
-                                
-                                console.log('📱 [DashboardScreen] Element Details (Menu) - Retry Response 1 - Status:', retryResponse.status);
-                                
-                                // If still 401, try without Bearer
-                                if (retryResponse.status === 401) {
-                                  retryHeaders = createAuthHeaders(newToken, { useBearer: false });
-                                  retryResponse = await fetch(apiUrl, {
-                                    method: 'GET',
-                                    headers: retryHeaders,
-                                  });
-                                  
-                                  console.log('📱 [DashboardScreen] Element Details (Menu) - Retry Response 2 - Status:', retryResponse.status);
-                                }
-                                
-                                if (retryResponse.ok) {
-                                  const elementData = await retryResponse.json();
-                                  console.log('✅ [DashboardScreen] Element Details (Menu) - Fetched successfully after retry');
-                                  navigation.navigate('ElementDetails', {
-                                    elementId: elementId,
-                                    elementData: elementData
-                                  });
-                                  return;
-                                } else {
-                                  const errorInfo = await handleApiError(retryResponse, 'Element Details API');
-                                  Alert.alert('Error', errorInfo.message);
-                                }
-                              } else {
-                                throw new Error('Token refresh failed - no access token in response');
-                              }
-                            } else {
-                              throw new Error('No refresh token available');
-                            }
-                          } catch (refreshError) {
-                            console.error('❌ [DashboardScreen] Element Details (Menu) - Token refresh failed:', refreshError);
-                            Alert.alert('Session Expired', 'Your session has expired. Please login again.');
-                            await logout();
-                            navigation.reset({
-                              index: 0,
-                              routes: [{ name: 'Login' }],
-                            });
-                          }
-                        } else {
-                          const errorInfo = await handleApiError(response, 'Element Details API');
-                          Alert.alert('Error', errorInfo.message);
-                        }
-                      }
-                    } catch (error) {
-                      console.error('[DashboardScreen] Element Details (Menu) - Error:', error);
-                      const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
-                      Alert.alert('Network Error', `Failed to fetch element details: ${errorMessage}`);
-                    }
-                  }
-                }}
-              >
-                <View style={styles.menuItemContent}>
-                  <Text style={styles.menuItemIcon}>📋</Text>
-                  <Text style={styles.menuItemText}>Element Detail</Text>
-                </View>
-              </TouchableOpacity>
-              <View style={styles.menuDivider} />
-              <TouchableOpacity
-                style={[
-                  styles.menuItem,
-                  selectedJobForMenu?.fromCompleteProduction && styles.menuItemDisabled
-                ]}
-                activeOpacity={selectedJobForMenu?.fromCompleteProduction ? 1 : 0.7}
-                disabled={selectedJobForMenu?.fromCompleteProduction}
-                onPress={async () => {
-                  if (selectedJobForMenu && !selectedJobForMenu.fromCompleteProduction) {
-                    try {
-                      const { accessToken } = await getTokens();
-                      if (!accessToken) {
-                        Alert.alert('Authentication Required', 'Please login to proceed with QC questions.');
-                        setMenuVisible(false);
-                        return;
-                      }
-
-                      if (!validateToken(accessToken)) {
-                        Alert.alert('Session Expired', 'Your session has expired. Please login again.');
-                        await logout();
-                        navigation.reset({
-                          index: 0,
-                          routes: [{ name: 'Login' }],
-                        });
-                        setMenuVisible(false);
-                        return;
-                      }
-
-                      // Get paper_id from item data
-                      const paperId = selectedJobForMenu.originalData?.paper_id || selectedJobForMenu.originalData?.paper?.id || selectedJobForMenu.paper_id;
-                      
-                      if (!paperId) {
-                        Alert.alert('Error', 'Paper ID not found. Cannot proceed with questions.');
-                        setMenuVisible(false);
-                        return;
-                      }
-
-                      // Get additional IDs needed for submission
-                      const taskId = selectedJobForMenu.originalData?.id || selectedJobForMenu.originalData?.task_id || selectedJobForMenu.id;
-                      const projectId = selectedJobForMenu.originalData?.project_id || selectedProjectId;
-                      const stageId = selectedJobForMenu.originalData?.stage_id || selectedJobForMenu.originalData?.stage?.id;
-                      const activityId = selectedJobForMenu.originalData?.activity_id || taskId;
-
-                      // Navigate to QuestionsScreen with all necessary data
-                      navigation.navigate('Questions', { 
-                        paperId: paperId,
-                        taskId: taskId,
-                        projectId: projectId,
-                        stageId: stageId,
-                        activityId: activityId,
-                      });
-                      setMenuVisible(false);
-                    } catch (error) {
-                      console.log('Error navigating to questions:', error);
-                      Alert.alert('Network Error', `Failed to load questions: ${error.message}`);
-                      setMenuVisible(false);
-                    }
-                  } else {
-                    setMenuVisible(false);
-                  }
-                }}
-              >
-                <View style={styles.menuItemContent}>
-                  <Text style={styles.menuItemIcon}>✅</Text>
-                  <Text style={[
-                    styles.menuItemText,
-                    selectedJobForMenu?.fromCompleteProduction && styles.menuItemTextDisabled
-                  ]}>QC Proceed</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      </ScrollView>
-      
-      {!hideBottomNav && (
-        <BottomNavigation
-          activeTab={activeTab}
-          onTabPress={handleTabPress}
-        />
-      )}
+      {!hideBottomNav && <BottomNavigation activeTab={activeTab} onTabPress={handleTabPress} />}
     </View>
   );
 };
 
+const StatTile = ({ label, value, icon, color = '#FFFFFF', loading }) => (
+  <View style={styles.tile}>
+    <View style={styles.tileHead}>
+      <Icon name={icon} size={14} color={color === '#FFFFFF' ? '#8FA6D6' : color} />
+      <Text style={styles.tileLabel}>{label}</Text>
+    </View>
+    {loading ? (
+      <Skeleton width={40} height={20} style={{ opacity: 0.3, marginTop: 4 }} />
+    ) : (
+      <Text style={[styles.tileValue, color !== '#FFFFFF' && { color }]}>{value}</Text>
+    )}
+  </View>
+);
+
 const styles = StyleSheet.create({
-  mainContainer: {
-    flex: 1,
+  mainContainer: { flex: 1, backgroundColor: Colors.surface },
+  container: { flex: 1 },
+  content: { paddingBottom: 24, flexGrow: 1 },
+  projectDropdownWrapper: { marginTop: 12 },
+  section: { paddingHorizontal: 16, marginTop: 16 },
+
+  overview: { backgroundColor: Colors.brandNavy, borderRadius: Theme.radiusLg, padding: 16 },
+  overviewTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  overviewEyebrow: { fontSize: FontSizes.extraSmall, letterSpacing: 1, color: '#8FA6D6', fontWeight: FontWeights.semiBold },
+  overviewTitle: { fontSize: FontSizes.medium, color: Colors.textOnNavy, fontWeight: FontWeights.bold, marginTop: 2 },
+  overviewPct: { fontSize: 28, fontWeight: FontWeights.extraBold, color: '#FFFFFF' },
+  overviewPctLabel: { fontSize: FontSizes.extraSmall, color: '#8FA6D6', marginTop: -2 },
+  stackTrack: {
+    flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden',
+    backgroundColor: 'rgba(143,166,214,0.25)',
+  },
+  tiles: { flexDirection: 'row', marginTop: 14, gap: 8 },
+  tile: { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: Theme.radius, padding: 10 },
+  tileHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tileLabel: { fontSize: FontSizes.extraSmall + 1, color: '#8FA6D6', fontWeight: FontWeights.medium },
+  tileValue: { fontSize: FontSizes.large, fontWeight: FontWeights.bold, color: '#FFFFFF', marginTop: 4 },
+
+  jobCard: { flexDirection: 'row', overflow: 'hidden' },
+  jobAccent: { width: 4 },
+  jobBody: { flex: 1, padding: 12, paddingLeft: 12 },
+  jobTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  jobCode: { flex: 1, fontSize: FontSizes.regular + 1, fontWeight: FontWeights.bold, color: Colors.textPrimary },
+  jobSub: { fontSize: FontSizes.small, color: Colors.textSecondary, marginTop: 3 },
+  jobActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  jobChipBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, height: 32, paddingHorizontal: 10,
+    borderRadius: Theme.radiusSm, backgroundColor: Colors.primarySoft,
+  },
+  jobChipText: { fontSize: FontSizes.small, color: Colors.primary, fontWeight: FontWeights.semiBold },
+  moreBtn: { width: 32, height: 32, backgroundColor: 'transparent' },
+
+  showMore: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    height: Theme.buttonHeightLg, borderRadius: Theme.radius, borderWidth: 1, borderColor: Colors.borderStrong,
     backgroundColor: Colors.background,
   },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  projectDropdownWrapper: {
-    marginTop: 16,
-  },
-  title: {
-    fontSize: FontSizes.large,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: FontSizes.regular,
-    color: Colors.textPrimary,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  statusSummary: {
-    padding: 16,
-    backgroundColor: Colors.background,
-    marginBottom: 16,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-  },
-  pieChartContainer: {
-    width: '100%',
-    minHeight: 300,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chartCard: {
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    marginHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  chartHeader: {
-    marginBottom: 16,
-  },
-  chartTitle: {
-    fontSize: FontSizes.medium,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
-  },
-  summaryCards: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  summaryCard: {
-    width: '48%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-  },
-  pendingCard: {
-    backgroundColor: Colors.background,
-    borderColor: '#FFE4B5',
-  },
-  progressCard: {
-    backgroundColor: Colors.background,
-    borderColor: '#B3D9FF',
-  },
-  completedCard: {
-    backgroundColor: Colors.background,
-    borderColor: '#B3FFB3',
-  },
-  rejectedCard: {
-    backgroundColor: Colors.background,
-    borderColor: '#FFB3B3',
-  },
-  overdueCard: {
-    backgroundColor: Colors.background,
-    borderColor: '#FFE4B5',
-  },
-  summaryNumber: {
-    fontSize: FontSizes.large,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
-    marginBottom: 4,
-    lineHeight: FontSizes.large + 4,
-  },
-  summaryLabel: {
-    fontSize: FontSizes.small,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    fontWeight: FontWeights.semiBold,
-    marginBottom: 0,
-  },
-  sectionTitle: {
-    fontSize: FontSizes.medium,
-    fontWeight: FontWeights.semiBold,
-    color: Colors.textPrimary,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  jobsSection: {
-    paddingVertical: 24,
-    paddingHorizontal: 12,
-    backgroundColor: Colors.background,
-    borderRadius: 16,
-    marginHorizontal: 8,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  filterWrapper: {
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexWrap: 'nowrap',
-    width: '100%',
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 25,
-    marginHorizontal: 6,
-    minWidth: 100,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  filterButtonSelected: {
-    transform: [{ scale: 1.05 }],
-  },
-  filterText: {
-    fontSize: FontSizes.small,
-    fontWeight: FontWeights.semiBold,
-  },
-  scrollHint: {
-    alignItems: 'center',
-    paddingVertical: 6,
-    backgroundColor: 'transparent',
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  scrollHintText: {
-    fontSize: FontSizes.extraSmall,
-    color: Colors.textSecondary,
-    fontWeight: FontWeights.medium,
-    fontStyle: 'italic',
-  },
-  tableWrapper: {
-    backgroundColor: Colors.background,
-    borderRadius: 0,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderTopWidth: 0,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: Colors.background,
-    paddingVertical: 18,
-    paddingHorizontal: 8,
-    borderRadius: 0,
-    marginBottom: 0,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderBottomWidth: 1,
-    borderBottomColor: '#d0d0d0',
-  },
-  tableHeaderText: {
-    flex: 1,
-    fontSize: FontSizes.small,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  elementHeaderText: {
-    flex: 2,
-    fontSize: FontSizes.small,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-    marginRight: 8,
-  },
-  assignedHeaderText: {
-    flex: 1.5,
-    fontSize: FontSizes.small,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-    marginLeft: 8,
-  },
-  menuHeaderText: {
-    flex: 0.9,
-    fontSize: FontSizes.small,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  tableContainer: {
-    maxHeight: 400,
-    flexGrow: 1,
-    flex: 1,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: Colors.background,
-    borderRadius: 0,
-    marginBottom: 0,
-  },
-  tableRowCompleted: {
-  
-    borderLeftWidth: 4,
-    borderLeftColor: '#34C759',
-  },
-  tableRowPending: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF9500',
-  },
-  firstTableRow: {
-    borderTopWidth: 0,
-  },
-  lastTableRow: {
-    borderBottomWidth: 0,
-  },
-  elementTextContainer: {
-    flex: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  elementText: {
-    fontSize: FontSizes.small,
-    color: '#007AFF', // Blue color like hyperlink
-    textAlign: 'center',
-  },
-  assignedText: {
-    flex: 1.5,
-    fontSize: FontSizes.small,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    marginLeft: 8,
-  },
-  iconContainer: {
-    flex: 0.8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIconContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuIconButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    minWidth: 44,
-    minHeight: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  downloadIcon: {
-    fontSize: FontSizes.icon,
-    color: Colors.textPrimary,
-  },
-  downloadImg: {
-    width: 20,
-    height: 20,
-  },
-  menuIcon: {
-    fontSize: 24,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  menuIconCompleted: {
-    color: '#34C759',
-  },
-  menuIconPending: {
-    color: '#FF9500',
-  },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuContainer: {
-    backgroundColor: Colors.background,
-    borderRadius: 16,
-    minWidth: 220,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  menuItem: {
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    backgroundColor: Colors.background,
-  },
-  menuItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  menuItemIcon: {
-    fontSize: 20,
-    marginRight: 12,
-  },
-  menuItemText: {
-    fontSize: FontSizes.regular,
-    color: Colors.textPrimary,
-    fontWeight: FontWeights.semiBold,
-    flex: 1,
-  },
-  menuItemDisabled: {
-    opacity: 0.5,
-  },
-  menuItemTextDisabled: {
-    color: Colors.textSecondary,
-  },
-  menuDivider: {
-    height: 1,
-    backgroundColor: Colors.background,
-    marginHorizontal: 12,
-  },
-  emptyState: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyStateText: {
-    fontSize: FontSizes.regular,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  jobCard: {
-    backgroundColor: Colors.background,
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  jobHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  jobId: {
-    fontSize: FontSizes.regular,
-    fontWeight: FontWeights.semiBold,
-    color: Colors.textPrimary,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    color: Colors.textWhite,
-    fontSize: FontSizes.extraSmall,
-    fontWeight: FontWeights.semiBold,
-  },
-  jobTitle: {
-    fontSize: FontSizes.small,
-    color: Colors.textSecondary,
-    marginBottom: 8,
-  },
-  jobFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  priorityText: {
-    color: Colors.textWhite,
-    fontSize: FontSizes.extraSmall,
-    fontWeight: FontWeights.semiBold,
-  },
-  loadingContainer: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: FontSizes.regular,
-    color: Colors.textPrimary,
-    fontWeight: FontWeights.medium,
-  },
+  showMoreText: { fontSize: FontSizes.button, color: Colors.primary, fontWeight: FontWeights.semiBold },
 });
 
 export default DashboardScreen;

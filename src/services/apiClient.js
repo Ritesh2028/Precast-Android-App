@@ -8,6 +8,13 @@ export const api = axios.create({
   timeout: 20000,
 });
 
+const AUTH_ENDPOINTS = ['/api/login', '/api/refresh-token'];
+
+function isAuthEndpoint(config) {
+  const url = config?.url || '';
+  return AUTH_ENDPOINTS.some((path) => url.includes(path));
+}
+
 let isRefreshing = false;
 let pendingQueue = [];
 
@@ -20,9 +27,13 @@ function processQueue(error, token) {
 }
 
 api.interceptors.request.use(async (config) => {
+  if (isAuthEndpoint(config)) {
+    return config;
+  }
   const { accessToken } = await getTokens();
   if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+    // Match web app: raw JWT in Authorization (no "Bearer " prefix)
+    config.headers.Authorization = accessToken;
   }
   return config;
 });
@@ -33,14 +44,14 @@ api.interceptors.response.use(
     const originalRequest = error?.config;
     const status = error?.response?.status;
 
-    if (status === 401 && !originalRequest._retry) {
+    if (status === 401 && !originalRequest._retry && !isAuthEndpoint(originalRequest)) {
       originalRequest._retry = true;
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           pendingQueue.push({ resolve, reject });
         })
           .then((newAccess) => {
-            originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+            originalRequest.headers.Authorization = newAccess;
             return api.request(originalRequest);
           })
           .catch((err) => Promise.reject(err));
@@ -65,7 +76,7 @@ api.interceptors.response.use(
 
         await setTokens({ accessToken: newAccess, refreshToken: newRefresh, expiresIn });
         processQueue(null, newAccess);
-        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+        originalRequest.headers.Authorization = newAccess;
         return api.request(originalRequest);
       } catch (e) {
         processQueue(e, null);

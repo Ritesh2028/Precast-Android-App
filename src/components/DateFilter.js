@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.surface,
     borderRadius: 6,
     minWidth: 70,
     justifyContent: 'space-between',
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: Colors.border,
   },
   modalTitle: {
     fontSize: FontSizes.medium,
@@ -394,10 +394,10 @@ const styles = StyleSheet.create({
   pickerItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: Colors.divider,
   },
   pickerItemSelected: {
-    backgroundColor: '#F0F7FF',
+    backgroundColor: Colors.primarySoft,
   },
   pickerItemText: {
     fontSize: FontSizes.regular,

@@ -1,0 +1,15 @@
+diff --git a/node_modules/@react-navigation/stack/lib/module/views/Stack/Card.js b/node_modules/@react-navigation/stack/lib/module/views/Stack/Card.js
+index b51719f..7f632c6 100644
+--- a/node_modules/@react-navigation/stack/lib/module/views/Stack/Card.js
++++ b/node_modules/@react-navigation/stack/lib/module/views/Stack/Card.js
+@@ -2,7 +2,9 @@
+ 
+ import Color from 'color';
+ import * as React from 'react';
+-import { Animated, InteractionManager, Platform, StyleSheet, View } from 'react-native';
++import { Animated, Platform, StyleSheet, View } from 'react-native';
++// RN 0.88 removed InteractionManager; interaction handles are a no-op now.
++const InteractionManager = { createInteractionHandle: () => 0, clearInteractionHandle: () => {} };
+ import { CardAnimationContext } from "../../utils/CardAnimationContext.js";
+ import { getDistanceForDirection } from "../../utils/getDistanceForDirection.js";
+ import { getInvertedMultiplier } from "../../utils/getInvertedMultiplier.js";

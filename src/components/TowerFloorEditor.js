@@ -128,7 +128,7 @@ const TowerFloorEditor = ({ projectId, onSave }) => {
       for (const row of block.selections) {
         for (const sel of row.selectedItems) {
           if (sel.item.element_type_id === elementTypeId) {
-            sum += sel.chosenQuantity;
+            sum += sel.selectedQuantity;
           }
         }
       }
@@ -246,7 +246,7 @@ const TowerFloorEditor = ({ projectId, onSave }) => {
             ...row,
             selectedItems: [
               ...row.selectedItems,
-              { item, chosenQuantity: 0, error: '' },
+              { item, selectedQuantity: 0, error: '' },
             ],
           };
         }
@@ -270,12 +270,12 @@ const TowerFloorEditor = ({ projectId, onSave }) => {
             }
             const allocatedSoFar =
               getTotalAllocatedForItem(sel.item.element_type_id) -
-              sel.chosenQuantity;
+              sel.selectedQuantity;
             if (newQuantity + allocatedSoFar > sel.item.balance_elements) {
               errorMsg = 'Quantity exceeds available amount.';
               return { ...sel, error: errorMsg };
             }
-            return { ...sel, chosenQuantity: newQuantity, error: '' };
+            return { ...sel, selectedQuantity: newQuantity, error: '' };
           }
           return sel;
         });
@@ -353,11 +353,11 @@ const TowerFloorEditor = ({ projectId, onSave }) => {
             (e) => e.element_type_id === sel.item.element_type_id
           );
           if (existing) {
-            existing.quantity += sel.chosenQuantity;
+            existing.quantity += sel.selectedQuantity;
           } else {
             output[floorId].push({
               element_type_id: sel.item.element_type_id,
-              quantity: sel.chosenQuantity,
+              quantity: sel.selectedQuantity,
             });
           }
         });
@@ -381,7 +381,7 @@ const TowerFloorEditor = ({ projectId, onSave }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -547,9 +547,9 @@ const TowerFloorEditor = ({ projectId, onSave }) => {
                                           sel.error && styles.quantityInputError,
                                         ]}
                                         value={
-                                          sel.chosenQuantity === 0
+                                          sel.selectedQuantity === 0
                                             ? ''
-                                            : sel.chosenQuantity.toString()
+                                            : sel.selectedQuantity.toString()
                                         }
                                         onChangeText={(text) =>
                                           handleQuantityChange(row.id, itemIndex, text)
@@ -594,7 +594,7 @@ const TowerFloorEditor = ({ projectId, onSave }) => {
                     </Text>
                     {row.selectedItems.map((sel, idx) => (
                       <Text key={idx} style={styles.blockSummaryItem}>
-                        {sel.item.element_type_name} – Qty: {sel.chosenQuantity}
+                        {sel.item.element_type_name} – Qty: {sel.selectedQuantity}
                       </Text>
                     ))}
                   </View>
@@ -612,7 +612,7 @@ const TowerFloorEditor = ({ projectId, onSave }) => {
           onPress={() => {
             Alert.alert(
               'Add More',
-              'Choose an option:',
+              'Select an option:',
               [
                 {
                   text: 'Keep Tower, Change Floor',
@@ -825,14 +825,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: FontSizes.regular,
-    color: '#FF3B30',
+    color: Colors.error,
     marginBottom: 16,
     textAlign: 'center',
   },
   retryButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
   },
   retryButtonText: {
@@ -842,7 +842,7 @@ const styles = StyleSheet.create({
   },
   blockContainer: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -857,7 +857,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   removeBlockButtonText: {
-    color: '#FF3B30',
+    color: Colors.error,
     fontSize: FontSizes.large,
     fontWeight: FontWeights.bold,
   },
@@ -868,13 +868,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   editBlockButtonText: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontSize: FontSizes.regular,
     fontWeight: FontWeights.medium,
   },
   rowContainer: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     borderRadius: 8,
     padding: 12,
     marginBottom: 12,
@@ -908,7 +908,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     minHeight: 44,
   },
   selectButtonText: {
@@ -925,7 +925,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   removeRowButtonText: {
-    color: '#FF3B30',
+    color: Colors.error,
     fontSize: FontSizes.medium,
     fontWeight: FontWeights.bold,
   },
@@ -938,7 +938,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
   },
   itemCardHeader: {
     marginBottom: 8,
@@ -971,22 +971,22 @@ const styles = StyleSheet.create({
   },
   quantityInput: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: FontSizes.regular,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.surface,
     marginTop: 4,
   },
   quantityInputError: {
-    borderColor: '#FF3B30',
+    borderColor: Colors.error,
   },
   addRowButton: {
     alignSelf: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: Colors.divider,
     borderRadius: 6,
     marginTop: 8,
   },
@@ -996,7 +996,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
   },
   blockSummary: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.surface,
     padding: 12,
     borderRadius: 8,
   },
@@ -1023,7 +1023,7 @@ const styles = StyleSheet.create({
   addMoreButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: Colors.border,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#C0C0C0',
@@ -1042,7 +1042,7 @@ const styles = StyleSheet.create({
   submitButton: {
     flex: 1,
     paddingVertical: 10,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1058,7 +1058,7 @@ const styles = StyleSheet.create({
   resetButton: {
     flex: 1,
     paddingVertical: 10,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: Colors.border,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1086,7 +1086,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: Colors.border,
   },
   modalTitle: {
     fontSize: FontSizes.medium,
@@ -1104,10 +1104,10 @@ const styles = StyleSheet.create({
   modalItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: Colors.divider,
   },
   modalItemSelected: {
-    backgroundColor: '#F0F7FF',
+    backgroundColor: Colors.primarySoft,
   },
   modalItemDisabled: {
     opacity: 0.5,
@@ -1118,7 +1118,7 @@ const styles = StyleSheet.create({
   },
   modalItemTextSelected: {
     fontWeight: FontWeights.bold,
-    color: '#007AFF',
+    color: Colors.primary,
   },
   modalItemTextDisabled: {
     color: Colors.textSecondary,

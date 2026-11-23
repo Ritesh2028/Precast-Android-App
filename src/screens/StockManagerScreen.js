@@ -17,18 +17,18 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import Svg, { Path } from 'react-native-svg';
-import { Colors } from '../styles/colors';
+import { Colors, BWTheme } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
-import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
+import { API_BASE_URL, createAuthHeaders, createMultipartAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { logout, validateSession, refreshSession } from '../services/authService';
+import { useNativeAccessGuard } from '../services/appAccess';
 import { handle401Error, handleApiError } from '../services/errorHandler';
-import BirdsEyeViewModal from '../components/BirdsEyeViewModal';
 import BottomNavigation from '../components/BottomNavigation';
 import { DateFilter } from '../components/DateFilter';
 import LineChart from '../components/LineChart';
@@ -39,6 +39,7 @@ import CameraQRScanner from '../components/CameraQRScanner';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
+  useNativeAccessGuard(navigation, 'StockManager');
   const { paperId, taskId, projectId, stageId, activityId } = route.params || {};
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
@@ -55,12 +56,11 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState('');
   const [isDrawing, setIsDrawing] = useState(true);
-  const [strokeColor, setStrokeColor] = useState('#007AFF');
+  const [strokeColor, setStrokeColor] = useState(Colors.primary);
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const annotationViewRef = useRef(null);
-  const [birdsEyeViewVisible, setBirdsEyeViewVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [refreshing, setRefreshing] = useState(false);
   
@@ -115,10 +115,10 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
   
   // Color options for annotation
   const colorOptions = [
-    '#007AFF', // Blue (Primary)
-    '#FF3B30', // Red
-    '#34C759', // Green
-    '#FF9500', // Orange
+    Colors.primary, // Blue (Primary)
+    Colors.error, // Red
+    Colors.success, // Green
+    Colors.warning, // Orange
     '#5856D6', // Purple
     '#000000', // Black
   ];
@@ -613,7 +613,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
         return;
       }
 
-      const apiUrl = `${API_BASE_URL}/api/stock-manager/questions/${paperId}`;
+      const apiUrl = `${API_BASE_URL}/api/questions/${paperId}`;
       console.log('📱 [StockManagerScreen] Fetching questions from:', apiUrl);
       console.log('📱 [StockManagerScreen] Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
 
@@ -792,7 +792,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
     }
   };
 
-  const handleChooseFromGallery = async (questionId = null) => {
+  const handleSelectFromGallery = async (questionId = null) => {
     try {
       // Check media library permission
       const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -832,8 +832,8 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
         setAnnotationVisible(true);
       }
     } catch (error) {
-      console.log('Error choosing photo:', error);
-      Alert.alert('Error', 'Failed to choose photo. Please try again.');
+      console.log('Error selecting photo:', error);
+      Alert.alert('Error', 'Failed to select photo. Please try again.');
     }
   };
 
@@ -868,11 +868,11 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
         name: photoData.name,
       });
 
-      // Try with Bearer token first
-      const headersWithBearer = {
-        ...createAuthHeaders(currentToken, { useBearer: true, includeSessionId: true }),
-        // Let fetch set multipart boundaries automatically
-      };
+      // Try with Bearer token first — omit Content-Type for multipart boundary
+      const headersWithBearer = createMultipartAuthHeaders(currentToken, {
+        useBearer: true,
+        includeSessionId: true,
+      });
       console.log('📱 [StockManagerScreen] Upload - Attempt 1: With Bearer token');
 
       let response = await fetch(apiUrl, {
@@ -886,9 +886,10 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
       // If 401, try without Bearer prefix
       if (response.status === 401) {
         console.log('❌ [StockManagerScreen] Upload returned 401 with Bearer, trying without...');
-        const headersWithoutBearer = {
-          ...createAuthHeaders(currentToken, { useBearer: false, includeSessionId: true }),
-        };
+        const headersWithoutBearer = createMultipartAuthHeaders(currentToken, {
+          useBearer: false,
+          includeSessionId: true,
+        });
         response = await fetch(apiUrl, {
           method: 'POST',
           headers: headersWithoutBearer,
@@ -1581,7 +1582,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
         },
       };
 
-      const apiUrl = `${API_BASE_URL}/api/stock-manager/questions/answers`;
+      const apiUrl = `${API_BASE_URL}/api/questions/answers`;
       console.log('📱 [StockManagerScreen] Submitting answers to:', apiUrl);
       console.log('📱 [StockManagerScreen] Submission data:', JSON.stringify(submissionData, null, 2));
 
@@ -1702,7 +1703,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
     return (
       <View style={styles.container}>
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading Stock Manager questions...</Text>
         </View>
         {!hideBottomNav && (
@@ -1728,8 +1729,8 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
               <RefreshControl
                 refreshing={loadingReceivingStock}
                 onRefresh={loadReceivingStock}
-                tintColor="#007AFF"
-                colors={['#007AFF']}
+                tintColor={Colors.primary}
+                colors={[Colors.primary]}
               />
             }
           >
@@ -1764,7 +1765,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
             {/* Loading State */}
             {loadingReceivingStock ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#007AFF" />
+                <ActivityIndicator size="large" color={Colors.primary} />
                 <Text style={styles.loadingText}>Loading receiving stock...</Text>
               </View>
             ) : selectedProjectId && sortedReceivingStock.length > 0 ? (
@@ -2093,7 +2094,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Select Stockyard</Text>
                 <Text style={styles.modalDescription}>
-                  Choose a stockyard to complete the approval.
+                  Select a stockyard to complete the approval.
                 </Text>
 
                 <View style={styles.modalElementInfo}>
@@ -2107,7 +2108,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
                 <View style={styles.stockyardSelectContainer}>
                   <Text style={styles.stockyardSelectLabel}>Stockyard:</Text>
                   {loadingStockyards ? (
-                    <ActivityIndicator size="small" color="#007AFF" />
+                    <ActivityIndicator size="small" color={Colors.primary} />
                   ) : (
                     <ScrollView style={styles.stockyardList}>
                       {stockyards.length > 0 ? (
@@ -2212,8 +2213,8 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#007AFF"
-              colors={['#007AFF']}
+              tintColor={Colors.primary}
+              colors={[Colors.primary]}
             />
           }
         >
@@ -2252,7 +2253,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
             <View style={styles.chartContainer}>
               {loadingChart ? (
                 <View style={styles.chartLoadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color={Colors.primary} />
                   <Text style={styles.loadingText}>Loading...</Text>
                 </View>
               ) : (
@@ -2262,7 +2263,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
                   showLegend={true}
                   lines={[
                     { key: 'adjustments', label: 'Adjustments', color: '#8B5CF6' },
-                    { key: 'checkins', label: 'Checkins', color: '#10B981' },
+                    { key: 'checkins', label: 'Checkins', color: Colors.success },
                     { key: 'checkouts', label: 'Checkouts', color: '#F59E42' },
                   ]}
                   hideCheckouts={currentFilterType === 'monthly'}
@@ -2279,7 +2280,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
             <View style={styles.pieChartContainer}>
               {loadingElementType ? (
                 <View style={styles.chartLoadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color={Colors.primary} />
                   <Text style={styles.loadingText}>Loading...</Text>
                 </View>
               ) : pieChartData.length === 0 ? (
@@ -2300,7 +2301,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
             <View style={styles.elementListContainer}>
               {loadingElements ? (
                 <View style={styles.chartLoadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color={Colors.primary} />
                   <Text style={styles.loadingText}>Loading elements...</Text>
                 </View>
               ) : elementList.length === 0 ? (
@@ -2587,12 +2588,6 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
         
       </ScrollView>
 
-      {/* Bird's Eye View Modal */}
-      <BirdsEyeViewModal
-        visible={!!birdsEyeViewVisible}
-        onClose={() => setBirdsEyeViewVisible(false)}
-        projectId={projectId || null}
-      />
 
       {/* Bottom Navigation */}
       {!hideBottomNav && (
@@ -2606,19 +2601,6 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
 };
 
 // White Background and Black Font Theme
-const BWTheme = {
-  background: '#FFFFFF',
-  card: '#FAFAFA',
-  surface: '#F5F5F5',
-  textPrimary: '#000000',
-  textSecondary: '#4A4A4A',
-  textTertiary: '#808080',
-  border: '#E0E0E0',
-  borderLight: '#D0D0D0',
-  divider: '#E0E0E0',
-  accent: '#000000',
-  shadow: 'rgba(0, 0, 0, 0.1)',
-};
 
 const styles = StyleSheet.create({
   container: {
@@ -2647,14 +2629,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: FontSizes.regular,
-    color: '#FF3B30',
+    color: Colors.error,
     marginBottom: 16,
     fontWeight: FontWeights.medium,
   },
   retryButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: {
@@ -2702,7 +2684,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
@@ -2718,7 +2700,7 @@ const styles = StyleSheet.create({
   birdsEyeViewIcon: {
     width: 20,
     height: 20,
-    tintColor: '#007AFF',
+    tintColor: Colors.primary,
   },
   questionCard: {
     backgroundColor: BWTheme.card,
@@ -2745,7 +2727,7 @@ const styles = StyleSheet.create({
     borderBottomColor: BWTheme.divider,
   },
   questionNumberBadge: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 16,
     width: 32,
     height: 32,
@@ -2797,7 +2779,7 @@ const styles = StyleSheet.create({
     borderTopColor: BWTheme.divider,
   },
   uploadButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     paddingVertical: 6,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -2844,7 +2826,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FF3B30',
+    backgroundColor: Colors.error,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -2890,8 +2872,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   optionButtonSelected: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#007AFF',
+    backgroundColor: Colors.primarySoft,
+    borderColor: Colors.primary,
     borderWidth: 2,
   },
   optionContent: {
@@ -2909,13 +2891,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   radioButtonSelected: {
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
   },
   radioButtonInner: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
   },
   optionText: {
     flex: 1,
@@ -2924,7 +2906,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
   },
   optionTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.semiBold,
   },
   noOptionsText: {
@@ -2943,7 +2925,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
   },
   submitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
@@ -3041,7 +3023,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.regular,
   },
   statusOptionTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.semiBold,
   },
   paperFooter: {
@@ -3171,8 +3153,8 @@ const styles = StyleSheet.create({
     borderColor: BWTheme.border,
   },
   dispatchStatusBadgeActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.successSoft,
+    borderColor: Colors.success,
   },
   dispatchStatusText: {
     fontSize: FontSizes.extraSmall,
@@ -3180,7 +3162,7 @@ const styles = StyleSheet.create({
     color: BWTheme.textSecondary,
   },
   dispatchStatusTextActive: {
-    color: '#4CAF50',
+    color: Colors.success,
   },
   elementDetails: {
     gap: 8,
@@ -3265,7 +3247,7 @@ const styles = StyleSheet.create({
   selectAllButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
   },
   selectAllText: {
@@ -3295,14 +3277,14 @@ const styles = StyleSheet.create({
     backgroundColor: BWTheme.surface,
   },
   receivingStockCardSelected: {
-    borderColor: '#007AFF',
-    backgroundColor: '#E3F2FD',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primarySoft,
   },
   receivingStockCardHighlighted: {
-    borderColor: '#FF9500',
+    borderColor: Colors.warning,
     borderWidth: 3,
-    backgroundColor: '#FFF3E0',
-    shadowColor: '#FF9500',
+    backgroundColor: Colors.warningSoft,
+    shadowColor: Colors.warning,
     shadowOffset: {
       width: 0,
       height: 0,
@@ -3327,8 +3309,8 @@ const styles = StyleSheet.create({
     backgroundColor: BWTheme.background,
   },
   checkboxSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   checkboxDisabled: {
     opacity: 0.3,
@@ -3360,11 +3342,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusBadgeDispatched: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.successSoft,
+    borderColor: Colors.success,
   },
   statusBadgePending: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: Colors.errorSoft,
     borderColor: '#F44336',
   },
   statusBadgeText: {
@@ -3373,7 +3355,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   statusBadgeTextDispatched: {
-    color: '#4CAF50',
+    color: Colors.success,
   },
   statusBadgeTextPending: {
     color: '#F44336',
@@ -3400,7 +3382,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -3484,14 +3466,14 @@ const styles = StyleSheet.create({
     borderBottomColor: BWTheme.divider,
   },
   stockyardOptionSelected: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: Colors.primarySoft,
   },
   stockyardOptionText: {
     fontSize: FontSizes.regular,
     color: BWTheme.textPrimary,
   },
   stockyardOptionTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.bold,
   },
   noStockyardsText: {
@@ -3518,7 +3500,7 @@ const styles = StyleSheet.create({
     borderColor: BWTheme.border,
   },
   modalButtonApprove: {
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
   },
   modalButtonDisabled: {
     opacity: 0.5,
@@ -3552,7 +3534,7 @@ const styles = StyleSheet.create({
   exportButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3598,12 +3580,12 @@ const styles = StyleSheet.create({
   },
   clearSortText: {
     fontSize: FontSizes.small,
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.bold,
   },
   sortIndicator: {
     fontSize: FontSizes.small,
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.bold,
   },
   // Table Row and Cell

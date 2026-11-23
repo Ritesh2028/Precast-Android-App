@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   filterSelectButtonActive: {
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
     borderWidth: 1,
     backgroundColor: Colors.background,
   },
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   },
   filterSelectButtonDisabled: {
     backgroundColor: '#F8F8F8',
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
     opacity: 0.7,
   },
   filterSelectButtonContent: {
@@ -395,11 +395,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 12,
-    backgroundColor: '#FF3B30',
+    backgroundColor: Colors.error,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 40,
-    shadowColor: '#FF3B30',
+    shadowColor: Colors.error,
     shadowOffset: {
       width: 0,
       height: 3,
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderTopWidth: 0,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
     maxHeight: 150,
     zIndex: 9999,
     marginTop: -1,
@@ -434,11 +434,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.divider,
     backgroundColor: '#FFFFFF',
   },
   dropdownItemSelected: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: Colors.surface,
   },
   dropdownItemText: {
     fontSize: 11,

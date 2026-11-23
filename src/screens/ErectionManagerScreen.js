@@ -20,14 +20,14 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { captureRef } from 'react-native-view-shot';
 import Svg, { Path } from 'react-native-svg';
-import { Colors } from '../styles/colors';
+import { Colors, BWTheme } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
-import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
+import { API_BASE_URL, createAuthHeaders, createMultipartAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { logout, validateSession, refreshSession } from '../services/authService';
+import { useNativeAccessGuard } from '../services/appAccess';
 import { handle401Error, handleApiError } from '../services/errorHandler';
-import BirdsEyeViewModal from '../components/BirdsEyeViewModal';
 import BottomNavigation from '../components/BottomNavigation';
 import ProjectDropdown from '../components/ProjectDropdown';
 import { DateFilter } from '../components/DateFilter';
@@ -38,6 +38,7 @@ import CameraQRScanner from '../components/CameraQRScanner';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
+  useNativeAccessGuard(navigation, 'ErectionManager');
   const { paperId, taskId, projectId, stageId, activityId } = route.params || {};
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
@@ -54,12 +55,11 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState('');
   const [isDrawing, setIsDrawing] = useState(true);
-  const [strokeColor, setStrokeColor] = useState('#007AFF');
+  const [strokeColor, setStrokeColor] = useState(Colors.primary);
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const annotationViewRef = useRef(null);
-  const [birdsEyeViewVisible, setBirdsEyeViewVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [refreshing, setRefreshing] = useState(false);
   
@@ -114,10 +114,10 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   
   // Color options for annotation
   const colorOptions = [
-    '#007AFF', // Blue (Primary)
-    '#FF3B30', // Red
-    '#34C759', // Green
-    '#FF9500', // Orange
+    Colors.primary, // Blue (Primary)
+    Colors.error, // Red
+    Colors.success, // Green
+    Colors.warning, // Orange
     '#5856D6', // Purple
     '#000000', // Black
   ];
@@ -700,7 +700,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         return;
       }
 
-      const apiUrl = `${API_BASE_URL}/api/erection-manager/questions/${paperId}`;
+      const apiUrl = `${API_BASE_URL}/api/questions/${paperId}`;
       console.log('📱 [ErectionManagerScreen] Fetching questions from:', apiUrl);
       console.log('📱 [ErectionManagerScreen] Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
 
@@ -879,7 +879,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     }
   };
 
-  const handleChooseFromGallery = async (questionId = null) => {
+  const handleSelectFromGallery = async (questionId = null) => {
     try {
       // Check media library permission
       const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -919,8 +919,8 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         setAnnotationVisible(true);
       }
     } catch (error) {
-      console.log('Error choosing photo:', error);
-      Alert.alert('Error', 'Failed to choose photo. Please try again.');
+      console.log('Error selecting photo:', error);
+      Alert.alert('Error', 'Failed to select photo. Please try again.');
     }
   };
 
@@ -955,11 +955,11 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         name: photoData.name,
       });
 
-      // Try with Bearer token first
-      const headersWithBearer = {
-        ...createAuthHeaders(currentToken, { useBearer: true, includeSessionId: true }),
-        // Let fetch set multipart boundaries automatically
-      };
+      // Try with Bearer token first — omit Content-Type for multipart boundary
+      const headersWithBearer = createMultipartAuthHeaders(currentToken, {
+        useBearer: true,
+        includeSessionId: true,
+      });
       console.log('📱 [ErectionManagerScreen] Upload - Attempt 1: With Bearer token');
 
       let response = await fetch(apiUrl, {
@@ -973,9 +973,10 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
       // If 401, try without Bearer prefix
       if (response.status === 401) {
         console.log('❌ [ErectionManagerScreen] Upload returned 401 with Bearer, trying without...');
-        const headersWithoutBearer = {
-          ...createAuthHeaders(currentToken, { useBearer: false, includeSessionId: true }),
-        };
+        const headersWithoutBearer = createMultipartAuthHeaders(currentToken, {
+          useBearer: false,
+          includeSessionId: true,
+        });
         response = await fetch(apiUrl, {
           method: 'POST',
           headers: headersWithoutBearer,
@@ -1206,7 +1207,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         },
       };
 
-      const apiUrl = `${API_BASE_URL}/api/erection-manager/questions/answers`;
+      const apiUrl = `${API_BASE_URL}/api/questions/answers`;
       console.log('📱 [ErectionManagerScreen] Submitting answers to:', apiUrl);
       console.log('📱 [ErectionManagerScreen] Submission data:', JSON.stringify(submissionData, null, 2));
 
@@ -1747,7 +1748,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     return (
       <View style={styles.container}>
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading Erection Manager questions...</Text>
         </View>
         {/* Bottom Navigation */}
@@ -1772,8 +1773,8 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#007AFF"
-              colors={['#007AFF']}
+              tintColor={Colors.primary}
+              colors={[Colors.primary]}
             />
           }
         >
@@ -1866,7 +1867,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                   </View>
                 {loadingDispatchOrders ? (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#007AFF" />
+                    <ActivityIndicator size="large" color={Colors.primary} />
                     <Text style={styles.loadingText}>Loading dispatch orders...</Text>
                   </View>
                 ) : pendingDispatchOrders.length === 0 ? (
@@ -2014,7 +2015,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                   </View>
                 {loadingIncompleteElements ? (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#007AFF" />
+                    <ActivityIndicator size="large" color={Colors.primary} />
                     <Text style={styles.loadingText}>Loading incomplete erected elements...</Text>
                   </View>
                 ) : incompleteErectedElements.length === 0 ? (
@@ -2152,7 +2153,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
             <View style={styles.chartContainer}>
               {loadingChart ? (
                 <View style={styles.chartLoadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color={Colors.primary} />
                   <Text style={styles.loadingText}>Loading...</Text>
                 </View>
               ) : (
@@ -2162,7 +2163,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                   showLegend={true}
                   lines={[
                     { key: 'casted', label: 'Casted', color: '#8B5CF6' },
-                    { key: 'erected', label: 'Erected', color: '#10B981' },
+                    { key: 'erected', label: 'Erected', color: Colors.success },
                     { key: 'planned', label: 'Planned', color: '#F59E42' },
                     { key: 'stockyard', label: 'Stockyard', color: '#697565' },
                     { key: 'dispatch', label: 'Dispatch', color: '#4B70F5' },
@@ -2181,7 +2182,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
             <View style={styles.logsContainer}>
               {loadingLogs ? (
                 <View style={styles.chartLoadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color={Colors.primary} />
                   <Text style={styles.loadingText}>Loading logs...</Text>
                 </View>
               ) : erectionLogs.length === 0 ? (
@@ -2263,7 +2264,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
             <View style={styles.logsContainer}>
               {loadingReceivingLogs ? (
                 <View style={styles.chartLoadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color={Colors.primary} />
                   <Text style={styles.loadingText}>Loading receiving logs...</Text>
                 </View>
               ) : erectionReceivingLogs.length === 0 ? (
@@ -2343,7 +2344,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
             <View style={styles.elementsContainer}>
               {loadingElements ? (
                 <View style={styles.chartLoadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color={Colors.primary} />
                   <Text style={styles.loadingText}>Loading elements...</Text>
                 </View>
               ) : erectionElements.length === 0 ? (
@@ -3200,12 +3201,6 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         
       </ScrollView>
 
-      {/* Bird's Eye View Modal */}
-      <BirdsEyeViewModal
-        visible={!!birdsEyeViewVisible}
-        onClose={() => setBirdsEyeViewVisible(false)}
-        projectId={projectId || null}
-      />
 
       {/* Bottom Navigation */}
       {!hideBottomNav && (
@@ -3219,19 +3214,6 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
 };
 
 // White Background and Black Font Theme
-const BWTheme = {
-  background: '#FFFFFF',
-  card: '#FAFAFA',
-  surface: '#F5F5F5',
-  textPrimary: '#000000',
-  textSecondary: '#4A4A4A',
-  textTertiary: '#808080',
-  border: '#E0E0E0',
-  borderLight: '#D0D0D0',
-  divider: '#E0E0E0',
-  accent: '#000000',
-  shadow: 'rgba(0, 0, 0, 0.1)',
-};
 
 const styles = StyleSheet.create({
   container: {
@@ -3260,14 +3242,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: FontSizes.regular,
-    color: '#FF3B30',
+    color: Colors.error,
     marginBottom: 16,
     fontWeight: FontWeights.medium,
   },
   retryButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: {
@@ -3315,7 +3297,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
@@ -3331,7 +3313,7 @@ const styles = StyleSheet.create({
   birdsEyeViewIcon: {
     width: 20,
     height: 20,
-    tintColor: '#007AFF',
+    tintColor: Colors.primary,
   },
   questionCard: {
     backgroundColor: BWTheme.card,
@@ -3358,7 +3340,7 @@ const styles = StyleSheet.create({
     borderBottomColor: BWTheme.divider,
   },
   questionNumberBadge: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 16,
     width: 32,
     height: 32,
@@ -3410,7 +3392,7 @@ const styles = StyleSheet.create({
     borderTopColor: BWTheme.divider,
   },
   uploadButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     paddingVertical: 6,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -3457,7 +3439,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FF3B30',
+    backgroundColor: Colors.error,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -3503,8 +3485,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   optionButtonSelected: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#007AFF',
+    backgroundColor: Colors.primarySoft,
+    borderColor: Colors.primary,
     borderWidth: 2,
   },
   optionContent: {
@@ -3522,13 +3504,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   radioButtonSelected: {
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
   },
   radioButtonInner: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
   },
   optionText: {
     flex: 1,
@@ -3537,7 +3519,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
   },
   optionTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.semiBold,
   },
   noOptionsText: {
@@ -3556,7 +3538,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
   },
   submitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
@@ -3654,7 +3636,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.regular,
   },
   statusOptionTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.semiBold,
   },
   paperFooter: {
@@ -3757,7 +3739,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
     borderLeftWidth: 3,
-    borderLeftColor: '#007AFF',
+    borderLeftColor: Colors.primary,
   },
   logCardHeader: {
     flexDirection: 'row',
@@ -3781,16 +3763,16 @@ const styles = StyleSheet.create({
     borderColor: BWTheme.border,
   },
   statusBadgeErected: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.successSoft,
+    borderColor: Colors.success,
   },
   statusBadgeApproved: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: Colors.primarySoft,
     borderColor: '#2196F3',
   },
   statusBadgeReceived: {
-    backgroundColor: '#FFF3E0',
-    borderColor: '#FF9800',
+    backgroundColor: Colors.warningSoft,
+    borderColor: Colors.warning,
   },
   statusBadgePending: {
     backgroundColor: '#FCE4EC',
@@ -3802,13 +3784,13 @@ const styles = StyleSheet.create({
     color: BWTheme.textSecondary,
   },
   statusBadgeTextErected: {
-    color: '#4CAF50',
+    color: Colors.success,
   },
   statusBadgeTextApproved: {
     color: '#2196F3',
   },
   statusBadgeTextReceived: {
-    color: '#FF9800',
+    color: Colors.warning,
   },
   statusBadgeTextPending: {
     color: '#E91E63',
@@ -3956,19 +3938,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   clickableHint: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontStyle: 'italic',
   },
   arrowIcon: {
     fontSize: 28,
     fontWeight: FontWeights.bold,
-    color: '#007AFF',
+    color: Colors.primary,
     transform: [{ rotate: '0deg' }],
     textDecorationLine: 'none',
   },
   arrowIconExpanded: {
     transform: [{ rotate: '90deg' }],
-    color: '#007AFF',
+    color: Colors.primary,
   },
   operationButtonsContainer: {
     flexDirection: 'row',
@@ -3995,8 +3977,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   operationButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   operationButtonText: {
     fontSize: FontSizes.small,
@@ -4030,7 +4012,7 @@ const styles = StyleSheet.create({
   toggleButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
   },
   toggleButtonText: {
@@ -4081,8 +4063,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   dispatchOrderCardSelected: {
-    borderColor: '#007AFF',
-    backgroundColor: '#F0F7FF',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primarySoft,
     borderWidth: 2,
   },
   dispatchOrderHeader: {
@@ -4127,12 +4109,12 @@ const styles = StyleSheet.create({
     borderColor: BWTheme.border,
   },
   dispatchStatusBadgeAccepted: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.successSoft,
+    borderColor: Colors.success,
   },
   dispatchStatusBadgePending: {
-    backgroundColor: '#FFF3E0',
-    borderColor: '#FF9800',
+    backgroundColor: Colors.warningSoft,
+    borderColor: Colors.warning,
   },
   dispatchStatusBadgeText: {
     fontSize: FontSizes.extraSmall,
@@ -4140,10 +4122,10 @@ const styles = StyleSheet.create({
     color: BWTheme.textSecondary,
   },
   dispatchStatusBadgeTextAccepted: {
-    color: '#4CAF50',
+    color: Colors.success,
   },
   dispatchStatusBadgeTextPending: {
-    color: '#FF9800',
+    color: Colors.warning,
   },
   dispatchOrderDetails: {
     marginBottom: 12,
@@ -4194,8 +4176,8 @@ const styles = StyleSheet.create({
     backgroundColor: BWTheme.background,
   },
   checkboxSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   checkboxCheck: {
     color: '#FFFFFF',
@@ -4234,7 +4216,7 @@ const styles = StyleSheet.create({
   receiveButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -4258,7 +4240,7 @@ const styles = StyleSheet.create({
   markErectedTitle: {
     fontSize: FontSizes.large,
     fontWeight: FontWeights.bold,
-    color: '#10B981',
+    color: Colors.success,
     textTransform: 'capitalize',
   },
   erectElementsContainer: {
@@ -4283,7 +4265,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   erectElementCardSelected: {
-    borderColor: '#10B981',
+    borderColor: Colors.success,
     backgroundColor: '#F0FDF4',
   },
   erectElementCheckbox: {
@@ -4311,11 +4293,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   approvedText: {
-    color: '#4CAF50',
+    color: Colors.success,
     fontWeight: FontWeights.semiBold,
   },
   pendingText: {
-    color: '#FF9800',
+    color: Colors.warning,
     fontWeight: FontWeights.semiBold,
   },
   erectActionBar: {
@@ -4331,7 +4313,7 @@ const styles = StyleSheet.create({
   erectButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#10B981',
+    backgroundColor: Colors.success,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -4422,7 +4404,7 @@ const styles = StyleSheet.create({
   modalSubmitButton: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -4458,7 +4440,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
     borderLeftWidth: 3,
-    borderLeftColor: '#007AFF',
+    borderLeftColor: Colors.primary,
   },
   elementCardHeader: {
     flexDirection: 'row',
@@ -4482,8 +4464,8 @@ const styles = StyleSheet.create({
     borderColor: BWTheme.border,
   },
   erectedBadgeActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#4CAF50',
+    backgroundColor: Colors.successSoft,
+    borderColor: Colors.success,
   },
   erectedBadgeText: {
     fontSize: FontSizes.extraSmall,
@@ -4491,7 +4473,7 @@ const styles = StyleSheet.create({
     color: BWTheme.textSecondary,
   },
   erectedBadgeTextActive: {
-    color: '#4CAF50',
+    color: Colors.success,
   },
   elementDetails: {
     gap: 8,

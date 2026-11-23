@@ -1,0 +1,1765 @@
+diff --git a/node_modules/expo-dev-menu/android/build.gradle b/node_modules/expo-dev-menu/android/build.gradle
+index 6859fa0..36bceca 100644
+--- a/node_modules/expo-dev-menu/android/build.gradle
++++ b/node_modules/expo-dev-menu/android/build.gradle
+@@ -54,6 +54,7 @@ android {
+         res.srcDir 'src/debug/res'
+       } else {
+         java.srcDir 'src/disableInRelease/java'
++        kotlin.srcDir 'src/disableInRelease/java'
+         res.srcDir 'src/disableInRelease/res'
+       }
+     }
+diff --git a/node_modules/expo-dev-menu/android/build/generated/source/buildConfig/release/expo/modules/devmenu/BuildConfig.java b/node_modules/expo-dev-menu/android/build/generated/source/buildConfig/release/expo/modules/devmenu/BuildConfig.java
+new file mode 100644
+index 0000000..a14244e
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/generated/source/buildConfig/release/expo/modules/devmenu/BuildConfig.java
+@@ -0,0 +1,12 @@
++/**
++ * Automatically generated file. DO NOT MODIFY
++ */
++package expo.modules.devmenu;
++
++public final class BuildConfig {
++  public static final boolean DEBUG = false;
++  public static final String LIBRARY_PACKAGE_NAME = "expo.modules.devmenu";
++  public static final String BUILD_TYPE = "release";
++  // Field from build type: release
++  public static final boolean AUTO_INITIALIZATION = false;
++}
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/AndroidManifest.xml b/node_modules/expo-dev-menu/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/AndroidManifest.xml
+new file mode 100644
+index 0000000..989096e
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="expo.modules.devmenu" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/output-metadata.json b/node_modules/expo-dev-menu/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/output-metadata.json
+new file mode 100644
+index 0000000..e234455
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/aapt_friendly_merged_manifests/release/processReleaseManifest/aapt/output-metadata.json
+@@ -0,0 +1,18 @@
++{
++  "version": 3,
++  "artifactType": {
++    "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
++    "kind": "Directory"
++  },
++  "applicationId": "expo.modules.devmenu",
++  "variantName": "release",
++  "elements": [
++    {
++      "type": "SINGLE",
++      "filters": [],
++      "attributes": [],
++      "outputFile": "AndroidManifest.xml"
++    }
++  ],
++  "elementType": "File"
++}
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar b/node_modules/expo-dev-menu/android/build/intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar
+new file mode 100644
+index 0000000..fc32285
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/intermediates/aar_main_jar/release/syncReleaseLibJars/classes.jar differ
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/aar_metadata/release/writeReleaseAarMetadata/aar-metadata.properties b/node_modules/expo-dev-menu/android/build/intermediates/aar_metadata/release/writeReleaseAarMetadata/aar-metadata.properties
+new file mode 100644
+index 0000000..b4c821b
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/aar_metadata/release/writeReleaseAarMetadata/aar-metadata.properties
+@@ -0,0 +1,7 @@
++aarFormatVersion=1.0
++aarMetadataVersion=1.0
++minCompileSdk=37
++minCompileMinorSdk=0
++minCompileSdkExtension=0
++minAndroidGradlePluginVersion=1.0.0
++coreLibraryDesugaringEnabled=false
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/android_res_source_set_path_map/release/mapReleaseSourceSetPaths/file-map.txt b/node_modules/expo-dev-menu/android/build/intermediates/android_res_source_set_path_map/release/mapReleaseSourceSetPaths/file-map.txt
+new file mode 100644
+index 0000000..32b1fed
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/android_res_source_set_path_map/release/mapReleaseSourceSetPaths/file-map.txt
+@@ -0,0 +1,10 @@
++expo.modules.devmenu.expo-dev-menu-pngs-0 /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/build/generated/res/pngs/release
++expo.modules.devmenu.expo-dev-menu-updated_navigation_xml-1 /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/build/generated/updated_navigation_xml/release
++expo.modules.devmenu.expo-dev-menu-mergeReleaseResources-2 /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
++expo.modules.devmenu.expo-dev-menu-mergeReleaseResources-3 /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
++expo.modules.devmenu.expo-dev-menu-release-4 /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/build/intermediates/merged_res/release/mergeReleaseResources
++expo.modules.devmenu.expo-dev-menu-release-5 /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/build/intermediates/packaged_res/release/packageReleaseResources
++expo.modules.devmenu.expo-dev-menu-disableInRelease-6 /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/disableInRelease/res
++expo.modules.devmenu.expo-dev-menu-main-7 /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/res
++expo.modules.devmenu.expo-dev-menu-release-8 /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/release/res
++gradleHome-0 /private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json b/node_modules/expo-dev-menu/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/annotation_processor_list/release/javaPreCompileRelease/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/annotations_typedef_file/release/extractReleaseAnnotations/typedefs.txt b/node_modules/expo-dev-menu/android/build/intermediates/annotations_typedef_file/release/extractReleaseAnnotations/typedefs.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/compile_library_classes_jar/release/bundleLibCompileToJarRelease/classes.jar b/node_modules/expo-dev-menu/android/build/intermediates/compile_library_classes_jar/release/bundleLibCompileToJarRelease/classes.jar
+new file mode 100644
+index 0000000..ed8fb33
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/intermediates/compile_library_classes_jar/release/bundleLibCompileToJarRelease/classes.jar differ
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar b/node_modules/expo-dev-menu/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar
+new file mode 100644
+index 0000000..27b3524
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar differ
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/compile_symbol_list/release/generateReleaseRFile/R.txt b/node_modules/expo-dev-menu/android/build/intermediates/compile_symbol_list/release/generateReleaseRFile/R.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-9.2.1 b/node_modules/expo-dev-menu/android/build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-9.2.1
+new file mode 100644
+index 0000000..5a3e3a5
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-9.2.1
+@@ -0,0 +1,89 @@
++# This is a configuration file for ProGuard.
++# http://proguard.sourceforge.net/index.html#manual/usage.html
++#
++# Starting with version 2.2 of the Android plugin for Gradle, this file is distributed together with
++# the plugin and unpacked at build-time. The files in $ANDROID_HOME are no longer maintained and
++# will be ignored by new version of the Android plugin for Gradle.
++
++# Optimizations: If you don't want to optimize, use the proguard-android.txt configuration file
++# instead of this one, which turns off the optimization flags.
++-allowaccessmodification
++
++# Preserve some attributes that may be required for reflection.
++-keepattributes AnnotationDefault,
++                EnclosingMethod,
++                InnerClasses,
++                RuntimeVisibleAnnotations,
++                RuntimeVisibleParameterAnnotations,
++                RuntimeVisibleTypeAnnotations,
++                Signature
++
++-keep public class com.google.vending.licensing.ILicensingService
++-keep public class com.android.vending.licensing.ILicensingService
++-keep public class com.google.android.vending.licensing.ILicensingService
++-dontnote com.android.vending.licensing.ILicensingService
++-dontnote com.google.vending.licensing.ILicensingService
++-dontnote com.google.android.vending.licensing.ILicensingService
++
++# For native methods, see https://www.guardsquare.com/manual/configuration/examples#native
++-keepclasseswithmembernames,includedescriptorclasses class * {
++    native <methods>;
++}
++
++# Keep setters in Views so that animations can still work.
++-keepclassmembers public class * extends android.view.View {
++    void set*(***);
++    *** get*();
++}
++
++# We want to keep methods in Activity that could be used in the XML attribute onClick.
++-keepclassmembers class * extends android.app.Activity {
++    public void *(android.view.View);
++}
++
++# For enumeration classes, see https://www.guardsquare.com/manual/configuration/examples#enumerations
++-keepclassmembers enum * {
++    public static **[] values();
++    public static ** valueOf(java.lang.String);
++}
++
++-keepclassmembers class * implements android.os.Parcelable {
++    public static final ** CREATOR;
++}
++
++# Preserve annotated Javascript interface methods.
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
++
++# The support libraries contains references to newer platform versions.
++# Don't warn about those in case this app is linking against an older
++# platform version. We know about them, and they are safe.
++-dontnote android.support.**
++-dontnote androidx.**
++-dontwarn android.support.**
++-dontwarn androidx.**
++
++# Understand the @Keep support annotation.
++-keep class android.support.annotation.Keep
++
++-keep @android.support.annotation.Keep class * {*;}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <methods>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <fields>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <init>(...);
++}
++
++# These classes are duplicated between android.jar and org.apache.http.legacy.jar.
++-dontnote org.apache.http.**
++-dontnote android.net.http.**
++
++# These classes are duplicated between android.jar and core-lambda-stubs.jar.
++-dontnote java.lang.invoke.**
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/default_proguard_files/global/proguard-android.txt-9.2.1 b/node_modules/expo-dev-menu/android/build/intermediates/default_proguard_files/global/proguard-android.txt-9.2.1
+new file mode 100644
+index 0000000..6f7e4ef
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/default_proguard_files/global/proguard-android.txt-9.2.1
+@@ -0,0 +1,95 @@
++# This is a configuration file for ProGuard.
++# http://proguard.sourceforge.net/index.html#manual/usage.html
++#
++# Starting with version 2.2 of the Android plugin for Gradle, this file is distributed together with
++# the plugin and unpacked at build-time. The files in $ANDROID_HOME are no longer maintained and
++# will be ignored by new version of the Android plugin for Gradle.
++
++# Optimization is turned off by default. Dex does not like code run
++# through the ProGuard optimize steps (and performs some
++# of these optimizations on its own).
++# Note that if you want to enable optimization, you cannot just
++# include optimization flags in your own project configuration file;
++# instead you will need to point to the
++# "proguard-android-optimize.txt" file instead of this one from your
++# project.properties file.
++-dontoptimize
++
++# Preserve some attributes that may be required for reflection.
++-keepattributes AnnotationDefault,
++                EnclosingMethod,
++                InnerClasses,
++                RuntimeVisibleAnnotations,
++                RuntimeVisibleParameterAnnotations,
++                RuntimeVisibleTypeAnnotations,
++                Signature
++
++-keep public class com.google.vending.licensing.ILicensingService
++-keep public class com.android.vending.licensing.ILicensingService
++-keep public class com.google.android.vending.licensing.ILicensingService
++-dontnote com.android.vending.licensing.ILicensingService
++-dontnote com.google.vending.licensing.ILicensingService
++-dontnote com.google.android.vending.licensing.ILicensingService
++
++# For native methods, see https://www.guardsquare.com/manual/configuration/examples#native
++-keepclasseswithmembernames,includedescriptorclasses class * {
++    native <methods>;
++}
++
++# Keep setters in Views so that animations can still work.
++-keepclassmembers public class * extends android.view.View {
++    void set*(***);
++    *** get*();
++}
++
++# We want to keep methods in Activity that could be used in the XML attribute onClick.
++-keepclassmembers class * extends android.app.Activity {
++    public void *(android.view.View);
++}
++
++# For enumeration classes, see https://www.guardsquare.com/manual/configuration/examples#enumerations
++-keepclassmembers enum * {
++    public static **[] values();
++    public static ** valueOf(java.lang.String);
++}
++
++-keepclassmembers class * implements android.os.Parcelable {
++    public static final ** CREATOR;
++}
++
++# Preserve annotated Javascript interface methods.
++-keepclassmembers class * {
++    @android.webkit.JavascriptInterface <methods>;
++}
++
++# The support libraries contains references to newer platform versions.
++# Don't warn about those in case this app is linking against an older
++# platform version. We know about them, and they are safe.
++-dontnote android.support.**
++-dontnote androidx.**
++-dontwarn android.support.**
++-dontwarn androidx.**
++
++# Understand the @Keep support annotation.
++-keep class android.support.annotation.Keep
++
++-keep @android.support.annotation.Keep class * {*;}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <methods>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <fields>;
++}
++
++-keepclasseswithmembers class * {
++    @android.support.annotation.Keep <init>(...);
++}
++
++# These classes are duplicated between android.jar and org.apache.http.legacy.jar.
++-dontnote org.apache.http.**
++-dontnote android.net.http.**
++
++# These classes are duplicated between android.jar and core-lambda-stubs.jar.
++-dontnote java.lang.invoke.**
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/full_jar/release/createFullJarRelease/full.jar b/node_modules/expo-dev-menu/android/build/intermediates/full_jar/release/createFullJarRelease/full.jar
+new file mode 100644
+index 0000000..83acaef
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/intermediates/full_jar/release/createFullJarRelease/full.jar differ
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/incremental/mergeReleaseAssets/merger.xml b/node_modules/expo-dev-menu/android/build/intermediates/incremental/mergeReleaseAssets/merger.xml
+new file mode 100644
+index 0000000..ad80ae2
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/incremental/mergeReleaseAssets/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/assets"/></dataSet><dataSet config="release" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/release/assets"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml b/node_modules/expo-dev-menu/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml
+new file mode 100644
+index 0000000..714a2c1
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/incremental/mergeReleaseJniLibFolders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/jniLibs"/></dataSet><dataSet config="release" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/release/jniLibs"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/incremental/release-mergeJavaRes/merge-state b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release-mergeJavaRes/merge-state
+new file mode 100644
+index 0000000..1c983fc
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release-mergeJavaRes/merge-state differ
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/mergeReleaseResources/compile-file-map.properties b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/mergeReleaseResources/compile-file-map.properties
+new file mode 100644
+index 0000000..14198b7
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/mergeReleaseResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Wed Nov 18 15:34:20 IST 2026
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/mergeReleaseResources/merger.xml b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/mergeReleaseResources/merger.xml
+new file mode 100644
+index 0000000..4f4bb56
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/mergeReleaseResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/release/res"/><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/disableInRelease/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release" generated-set="release$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/release/res"/><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/disableInRelease/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"/><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"/><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties
+new file mode 100644
+index 0000000..3f5ab28
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/packageReleaseResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Wed Nov 18 15:30:52 IST 2026
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml
+new file mode 100644
+index 0000000..4f4bb56
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/incremental/release/packageReleaseResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/release/res"/><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/disableInRelease/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="release" generated-set="release$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/release/res"/><source path="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/disableInRelease/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"/><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"/><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/javac/release/compileReleaseJavaWithJavac/classes/expo/modules/devmenu/BuildConfig.class b/node_modules/expo-dev-menu/android/build/intermediates/javac/release/compileReleaseJavaWithJavac/classes/expo/modules/devmenu/BuildConfig.class
+new file mode 100644
+index 0000000..87cc754
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/intermediates/javac/release/compileReleaseJavaWithJavac/classes/expo/modules/devmenu/BuildConfig.class differ
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/module.xml b/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/module.xml
+new file mode 100644
+index 0000000..11e3634
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/module.xml
+@@ -0,0 +1,19 @@
++<lint-module
++    format="1"
++    dir="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android"
++    name=":expo-dev-menu"
++    type="LIBRARY"
++    maven="host.exp.exponent:expo-dev-menu:58.0.13"
++    agpVersion="9.2.1"
++    buildFolder="build"
++    bootClassPath="/Users/riteshrai/Library/Android/sdk/platforms/android-37.0/android.jar:/Users/riteshrai/Library/Android/sdk/build-tools/36.0.0/core-lambda-stubs.jar"
++    javaSourceLevel="17"
++    compileTarget="android-37.0"
++    neverShrinking="true"
++    highlightGradualR8Api="false">
++  <lintOptions
++      absolutePaths="true"
++      checkReleaseBuilds="true"
++      explainIssues="true"/>
++  <variant name="release"/>
++</lint-module>
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-dependencies.xml b/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-dependencies.xml
+new file mode 100644
+index 0000000..85991af
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-dependencies.xml
+@@ -0,0 +1,140 @@
++<dependencies>
++  <compile
++      roots=":@@:expo-modules-core::release,org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar,io.github.expo.pika:pika-api:1.1.0@jar,io.github.expo:expo-modules-v2-react:0.2.7@aar,androidx.core:core-ktx:1.17.0@aar,androidx.core:core:1.17.0@aar,androidx.compose.foundation:foundation-android:1.9.0@aar,androidx.compose.animation:animation-core-android:1.9.0@aar,androidx.compose.animation:animation-android:1.9.0@aar,androidx.compose.ui:ui-util-android:1.9.0@aar,androidx.compose.ui:ui-unit-android:1.9.0@aar,androidx.compose.ui:ui-text-android:1.9.0@aar,androidx.compose.ui:ui-graphics-android:1.9.0@aar,androidx.compose.ui:ui-geometry-android:1.9.0@aar,androidx.compose.foundation:foundation-layout-android:1.9.0@aar,androidx.compose.ui:ui-android:1.9.0@aar,androidx.compose.runtime:runtime-saveable-android:1.9.0@aar,androidx.compose.runtime:runtime-annotation-android:1.9.0@aar,androidx.savedstate:savedstate-android:1.3.0@aar,androidx.savedstate:savedstate-compose-android:1.3.0@aar,androidx.lifecycle:lifecycle-runtime-ktx-android:2.9.0@aar,androidx.lifecycle:lifecycle-runtime-android:2.9.0@aar,androidx.lifecycle:lifecycle-common-jvm:2.9.0@jar,androidx.lifecycle:lifecycle-runtime-compose-android:2.9.0@aar,androidx.compose.runtime:runtime-android:1.9.0@aar,org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar,org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2@jar,androidx.annotation:annotation-experimental:1.4.1@aar,io.github.expo.kolibri:runtime:0.2.4@jar,io.github.expo.kolibri:kolibri-android:0.2.4@aar,androidx.versionedparcelable:versionedparcelable:1.1.1@aar,androidx.collection:collection-jvm:1.5.0@jar,androidx.core:core-viewtree:1.0.0@aar,androidx.arch.core:core-common:2.2.0@jar,androidx.annotation:annotation-jvm:1.9.1@jar,org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3@jar,org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar,org.jetbrains:annotations:23.0.0@jar,com.google.guava:listenablefuture:1.0@jar,org.jspecify:jspecify:1.0.0@jar">
++    <dependency
++        name=":@@:expo-modules-core::release"
++        simpleName="artifacts::expo-modules-core"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="io.github.expo.pika:pika-api:1.1.0@jar"
++        simpleName="io.github.expo.pika:pika-api"/>
++    <dependency
++        name="io.github.expo:expo-modules-v2-react:0.2.7@aar"
++        simpleName="io.github.expo:expo-modules-v2-react"/>
++    <dependency
++        name="androidx.core:core-ktx:1.17.0@aar"
++        simpleName="androidx.core:core-ktx"/>
++    <dependency
++        name="androidx.core:core:1.17.0@aar"
++        simpleName="androidx.core:core"/>
++    <dependency
++        name="androidx.compose.foundation:foundation-android:1.9.0@aar"
++        simpleName="androidx.compose.foundation:foundation-android"/>
++    <dependency
++        name="androidx.compose.animation:animation-core-android:1.9.0@aar"
++        simpleName="androidx.compose.animation:animation-core-android"/>
++    <dependency
++        name="androidx.compose.animation:animation-android:1.9.0@aar"
++        simpleName="androidx.compose.animation:animation-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-util-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-util-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-unit-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-unit-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-text-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-text-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-graphics-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-graphics-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-geometry-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-geometry-android"/>
++    <dependency
++        name="androidx.compose.foundation:foundation-layout-android:1.9.0@aar"
++        simpleName="androidx.compose.foundation:foundation-layout-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-android"/>
++    <dependency
++        name="androidx.compose.runtime:runtime-saveable-android:1.9.0@aar"
++        simpleName="androidx.compose.runtime:runtime-saveable-android"/>
++    <dependency
++        name="androidx.compose.runtime:runtime-annotation-android:1.9.0@aar"
++        simpleName="androidx.compose.runtime:runtime-annotation-android"/>
++    <dependency
++        name="androidx.savedstate:savedstate-android:1.3.0@aar"
++        simpleName="androidx.savedstate:savedstate-android"/>
++    <dependency
++        name="androidx.savedstate:savedstate-compose-android:1.3.0@aar"
++        simpleName="androidx.savedstate:savedstate-compose-android"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-runtime-ktx-android:2.9.0@aar"
++        simpleName="androidx.lifecycle:lifecycle-runtime-ktx-android"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-runtime-android:2.9.0@aar"
++        simpleName="androidx.lifecycle:lifecycle-runtime-android"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-common-jvm:2.9.0@jar"
++        simpleName="androidx.lifecycle:lifecycle-common-jvm"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-runtime-compose-android:2.9.0@aar"
++        simpleName="androidx.lifecycle:lifecycle-runtime-compose-android"/>
++    <dependency
++        name="androidx.compose.runtime:runtime-android:1.9.0@aar"
++        simpleName="androidx.compose.runtime:runtime-android"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-android"/>
++    <dependency
++        name="androidx.annotation:annotation-experimental:1.4.1@aar"
++        simpleName="androidx.annotation:annotation-experimental"/>
++    <dependency
++        name="io.github.expo.kolibri:runtime:0.2.4@jar"
++        simpleName="io.github.expo.kolibri:runtime"/>
++    <dependency
++        name="io.github.expo.kolibri:kolibri-android:0.2.4@aar"
++        simpleName="io.github.expo.kolibri:kolibri-android"/>
++    <dependency
++        name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++        simpleName="androidx.versionedparcelable:versionedparcelable"/>
++    <dependency
++        name="androidx.collection:collection-jvm:1.5.0@jar"
++        simpleName="androidx.collection:collection-jvm"/>
++    <dependency
++        name="androidx.core:core-viewtree:1.0.0@aar"
++        simpleName="androidx.core:core-viewtree"/>
++    <dependency
++        name="androidx.arch.core:core-common:2.2.0@jar"
++        simpleName="androidx.arch.core:core-common"/>
++    <dependency
++        name="androidx.annotation:annotation-jvm:1.9.1@jar"
++        simpleName="androidx.annotation:annotation-jvm"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-serialization-core-jvm"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains:annotations:23.0.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++    <dependency
++        name="com.google.guava:listenablefuture:1.0@jar"
++        simpleName="com.google.guava:listenablefuture"/>
++    <dependency
++        name="org.jspecify:jspecify:1.0.0@jar"
++        simpleName="org.jspecify:jspecify"/>
++  </compile>
++  <package
++      roots="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar,io.github.expo.pika:pika-api:1.1.0@jar,org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar,org.jetbrains:annotations:23.0.0@jar">
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="io.github.expo.pika:pika-api:1.1.0@jar"
++        simpleName="io.github.expo.pika:pika-api"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains:annotations:23.0.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++  </package>
++</dependencies>
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-libraries.xml b/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-libraries.xml
+new file mode 100644
+index 0000000..b550d5b
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/release-artifact-libraries.xml
+@@ -0,0 +1,422 @@
++<libraries>
++  <library
++      name=":@@:expo-modules-core::release"
++      project=":expo-modules-core"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk7/2.2.10/18cc96ae090a71726822631e1808c7d329faab5d/kotlin-stdlib-jdk7-2.2.10.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10"/>
++  <library
++      name="io.github.expo.pika:pika-api:1.1.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/io.github.expo.pika/pika-api/1.1.0/aa017c3d560203871bbbd0278b1faf3687913112/pika-api-1.1.0.jar"
++      resolved="io.github.expo.pika:pika-api:1.1.0"/>
++  <library
++      name="io.github.expo:expo-modules-v2-react:0.2.7@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/97ea40005c908c7e3f41dddc7fedbc66/transformed/expo-modules-v2-react-0.2.7/jars/classes.jar"
++      resolved="io.github.expo:expo-modules-v2-react:0.2.7"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/97ea40005c908c7e3f41dddc7fedbc66/transformed/expo-modules-v2-react-0.2.7"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.core:core-ktx:1.17.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/90ca97a5b9799f2be88491e272132385/transformed/core-ktx-1.17.0/jars/classes.jar"
++      resolved="androidx.core:core-ktx:1.17.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/90ca97a5b9799f2be88491e272132385/transformed/core-ktx-1.17.0"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.core:core:1.17.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/6f800c425d1444df32a772532815d939/transformed/core-1.17.0/jars/classes.jar"
++      resolved="androidx.core:core:1.17.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/6f800c425d1444df32a772532815d939/transformed/core-1.17.0"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.foundation:foundation-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/0cbdc5076c0a79b5a936cd5994d83c85/transformed/foundation-release/jars/classes.jar"
++      resolved="androidx.compose.foundation:foundation-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/0cbdc5076c0a79b5a936cd5994d83c85/transformed/foundation-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.animation:animation-core-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/297d8ad8a0f35dc87f59c21af8188418/transformed/animation-core/jars/classes.jar"
++      resolved="androidx.compose.animation:animation-core-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/297d8ad8a0f35dc87f59c21af8188418/transformed/animation-core"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.animation:animation-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/4f764c8ad9ba6293a65e6240e3a63713/transformed/animation/jars/classes.jar"
++      resolved="androidx.compose.animation:animation-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/4f764c8ad9ba6293a65e6240e3a63713/transformed/animation"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-util-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/8e0e064660ee2656b04f6a04b452eb7c/transformed/ui-util/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-util-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/8e0e064660ee2656b04f6a04b452eb7c/transformed/ui-util"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-unit-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/930d475992597df50fe32a5972003eb6/transformed/ui-unit/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-unit-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/930d475992597df50fe32a5972003eb6/transformed/ui-unit"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-text-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/2e07e29826a85d2e25b978ba8bfa068e/transformed/ui-text/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-text-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/2e07e29826a85d2e25b978ba8bfa068e/transformed/ui-text"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-graphics-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/d8a981de12a5a80915e0bea9e57b0f3e/transformed/ui-graphics-release/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-graphics-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/d8a981de12a5a80915e0bea9e57b0f3e/transformed/ui-graphics-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-geometry-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/126748c9e9c0d774f6120fc3579e6774/transformed/ui-geometry/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-geometry-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/126748c9e9c0d774f6120fc3579e6774/transformed/ui-geometry"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.foundation:foundation-layout-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/1fb04de5ff3fdb5b2bd28dc3cb62dba0/transformed/foundation-layout/jars/classes.jar"
++      resolved="androidx.compose.foundation:foundation-layout-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/1fb04de5ff3fdb5b2bd28dc3cb62dba0/transformed/foundation-layout"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/36be48245b4f5d6a27ab0f82c8bc6f5b/transformed/ui-release/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/36be48245b4f5d6a27ab0f82c8bc6f5b/transformed/ui-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.runtime:runtime-saveable-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/ef6b1c9718e3440a3abfc372149e843e/transformed/runtime-saveable/jars/classes.jar"
++      resolved="androidx.compose.runtime:runtime-saveable-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/ef6b1c9718e3440a3abfc372149e843e/transformed/runtime-saveable"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.runtime:runtime-annotation-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/f619411ae6c4146d449553f74a711c6b/transformed/runtime-annotation/jars/classes.jar"
++      resolved="androidx.compose.runtime:runtime-annotation-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/f619411ae6c4146d449553f74a711c6b/transformed/runtime-annotation"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.savedstate:savedstate-android:1.3.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/b3ae96822c63f2b5dbd72807ba590809/transformed/savedstate-release/jars/classes.jar"
++      resolved="androidx.savedstate:savedstate-android:1.3.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/b3ae96822c63f2b5dbd72807ba590809/transformed/savedstate-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.savedstate:savedstate-compose-android:1.3.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/c6a8f2f9485b8b2acbc7b52da987ea22/transformed/savedstate-compose-release/jars/classes.jar"
++      resolved="androidx.savedstate:savedstate-compose-android:1.3.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/c6a8f2f9485b8b2acbc7b52da987ea22/transformed/savedstate-compose-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.lifecycle:lifecycle-runtime-ktx-android:2.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/b62455edfe9921640e388de31810d9d4/transformed/lifecycle-runtime-ktx/jars/classes.jar"
++      resolved="androidx.lifecycle:lifecycle-runtime-ktx-android:2.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/b62455edfe9921640e388de31810d9d4/transformed/lifecycle-runtime-ktx"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.lifecycle:lifecycle-runtime-android:2.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/a21e258778b92e390dbf255364793f06/transformed/lifecycle-runtime-release/jars/classes.jar"
++      resolved="androidx.lifecycle:lifecycle-runtime-android:2.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/a21e258778b92e390dbf255364793f06/transformed/lifecycle-runtime-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.lifecycle:lifecycle-common-jvm:2.9.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-common-jvm/2.9.0/ab739bccdb3541983385af169565c7c035d897e7/lifecycle-common-jvm-2.9.0.jar"
++      resolved="androidx.lifecycle:lifecycle-common-jvm:2.9.0"
++      provided="true"/>
++  <library
++      name="androidx.lifecycle:lifecycle-runtime-compose-android:2.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/00dcd3e3bfb67a8822a3698638bc42ae/transformed/lifecycle-runtime-compose-release/jars/classes.jar"
++      resolved="androidx.lifecycle:lifecycle-runtime-compose-android:2.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/00dcd3e3bfb67a8822a3698638bc42ae/transformed/lifecycle-runtime-compose-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.runtime:runtime-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/43aef972d10fa82bee463170089e7faa/transformed/runtime/jars/classes.jar"
++      resolved="androidx.compose.runtime:runtime-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/43aef972d10fa82bee463170089e7faa/transformed/runtime"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-coroutines-core-jvm/1.10.2/4a9f78ef49483748e2c129f3d124b8fa249dafbf/kotlinx-coroutines-core-jvm-1.10.2.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-coroutines-android/1.10.2/c8705d275d81f19e8afaf3ff9b5bf7a4b6b6c19b/kotlinx-coroutines-android-1.10.2.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation-experimental:1.4.1@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/d7f84c2d21b1bb616bab1ca384a3fbb7/transformed/annotation-experimental-1.4.1/jars/classes.jar"
++      resolved="androidx.annotation:annotation-experimental:1.4.1"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/d7f84c2d21b1bb616bab1ca384a3fbb7/transformed/annotation-experimental-1.4.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="io.github.expo.kolibri:runtime:0.2.4@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/io.github.expo.kolibri/runtime/0.2.4/61b94d72c2d64767a749fd06d164c7c3775b8e6b/runtime-0.2.4.jar"
++      resolved="io.github.expo.kolibri:runtime:0.2.4"
++      provided="true"/>
++  <library
++      name="io.github.expo.kolibri:kolibri-android:0.2.4@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/c13aedea9aa19b3bd0dd547b24a23340/transformed/kolibri-android-0.2.4/jars/classes.jar"
++      resolved="io.github.expo.kolibri:kolibri-android:0.2.4"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/c13aedea9aa19b3bd0dd547b24a23340/transformed/kolibri-android-0.2.4"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/584d92efd11c9d15631cb3ed5d553c3c/transformed/versionedparcelable-1.1.1/jars/classes.jar"
++      resolved="androidx.versionedparcelable:versionedparcelable:1.1.1"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/584d92efd11c9d15631cb3ed5d553c3c/transformed/versionedparcelable-1.1.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.collection:collection-jvm:1.5.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/androidx.collection/collection-jvm/1.5.0/7ba2c69414d46ebc2dd76598bdd0a75c54281a57/collection-jvm-1.5.0.jar"
++      resolved="androidx.collection:collection-jvm:1.5.0"
++      provided="true"/>
++  <library
++      name="androidx.core:core-viewtree:1.0.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/fae96d67e4dfdad91ef6384bce828614/transformed/core-viewtree-1.0.0/jars/classes.jar"
++      resolved="androidx.core:core-viewtree:1.0.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/fae96d67e4dfdad91ef6384bce828614/transformed/core-viewtree-1.0.0"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.arch.core:core-common:2.2.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/androidx.arch.core/core-common/2.2.0/5e1b8b81dfd5f52c56a8d53b18ca759c19a301f3/core-common-2.2.0.jar"
++      resolved="androidx.arch.core:core-common:2.2.0"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation-jvm:1.9.1@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/androidx.annotation/annotation-jvm/1.9.1/b17951747e38bf3986a24431b9ba0d039958aa5f/annotation-jvm-1.9.1.jar"
++      resolved="androidx.annotation:annotation-jvm:1.9.1"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-serialization-core-jvm/1.7.3/1f226780b845ff9206474c05159245d861556249/kotlinx-serialization-core-jvm-1.7.3.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/2.2.10/30de6faa127a4a012db8e71bf1b9c0a99b1402b2/kotlin-stdlib-2.2.10.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib:2.2.10"/>
++  <library
++      name="org.jetbrains:annotations:23.0.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains/annotations/23.0.0/8cc20c07506ec18e0834947b84a864bfc094484e/annotations-23.0.0.jar"
++      resolved="org.jetbrains:annotations:23.0.0"/>
++  <library
++      name="com.google.guava:listenablefuture:1.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/com.google.guava/listenablefuture/1.0/c949a840a6acbc5268d088e47b04177bf90b3cad/listenablefuture-1.0.jar"
++      resolved="com.google.guava:listenablefuture:1.0"
++      provided="true"/>
++  <library
++      name="org.jspecify:jspecify:1.0.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jspecify/jspecify/1.0.0/7425a601c1c7ec76645a78d22b8c6a627edee507/jspecify-1.0.0.jar"
++      resolved="org.jspecify:jspecify:1.0.0"
++      provided="true"/>
++</libraries>
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/release.xml b/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/release.xml
+new file mode 100644
+index 0000000..f670a9c
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/lint_model/release/generateReleaseLintModel/release.xml
+@@ -0,0 +1,31 @@
++<variant
++    name="release"
++    package="expo.modules.devmenu"
++    minSdkVersion="24"
++    targetSdkVersion="37.0"
++    mergedManifest="build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml"
++    manifestMergeReport="build/outputs/logs/manifest-merger-release-report.txt"
++    proguardFiles="build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-9.2.1"
++    partialResultsDir="build/intermediates/lint_partial_results/release/lintAnalyzeRelease/out">
++  <buildFeatures/>
++  <sourceProviders>
++    <sourceProvider
++        manifests="src/main/AndroidManifest.xml"
++        javaDirectories="src/main/java:src/release/java:src/disableInRelease/java:src/main/kotlin:src/release/kotlin"
++        resDirectories="src/main/res:src/release/res:src/disableInRelease/res"
++        assetsDirectories="src/main/assets:src/release/assets"
++        keepRulesDirectories="src/main/keepRules:src/release/keepRules"
++        aarKeepRulesDirectories="src/main/aarKeepRules:src/release/aarKeepRules"/>
++  </sourceProviders>
++  <testSourceProviders>
++  </testSourceProviders>
++  <testFixturesSourceProviders>
++  </testFixturesSourceProviders>
++  <artifact
++      classOutputs="build/intermediates/javac/release/compileReleaseJavaWithJavac/classes:build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes:build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar"
++      type="MAIN"
++      applicationId="expo.modules.devmenu"
++      generatedSourceFolders="build/generated/ap_generated_sources/release/out:build/generated/source/buildConfig/release"
++      desugaredMethodsFiles="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/73636562c11adddeccdd792c93477792/transformed/D8BackportedDesugaredMethods.txt">
++  </artifact>
++</variant>
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/lint_model_metadata/release/writeReleaseLintModelMetadata/lint-model-metadata.properties b/node_modules/expo-dev-menu/android/build/intermediates/lint_model_metadata/release/writeReleaseLintModelMetadata/lint-model-metadata.properties
+new file mode 100644
+index 0000000..7682e94
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/lint_model_metadata/release/writeReleaseLintModelMetadata/lint-model-metadata.properties
+@@ -0,0 +1,3 @@
++mavenArtifactId=expo-dev-menu
++mavenGroupId=host.exp.exponent
++mavenVersion=58.0.13
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/module.xml b/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/module.xml
+new file mode 100644
+index 0000000..11e3634
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/module.xml
+@@ -0,0 +1,19 @@
++<lint-module
++    format="1"
++    dir="/Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android"
++    name=":expo-dev-menu"
++    type="LIBRARY"
++    maven="host.exp.exponent:expo-dev-menu:58.0.13"
++    agpVersion="9.2.1"
++    buildFolder="build"
++    bootClassPath="/Users/riteshrai/Library/Android/sdk/platforms/android-37.0/android.jar:/Users/riteshrai/Library/Android/sdk/build-tools/36.0.0/core-lambda-stubs.jar"
++    javaSourceLevel="17"
++    compileTarget="android-37.0"
++    neverShrinking="true"
++    highlightGradualR8Api="false">
++  <lintOptions
++      absolutePaths="true"
++      checkReleaseBuilds="true"
++      explainIssues="true"/>
++  <variant name="release"/>
++</lint-module>
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-dependencies.xml b/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-dependencies.xml
+new file mode 100644
+index 0000000..85991af
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-dependencies.xml
+@@ -0,0 +1,140 @@
++<dependencies>
++  <compile
++      roots=":@@:expo-modules-core::release,org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar,io.github.expo.pika:pika-api:1.1.0@jar,io.github.expo:expo-modules-v2-react:0.2.7@aar,androidx.core:core-ktx:1.17.0@aar,androidx.core:core:1.17.0@aar,androidx.compose.foundation:foundation-android:1.9.0@aar,androidx.compose.animation:animation-core-android:1.9.0@aar,androidx.compose.animation:animation-android:1.9.0@aar,androidx.compose.ui:ui-util-android:1.9.0@aar,androidx.compose.ui:ui-unit-android:1.9.0@aar,androidx.compose.ui:ui-text-android:1.9.0@aar,androidx.compose.ui:ui-graphics-android:1.9.0@aar,androidx.compose.ui:ui-geometry-android:1.9.0@aar,androidx.compose.foundation:foundation-layout-android:1.9.0@aar,androidx.compose.ui:ui-android:1.9.0@aar,androidx.compose.runtime:runtime-saveable-android:1.9.0@aar,androidx.compose.runtime:runtime-annotation-android:1.9.0@aar,androidx.savedstate:savedstate-android:1.3.0@aar,androidx.savedstate:savedstate-compose-android:1.3.0@aar,androidx.lifecycle:lifecycle-runtime-ktx-android:2.9.0@aar,androidx.lifecycle:lifecycle-runtime-android:2.9.0@aar,androidx.lifecycle:lifecycle-common-jvm:2.9.0@jar,androidx.lifecycle:lifecycle-runtime-compose-android:2.9.0@aar,androidx.compose.runtime:runtime-android:1.9.0@aar,org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar,org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2@jar,androidx.annotation:annotation-experimental:1.4.1@aar,io.github.expo.kolibri:runtime:0.2.4@jar,io.github.expo.kolibri:kolibri-android:0.2.4@aar,androidx.versionedparcelable:versionedparcelable:1.1.1@aar,androidx.collection:collection-jvm:1.5.0@jar,androidx.core:core-viewtree:1.0.0@aar,androidx.arch.core:core-common:2.2.0@jar,androidx.annotation:annotation-jvm:1.9.1@jar,org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3@jar,org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar,org.jetbrains:annotations:23.0.0@jar,com.google.guava:listenablefuture:1.0@jar,org.jspecify:jspecify:1.0.0@jar">
++    <dependency
++        name=":@@:expo-modules-core::release"
++        simpleName="artifacts::expo-modules-core"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="io.github.expo.pika:pika-api:1.1.0@jar"
++        simpleName="io.github.expo.pika:pika-api"/>
++    <dependency
++        name="io.github.expo:expo-modules-v2-react:0.2.7@aar"
++        simpleName="io.github.expo:expo-modules-v2-react"/>
++    <dependency
++        name="androidx.core:core-ktx:1.17.0@aar"
++        simpleName="androidx.core:core-ktx"/>
++    <dependency
++        name="androidx.core:core:1.17.0@aar"
++        simpleName="androidx.core:core"/>
++    <dependency
++        name="androidx.compose.foundation:foundation-android:1.9.0@aar"
++        simpleName="androidx.compose.foundation:foundation-android"/>
++    <dependency
++        name="androidx.compose.animation:animation-core-android:1.9.0@aar"
++        simpleName="androidx.compose.animation:animation-core-android"/>
++    <dependency
++        name="androidx.compose.animation:animation-android:1.9.0@aar"
++        simpleName="androidx.compose.animation:animation-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-util-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-util-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-unit-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-unit-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-text-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-text-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-graphics-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-graphics-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-geometry-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-geometry-android"/>
++    <dependency
++        name="androidx.compose.foundation:foundation-layout-android:1.9.0@aar"
++        simpleName="androidx.compose.foundation:foundation-layout-android"/>
++    <dependency
++        name="androidx.compose.ui:ui-android:1.9.0@aar"
++        simpleName="androidx.compose.ui:ui-android"/>
++    <dependency
++        name="androidx.compose.runtime:runtime-saveable-android:1.9.0@aar"
++        simpleName="androidx.compose.runtime:runtime-saveable-android"/>
++    <dependency
++        name="androidx.compose.runtime:runtime-annotation-android:1.9.0@aar"
++        simpleName="androidx.compose.runtime:runtime-annotation-android"/>
++    <dependency
++        name="androidx.savedstate:savedstate-android:1.3.0@aar"
++        simpleName="androidx.savedstate:savedstate-android"/>
++    <dependency
++        name="androidx.savedstate:savedstate-compose-android:1.3.0@aar"
++        simpleName="androidx.savedstate:savedstate-compose-android"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-runtime-ktx-android:2.9.0@aar"
++        simpleName="androidx.lifecycle:lifecycle-runtime-ktx-android"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-runtime-android:2.9.0@aar"
++        simpleName="androidx.lifecycle:lifecycle-runtime-android"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-common-jvm:2.9.0@jar"
++        simpleName="androidx.lifecycle:lifecycle-common-jvm"/>
++    <dependency
++        name="androidx.lifecycle:lifecycle-runtime-compose-android:2.9.0@aar"
++        simpleName="androidx.lifecycle:lifecycle-runtime-compose-android"/>
++    <dependency
++        name="androidx.compose.runtime:runtime-android:1.9.0@aar"
++        simpleName="androidx.compose.runtime:runtime-android"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-coroutines-android"/>
++    <dependency
++        name="androidx.annotation:annotation-experimental:1.4.1@aar"
++        simpleName="androidx.annotation:annotation-experimental"/>
++    <dependency
++        name="io.github.expo.kolibri:runtime:0.2.4@jar"
++        simpleName="io.github.expo.kolibri:runtime"/>
++    <dependency
++        name="io.github.expo.kolibri:kolibri-android:0.2.4@aar"
++        simpleName="io.github.expo.kolibri:kolibri-android"/>
++    <dependency
++        name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++        simpleName="androidx.versionedparcelable:versionedparcelable"/>
++    <dependency
++        name="androidx.collection:collection-jvm:1.5.0@jar"
++        simpleName="androidx.collection:collection-jvm"/>
++    <dependency
++        name="androidx.core:core-viewtree:1.0.0@aar"
++        simpleName="androidx.core:core-viewtree"/>
++    <dependency
++        name="androidx.arch.core:core-common:2.2.0@jar"
++        simpleName="androidx.arch.core:core-common"/>
++    <dependency
++        name="androidx.annotation:annotation-jvm:1.9.1@jar"
++        simpleName="androidx.annotation:annotation-jvm"/>
++    <dependency
++        name="org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3@jar"
++        simpleName="org.jetbrains.kotlinx:kotlinx-serialization-core-jvm"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains:annotations:23.0.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++    <dependency
++        name="com.google.guava:listenablefuture:1.0@jar"
++        simpleName="com.google.guava:listenablefuture"/>
++    <dependency
++        name="org.jspecify:jspecify:1.0.0@jar"
++        simpleName="org.jspecify:jspecify"/>
++  </compile>
++  <package
++      roots="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar,io.github.expo.pika:pika-api:1.1.0@jar,org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar,org.jetbrains:annotations:23.0.0@jar">
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib-jdk7"/>
++    <dependency
++        name="io.github.expo.pika:pika-api:1.1.0@jar"
++        simpleName="io.github.expo.pika:pika-api"/>
++    <dependency
++        name="org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar"
++        simpleName="org.jetbrains.kotlin:kotlin-stdlib"/>
++    <dependency
++        name="org.jetbrains:annotations:23.0.0@jar"
++        simpleName="org.jetbrains:annotations"/>
++  </package>
++</dependencies>
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-libraries.xml b/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-libraries.xml
+new file mode 100644
+index 0000000..b550d5b
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release-artifact-libraries.xml
+@@ -0,0 +1,422 @@
++<libraries>
++  <library
++      name=":@@:expo-modules-core::release"
++      project=":expo-modules-core"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib-jdk7/2.2.10/18cc96ae090a71726822631e1808c7d329faab5d/kotlin-stdlib-jdk7-2.2.10.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.10"/>
++  <library
++      name="io.github.expo.pika:pika-api:1.1.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/io.github.expo.pika/pika-api/1.1.0/aa017c3d560203871bbbd0278b1faf3687913112/pika-api-1.1.0.jar"
++      resolved="io.github.expo.pika:pika-api:1.1.0"/>
++  <library
++      name="io.github.expo:expo-modules-v2-react:0.2.7@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/97ea40005c908c7e3f41dddc7fedbc66/transformed/expo-modules-v2-react-0.2.7/jars/classes.jar"
++      resolved="io.github.expo:expo-modules-v2-react:0.2.7"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/97ea40005c908c7e3f41dddc7fedbc66/transformed/expo-modules-v2-react-0.2.7"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.core:core-ktx:1.17.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/90ca97a5b9799f2be88491e272132385/transformed/core-ktx-1.17.0/jars/classes.jar"
++      resolved="androidx.core:core-ktx:1.17.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/90ca97a5b9799f2be88491e272132385/transformed/core-ktx-1.17.0"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.core:core:1.17.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/6f800c425d1444df32a772532815d939/transformed/core-1.17.0/jars/classes.jar"
++      resolved="androidx.core:core:1.17.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/6f800c425d1444df32a772532815d939/transformed/core-1.17.0"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.foundation:foundation-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/0cbdc5076c0a79b5a936cd5994d83c85/transformed/foundation-release/jars/classes.jar"
++      resolved="androidx.compose.foundation:foundation-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/0cbdc5076c0a79b5a936cd5994d83c85/transformed/foundation-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.animation:animation-core-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/297d8ad8a0f35dc87f59c21af8188418/transformed/animation-core/jars/classes.jar"
++      resolved="androidx.compose.animation:animation-core-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/297d8ad8a0f35dc87f59c21af8188418/transformed/animation-core"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.animation:animation-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/4f764c8ad9ba6293a65e6240e3a63713/transformed/animation/jars/classes.jar"
++      resolved="androidx.compose.animation:animation-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/4f764c8ad9ba6293a65e6240e3a63713/transformed/animation"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-util-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/8e0e064660ee2656b04f6a04b452eb7c/transformed/ui-util/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-util-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/8e0e064660ee2656b04f6a04b452eb7c/transformed/ui-util"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-unit-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/930d475992597df50fe32a5972003eb6/transformed/ui-unit/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-unit-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/930d475992597df50fe32a5972003eb6/transformed/ui-unit"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-text-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/2e07e29826a85d2e25b978ba8bfa068e/transformed/ui-text/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-text-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/2e07e29826a85d2e25b978ba8bfa068e/transformed/ui-text"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-graphics-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/d8a981de12a5a80915e0bea9e57b0f3e/transformed/ui-graphics-release/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-graphics-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/d8a981de12a5a80915e0bea9e57b0f3e/transformed/ui-graphics-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-geometry-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/126748c9e9c0d774f6120fc3579e6774/transformed/ui-geometry/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-geometry-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/126748c9e9c0d774f6120fc3579e6774/transformed/ui-geometry"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.foundation:foundation-layout-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/1fb04de5ff3fdb5b2bd28dc3cb62dba0/transformed/foundation-layout/jars/classes.jar"
++      resolved="androidx.compose.foundation:foundation-layout-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/1fb04de5ff3fdb5b2bd28dc3cb62dba0/transformed/foundation-layout"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.ui:ui-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/36be48245b4f5d6a27ab0f82c8bc6f5b/transformed/ui-release/jars/classes.jar"
++      resolved="androidx.compose.ui:ui-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/36be48245b4f5d6a27ab0f82c8bc6f5b/transformed/ui-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.runtime:runtime-saveable-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/ef6b1c9718e3440a3abfc372149e843e/transformed/runtime-saveable/jars/classes.jar"
++      resolved="androidx.compose.runtime:runtime-saveable-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/ef6b1c9718e3440a3abfc372149e843e/transformed/runtime-saveable"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.runtime:runtime-annotation-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/f619411ae6c4146d449553f74a711c6b/transformed/runtime-annotation/jars/classes.jar"
++      resolved="androidx.compose.runtime:runtime-annotation-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/f619411ae6c4146d449553f74a711c6b/transformed/runtime-annotation"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.savedstate:savedstate-android:1.3.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/b3ae96822c63f2b5dbd72807ba590809/transformed/savedstate-release/jars/classes.jar"
++      resolved="androidx.savedstate:savedstate-android:1.3.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/b3ae96822c63f2b5dbd72807ba590809/transformed/savedstate-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.savedstate:savedstate-compose-android:1.3.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/c6a8f2f9485b8b2acbc7b52da987ea22/transformed/savedstate-compose-release/jars/classes.jar"
++      resolved="androidx.savedstate:savedstate-compose-android:1.3.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/c6a8f2f9485b8b2acbc7b52da987ea22/transformed/savedstate-compose-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.lifecycle:lifecycle-runtime-ktx-android:2.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/b62455edfe9921640e388de31810d9d4/transformed/lifecycle-runtime-ktx/jars/classes.jar"
++      resolved="androidx.lifecycle:lifecycle-runtime-ktx-android:2.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/b62455edfe9921640e388de31810d9d4/transformed/lifecycle-runtime-ktx"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.lifecycle:lifecycle-runtime-android:2.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/a21e258778b92e390dbf255364793f06/transformed/lifecycle-runtime-release/jars/classes.jar"
++      resolved="androidx.lifecycle:lifecycle-runtime-android:2.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/a21e258778b92e390dbf255364793f06/transformed/lifecycle-runtime-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.lifecycle:lifecycle-common-jvm:2.9.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/androidx.lifecycle/lifecycle-common-jvm/2.9.0/ab739bccdb3541983385af169565c7c035d897e7/lifecycle-common-jvm-2.9.0.jar"
++      resolved="androidx.lifecycle:lifecycle-common-jvm:2.9.0"
++      provided="true"/>
++  <library
++      name="androidx.lifecycle:lifecycle-runtime-compose-android:2.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/00dcd3e3bfb67a8822a3698638bc42ae/transformed/lifecycle-runtime-compose-release/jars/classes.jar"
++      resolved="androidx.lifecycle:lifecycle-runtime-compose-android:2.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/00dcd3e3bfb67a8822a3698638bc42ae/transformed/lifecycle-runtime-compose-release"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.compose.runtime:runtime-android:1.9.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/43aef972d10fa82bee463170089e7faa/transformed/runtime/jars/classes.jar"
++      resolved="androidx.compose.runtime:runtime-android:1.9.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/43aef972d10fa82bee463170089e7faa/transformed/runtime"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-coroutines-core-jvm/1.10.2/4a9f78ef49483748e2c129f3d124b8fa249dafbf/kotlinx-coroutines-core-jvm-1.10.2.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.10.2"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-coroutines-android/1.10.2/c8705d275d81f19e8afaf3ff9b5bf7a4b6b6c19b/kotlinx-coroutines-android-1.10.2.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation-experimental:1.4.1@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/d7f84c2d21b1bb616bab1ca384a3fbb7/transformed/annotation-experimental-1.4.1/jars/classes.jar"
++      resolved="androidx.annotation:annotation-experimental:1.4.1"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/d7f84c2d21b1bb616bab1ca384a3fbb7/transformed/annotation-experimental-1.4.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="io.github.expo.kolibri:runtime:0.2.4@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/io.github.expo.kolibri/runtime/0.2.4/61b94d72c2d64767a749fd06d164c7c3775b8e6b/runtime-0.2.4.jar"
++      resolved="io.github.expo.kolibri:runtime:0.2.4"
++      provided="true"/>
++  <library
++      name="io.github.expo.kolibri:kolibri-android:0.2.4@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/c13aedea9aa19b3bd0dd547b24a23340/transformed/kolibri-android-0.2.4/jars/classes.jar"
++      resolved="io.github.expo.kolibri:kolibri-android:0.2.4"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/c13aedea9aa19b3bd0dd547b24a23340/transformed/kolibri-android-0.2.4"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.versionedparcelable:versionedparcelable:1.1.1@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/584d92efd11c9d15631cb3ed5d553c3c/transformed/versionedparcelable-1.1.1/jars/classes.jar"
++      resolved="androidx.versionedparcelable:versionedparcelable:1.1.1"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/584d92efd11c9d15631cb3ed5d553c3c/transformed/versionedparcelable-1.1.1"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.collection:collection-jvm:1.5.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/androidx.collection/collection-jvm/1.5.0/7ba2c69414d46ebc2dd76598bdd0a75c54281a57/collection-jvm-1.5.0.jar"
++      resolved="androidx.collection:collection-jvm:1.5.0"
++      provided="true"/>
++  <library
++      name="androidx.core:core-viewtree:1.0.0@aar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/fae96d67e4dfdad91ef6384bce828614/transformed/core-viewtree-1.0.0/jars/classes.jar"
++      resolved="androidx.core:core-viewtree:1.0.0"
++      provided="true"
++      folder="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/fae96d67e4dfdad91ef6384bce828614/transformed/core-viewtree-1.0.0"
++      manifest="AndroidManifest.xml"
++      resFolder="res"
++      assetsFolder="assets"
++      lintJar="lint.jar"
++      publicResources="public.txt"
++      symbolFile="R.txt"
++      externalAnnotations="annotations.zip"
++      proguardRules="proguard.txt"/>
++  <library
++      name="androidx.arch.core:core-common:2.2.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/androidx.arch.core/core-common/2.2.0/5e1b8b81dfd5f52c56a8d53b18ca759c19a301f3/core-common-2.2.0.jar"
++      resolved="androidx.arch.core:core-common:2.2.0"
++      provided="true"/>
++  <library
++      name="androidx.annotation:annotation-jvm:1.9.1@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/androidx.annotation/annotation-jvm/1.9.1/b17951747e38bf3986a24431b9ba0d039958aa5f/annotation-jvm-1.9.1.jar"
++      resolved="androidx.annotation:annotation-jvm:1.9.1"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlinx/kotlinx-serialization-core-jvm/1.7.3/1f226780b845ff9206474c05159245d861556249/kotlinx-serialization-core-jvm-1.7.3.jar"
++      resolved="org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3"
++      provided="true"/>
++  <library
++      name="org.jetbrains.kotlin:kotlin-stdlib:2.2.10@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib/2.2.10/30de6faa127a4a012db8e71bf1b9c0a99b1402b2/kotlin-stdlib-2.2.10.jar"
++      resolved="org.jetbrains.kotlin:kotlin-stdlib:2.2.10"/>
++  <library
++      name="org.jetbrains:annotations:23.0.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jetbrains/annotations/23.0.0/8cc20c07506ec18e0834947b84a864bfc094484e/annotations-23.0.0.jar"
++      resolved="org.jetbrains:annotations:23.0.0"/>
++  <library
++      name="com.google.guava:listenablefuture:1.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/com.google.guava/listenablefuture/1.0/c949a840a6acbc5268d088e47b04177bf90b3cad/listenablefuture-1.0.jar"
++      resolved="com.google.guava:listenablefuture:1.0"
++      provided="true"/>
++  <library
++      name="org.jspecify:jspecify:1.0.0@jar"
++      jars="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/modules-2/files-2.1/org.jspecify/jspecify/1.0.0/7425a601c1c7ec76645a78d22b8c6a627edee507/jspecify-1.0.0.jar"
++      resolved="org.jspecify:jspecify:1.0.0"
++      provided="true"/>
++</libraries>
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release.xml b/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release.xml
+new file mode 100644
+index 0000000..9259c8f
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/lint_vital_lint_model/release/generateReleaseLintVitalModel/release.xml
+@@ -0,0 +1,31 @@
++<variant
++    name="release"
++    package="expo.modules.devmenu"
++    minSdkVersion="24"
++    targetSdkVersion="37.0"
++    mergedManifest="build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml"
++    manifestMergeReport="build/outputs/logs/manifest-merger-release-report.txt"
++    proguardFiles="build/intermediates/default_proguard_files/global/proguard-android-optimize.txt-9.2.1"
++    partialResultsDir="build/intermediates/lint_vital_partial_results/release/lintVitalAnalyzeRelease/out">
++  <buildFeatures/>
++  <sourceProviders>
++    <sourceProvider
++        manifests="src/main/AndroidManifest.xml"
++        javaDirectories="src/main/java:src/release/java:src/disableInRelease/java:src/main/kotlin:src/release/kotlin"
++        resDirectories="src/main/res:src/release/res:src/disableInRelease/res"
++        assetsDirectories="src/main/assets:src/release/assets"
++        keepRulesDirectories="src/main/keepRules:src/release/keepRules"
++        aarKeepRulesDirectories="src/main/aarKeepRules:src/release/aarKeepRules"/>
++  </sourceProviders>
++  <testSourceProviders>
++  </testSourceProviders>
++  <testFixturesSourceProviders>
++  </testFixturesSourceProviders>
++  <artifact
++      classOutputs="build/intermediates/javac/release/compileReleaseJavaWithJavac/classes:build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes:build/intermediates/compile_r_class_jar/release/generateReleaseRFile/R.jar"
++      type="MAIN"
++      applicationId="expo.modules.devmenu"
++      generatedSourceFolders="build/generated/ap_generated_sources/release/out:build/generated/source/buildConfig/release"
++      desugaredMethodsFiles="/private/var/folders/jb/rtc68jb542v82gngqtvgm9qm0000gn/T/cursor-sandbox-cache/22e291f52c9e8be6a2cc0adaf3800a26/gradle/caches/9.4.1/transforms/73636562c11adddeccdd792c93477792/transformed/D8BackportedDesugaredMethods.txt">
++  </artifact>
++</variant>
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/local_aar_for_lint/release/out.aar b/node_modules/expo-dev-menu/android/build/intermediates/local_aar_for_lint/release/out.aar
+new file mode 100644
+index 0000000..284567e
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/intermediates/local_aar_for_lint/release/out.aar differ
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt b/node_modules/expo-dev-menu/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt
+new file mode 100644
+index 0000000..78ac5b8
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/local_only_symbol_list/release/parseReleaseLocalResources/R-def.txt
+@@ -0,0 +1,2 @@
++R_DEF: Internal format may change without notice
++local
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/manifest_merge_blame_file/release/processReleaseManifest/manifest-merger-blame-release-report.txt b/node_modules/expo-dev-menu/android/build/intermediates/manifest_merge_blame_file/release/processReleaseManifest/manifest-merger-blame-release-report.txt
+new file mode 100644
+index 0000000..d968da9
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/manifest_merge_blame_file/release/processReleaseManifest/manifest-merger-blame-release-report.txt
+@@ -0,0 +1,9 @@
++1<?xml version="1.0" encoding="utf-8"?>
++2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++3    package="expo.modules.devmenu" >
++4
++5    <uses-sdk android:minSdkVersion="24" />
++5-->INJECTED
++5-->INJECTED
++6
++7</manifest>
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/merged_java_res/release/mergeReleaseJavaResource/feature-expo-dev-menu.jar b/node_modules/expo-dev-menu/android/build/intermediates/merged_java_res/release/mergeReleaseJavaResource/feature-expo-dev-menu.jar
+new file mode 100644
+index 0000000..15cb0ec
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/intermediates/merged_java_res/release/mergeReleaseJavaResource/feature-expo-dev-menu.jar differ
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml b/node_modules/expo-dev-menu/android/build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml
+new file mode 100644
+index 0000000..989096e
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/merged_manifest/release/processReleaseManifest/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="expo.modules.devmenu" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/navigation_json/release/extractDeepLinksRelease/navigation.json b/node_modules/expo-dev-menu/android/build/intermediates/navigation_json/release/extractDeepLinksRelease/navigation.json
+new file mode 100644
+index 0000000..0637a08
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/navigation_json/release/extractDeepLinksRelease/navigation.json
+@@ -0,0 +1 @@
++[]
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt b/node_modules/expo-dev-menu/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/nested_resources_validation_report/release/generateReleaseResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/runtime_library_classes_jar/release/bundleLibRuntimeToJarRelease/classes.jar b/node_modules/expo-dev-menu/android/build/intermediates/runtime_library_classes_jar/release/bundleLibRuntimeToJarRelease/classes.jar
+new file mode 100644
+index 0000000..4b27491
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/intermediates/runtime_library_classes_jar/release/bundleLibRuntimeToJarRelease/classes.jar differ
+diff --git a/node_modules/expo-dev-menu/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt b/node_modules/expo-dev-menu/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..1e46c23
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/intermediates/symbol_list_with_package_name/release/generateReleaseRFile/package-aware-r.txt
+@@ -0,0 +1 @@
++expo.modules.devmenu
+diff --git a/node_modules/expo-dev-menu/android/build/outputs/aar/expo-dev-menu-release.aar b/node_modules/expo-dev-menu/android/build/outputs/aar/expo-dev-menu-release.aar
+new file mode 100644
+index 0000000..8f0ea26
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/outputs/aar/expo-dev-menu-release.aar differ
+diff --git a/node_modules/expo-dev-menu/android/build/outputs/logs/manifest-merger-release-report.txt b/node_modules/expo-dev-menu/android/build/outputs/logs/manifest-merger-release-report.txt
+new file mode 100644
+index 0000000..8e431cf
+--- /dev/null
++++ b/node_modules/expo-dev-menu/android/build/outputs/logs/manifest-merger-release-report.txt
+@@ -0,0 +1,14 @@
++-- Merging decision tree log ---
++manifest
++ADDED from /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/AndroidManifest.xml:1:1-2:12
++INJECTED from /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/AndroidManifest.xml:1:1-2:12
++	package
++		INJECTED from /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/AndroidManifest.xml
++uses-sdk
++INJECTED from /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
++INJECTED from /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/AndroidManifest.xml
++INJECTED from /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/AndroidManifest.xml
++	android:targetSdkVersion
++		INJECTED from /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/AndroidManifest.xml
++	android:minSdkVersion
++		INJECTED from /Users/riteshrai/Documents/PrecastEzy B+F/Precast-Android-App-main/node_modules/expo-dev-menu/android/src/main/AndroidManifest.xml
+diff --git a/node_modules/expo-dev-menu/android/build/tmp/compileReleaseJavaWithJavac/previous-compilation-data.bin b/node_modules/expo-dev-menu/android/build/tmp/compileReleaseJavaWithJavac/previous-compilation-data.bin
+new file mode 100644
+index 0000000..e4856b7
+Binary files /dev/null and b/node_modules/expo-dev-menu/android/build/tmp/compileReleaseJavaWithJavac/previous-compilation-data.bin differ

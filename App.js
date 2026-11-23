@@ -1,5 +1,6 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { setPushNavigation } from './src/services/pushNotifications';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View, Text } from 'react-native';
@@ -21,9 +22,11 @@ import StockManagerScreen from './src/screens/StockManagerScreen';
 import ErectionManagerScreen from './src/screens/ErectionManagerScreen';
 import DispatchManagerScreen from './src/screens/DispatchManagerScreen';
 import WebViewScreen from './src/screens/WebViewScreen';
+import BirdsEyeViewScreen from './src/screens/BirdsEyeViewScreen';
 import NotificationScreen from './src/screens/NotificationScreen';
 
 const Stack = createStackNavigator();
+const navigationRef = createNavigationContainerRef();
 
 export default function App() {
   // Set global default text color
@@ -35,18 +38,21 @@ export default function App() {
     Text.defaultProps.style = [base, { color: '#75767a' }];
   }
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => setPushNavigation(navigationRef)}
+    >
       <View style={styles.container}>
         <StatusBar style="auto" />
         <Stack.Navigator 
-          initialRouteName="Login"
+          initialRouteName="Splash"
           screenOptions={({ navigation }) => getDefaultHeaderOptions(navigation)}
         >
-          {/* <Stack.Screen 
+          <Stack.Screen 
             name="Splash" 
             component={SplashScreen}
             options={{ headerShown: false }}
-          /> */}
+          />
           <Stack.Screen 
             name="Login" 
             component={LoginScreen}
@@ -111,6 +117,11 @@ export default function App() {
             name="DispatchManager" 
             component={DispatchManagerScreen}
             options={{ title: '' }}
+          />
+          <Stack.Screen 
+            name="BirdsEyeView" 
+            component={BirdsEyeViewScreen}
+            options={{ title: "Bird's Eye View" }}
           />
           <Stack.Screen 
             name="WebView" 

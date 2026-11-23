@@ -19,20 +19,21 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { captureRef } from 'react-native-view-shot';
 import Svg, { Path } from 'react-native-svg';
-import { Colors } from '../styles/colors';
+import { Colors, BWTheme } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
-import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
+import { API_BASE_URL, createAuthHeaders, createMultipartAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { logout, validateSession, refreshSession } from '../services/authService';
+import { useNativeAccessGuard } from '../services/appAccess';
 import { handle401Error, handleApiError } from '../services/errorHandler';
-import BirdsEyeViewModal from '../components/BirdsEyeViewModal';
 import BottomNavigation from '../components/BottomNavigation';
 import ProjectDropdown from '../components/ProjectDropdown';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
+  useNativeAccessGuard(navigation, 'DispatchManager');
   const { paperId, taskId, projectId, stageId, activityId } = route.params || {};
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
@@ -49,12 +50,11 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState('');
   const [isDrawing, setIsDrawing] = useState(true);
-  const [strokeColor, setStrokeColor] = useState('#007AFF');
+  const [strokeColor, setStrokeColor] = useState(Colors.primary);
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const annotationViewRef = useRef(null);
-  const [birdsEyeViewVisible, setBirdsEyeViewVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [dispatchOrders, setDispatchOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -94,10 +94,10 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   
   // Color options for annotation
   const colorOptions = [
-    '#007AFF', // Blue (Primary)
-    '#FF3B30', // Red
-    '#34C759', // Green
-    '#FF9500', // Orange
+    Colors.primary, // Blue (Primary)
+    Colors.error, // Red
+    Colors.success, // Green
+    Colors.warning, // Orange
     '#5856D6', // Purple
     '#000000', // Black
   ];
@@ -350,9 +350,15 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   };
 
   const loadVehicles = async () => {
+    // The API lists vehicles per project; without one there is nothing to show.
+    const projectIdToUse = selectedProjectId || projectId;
+    if (!projectIdToUse) {
+      setVehicles([]);
+      return;
+    }
     setLoadingVehicles(true);
     try {
-      const url = `${API_BASE_URL}/api/vehicles`;
+      const url = `${API_BASE_URL}/api/vehicles?project_id=${encodeURIComponent(projectIdToUse)}`;
       const response = await fetchWithAuthRetry(url, { method: 'GET' });
       if (response.ok) {
         const data = await response.json();
@@ -440,7 +446,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     }
 
     try {
-      const url = `${API_BASE_URL}/vehicles`;
+      const url = `${API_BASE_URL}/api/vehicles`;
       const payload = {
         vehicle_number: newVehicleNumber,
         transporter_id: Number(newTransporterId),
@@ -598,13 +604,13 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
       case 'dispatched':
-        return '#34C759'; // Green
+        return Colors.success; // Green
       case 'accepted':
-        return '#007AFF'; // Blue
+        return Colors.primary; // Blue
       case 'pending':
-        return '#FF9500'; // Orange
+        return Colors.warning; // Orange
       case 'rejected':
-        return '#FF3B30'; // Red
+        return Colors.error; // Red
       default:
         return BWTheme.textSecondary;
     }
@@ -720,7 +726,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         return;
       }
 
-      const apiUrl = `${API_BASE_URL}/api/dispatch-manager/questions/${paperId}`;
+      const apiUrl = `${API_BASE_URL}/api/questions/${paperId}`;
       console.log('📱 [DispatchManagerScreen] Fetching questions from:', apiUrl);
       console.log('📱 [DispatchManagerScreen] Access token (first 20 chars):', accessToken ? accessToken.substring(0, 20) + '...' : 'null');
 
@@ -899,7 +905,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
     }
   };
 
-  const handleChooseFromGallery = async (questionId = null) => {
+  const handleSelectFromGallery = async (questionId = null) => {
     try {
       // Check media library permission
       const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -939,8 +945,8 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         setAnnotationVisible(true);
       }
     } catch (error) {
-      console.log('Error choosing photo:', error);
-      Alert.alert('Error', 'Failed to choose photo. Please try again.');
+      console.log('Error selecting photo:', error);
+      Alert.alert('Error', 'Failed to select photo. Please try again.');
     }
   };
 
@@ -975,11 +981,11 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         name: photoData.name,
       });
 
-      // Try with Bearer token first
-      const headersWithBearer = {
-        ...createAuthHeaders(currentToken, { useBearer: true, includeSessionId: true }),
-        // Let fetch set multipart boundaries automatically
-      };
+      // Try with Bearer token first — omit Content-Type for multipart boundary
+      const headersWithBearer = createMultipartAuthHeaders(currentToken, {
+        useBearer: true,
+        includeSessionId: true,
+      });
       console.log('📱 [DispatchManagerScreen] Upload - Attempt 1: With Bearer token');
 
       let response = await fetch(apiUrl, {
@@ -993,9 +999,10 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
       // If 401, try without Bearer prefix
       if (response.status === 401) {
         console.log('❌ [DispatchManagerScreen] Upload returned 401 with Bearer, trying without...');
-        const headersWithoutBearer = {
-          ...createAuthHeaders(currentToken, { useBearer: false, includeSessionId: true }),
-        };
+        const headersWithoutBearer = createMultipartAuthHeaders(currentToken, {
+          useBearer: false,
+          includeSessionId: true,
+        });
         response = await fetch(apiUrl, {
           method: 'POST',
           headers: headersWithoutBearer,
@@ -1227,7 +1234,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         },
       };
 
-      const apiUrl = `${API_BASE_URL}/api/dispatch-manager/questions/answers`;
+      const apiUrl = `${API_BASE_URL}/api/questions/answers`;
       console.log('📱 [DispatchManagerScreen] Submitting answers to:', apiUrl);
       console.log('📱 [DispatchManagerScreen] Submission data:', JSON.stringify(submissionData, null, 2));
 
@@ -1347,7 +1354,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Loading Dispatch Manager questions...</Text>
       </View>
     );
@@ -1415,7 +1422,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                       <View style={styles.dropdownList}>
                         {loadingVehicles ? (
                           <View style={styles.dropdownLoading}>
-                            <ActivityIndicator size="small" color="#007AFF" />
+                            <ActivityIndicator size="small" color={Colors.primary} />
                           </View>
                         ) : (
                           <ScrollView style={styles.dropdownScroll}>
@@ -1476,7 +1483,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                     <Text style={styles.taskSectionTitle}>Available Elements</Text>
                     {loadingDispatchItems ? (
       <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color="#007AFF" />
+                        <ActivityIndicator size="large" color={Colors.primary} />
                         <Text style={styles.loadingText}>Loading items...</Text>
                       </View>
                     ) : dispatchItems.length === 0 ? (
@@ -1560,7 +1567,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
               <View style={styles.modalContentSmall}>
                 <Text style={styles.modalTitle}>Select Vehicle</Text>
                 {loadingVehicles ? (
-                  <ActivityIndicator size="small" color="#007AFF" />
+                  <ActivityIndicator size="small" color={Colors.primary} />
                 ) : (
                   <ScrollView style={styles.modalList} contentContainerStyle={styles.modalListContent}>
                     {vehicles.map((vehicle) => (
@@ -1643,7 +1650,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
                     <View style={styles.dropdownList}>
                       {loadingTransporters ? (
                         <View style={styles.dropdownLoading}>
-                          <ActivityIndicator size="small" color="#007AFF" />
+                          <ActivityIndicator size="small" color={Colors.primary} />
                         </View>
                       ) : (
                         <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
@@ -1798,7 +1805,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
               {/* Loading State */}
               {loadingOrders ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#007AFF" />
+                  <ActivityIndicator size="large" color={Colors.primary} />
                   <Text style={styles.loadingText}>Loading dispatch orders...</Text>
                 </View>
               ) : (
@@ -2037,12 +2044,6 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
         
       </ScrollView>
 
-      {/* Bird's Eye View Modal */}
-      <BirdsEyeViewModal
-        visible={!!birdsEyeViewVisible}
-        onClose={() => setBirdsEyeViewVisible(false)}
-        projectId={projectId || null}
-      />
 
       {/* Bottom Navigation */}
       {!hideBottomNav && (
@@ -2056,19 +2057,6 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
 };
 
 // White Background and Black Font Theme
-const BWTheme = {
-  background: '#FFFFFF',
-  card: '#FAFAFA',
-  surface: '#F5F5F5',
-  textPrimary: '#000000',
-  textSecondary: '#4A4A4A',
-  textTertiary: '#808080',
-  border: '#E0E0E0',
-  borderLight: '#D0D0D0',
-  divider: '#E0E0E0',
-  accent: '#000000',
-  shadow: 'rgba(0, 0, 0, 0.1)',
-};
 
 const styles = StyleSheet.create({
   container: {
@@ -2097,14 +2085,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: FontSizes.regular,
-    color: '#FF3B30',
+    color: Colors.error,
     marginBottom: 16,
     fontWeight: FontWeights.medium,
   },
   retryButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: {
@@ -2152,7 +2140,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
@@ -2168,7 +2156,7 @@ const styles = StyleSheet.create({
   birdsEyeViewIcon: {
     width: 20,
     height: 20,
-    tintColor: '#007AFF',
+    tintColor: Colors.primary,
   },
   questionCard: {
     backgroundColor: BWTheme.card,
@@ -2195,7 +2183,7 @@ const styles = StyleSheet.create({
     borderBottomColor: BWTheme.divider,
   },
   questionNumberBadge: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 16,
     width: 32,
     height: 32,
@@ -2247,7 +2235,7 @@ const styles = StyleSheet.create({
     borderTopColor: BWTheme.divider,
   },
   uploadButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     paddingVertical: 6,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -2294,7 +2282,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FF3B30',
+    backgroundColor: Colors.error,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -2340,8 +2328,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   optionButtonSelected: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#007AFF',
+    backgroundColor: Colors.primarySoft,
+    borderColor: Colors.primary,
     borderWidth: 2,
   },
   optionContent: {
@@ -2359,13 +2347,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   radioButtonSelected: {
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
   },
   radioButtonInner: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
   },
   optionText: {
     flex: 1,
@@ -2374,7 +2362,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
   },
   optionTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.semiBold,
   },
   noOptionsText: {
@@ -2400,7 +2388,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   submitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
@@ -2498,7 +2486,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.regular,
   },
   statusOptionTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.semiBold,
   },
   paperFooter: {
@@ -2549,11 +2537,6 @@ const styles = StyleSheet.create({
   sectionHeader: {
     marginTop: 4,
     marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: FontSizes.medium,
-    fontWeight: FontWeights.bold,
-    color: BWTheme.textPrimary,
   },
   sectionSubtitle: {
     fontSize: FontSizes.small,
@@ -2729,11 +2712,6 @@ const styles = StyleSheet.create({
     color: BWTheme.textPrimary,
     fontWeight: FontWeights.medium,
   },
-  dropdownArrow: {
-    fontSize: FontSizes.small,
-    color: BWTheme.textSecondary,
-    marginLeft: 8,
-  },
   dropdownList: {
     borderWidth: 1,
     borderColor: BWTheme.border,
@@ -2796,17 +2774,17 @@ const styles = StyleSheet.create({
   capacityValueBlue: {
     fontSize: FontSizes.medium,
     fontWeight: FontWeights.bold,
-    color: '#007AFF',
+    color: Colors.primary,
   },
   capacityValueGreen: {
     fontSize: FontSizes.medium,
     fontWeight: FontWeights.bold,
-    color: '#34C759',
+    color: Colors.success,
   },
   capacityValueRed: {
     fontSize: FontSizes.medium,
     fontWeight: FontWeights.bold,
-    color: '#FF3B30',
+    color: Colors.error,
   },
   sendRow: {
     alignItems: SCREEN_WIDTH >= 900 ? 'flex-end' : 'stretch',
@@ -2827,10 +2805,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   capacityPositive: {
-    color: '#34C759',
+    color: Colors.success,
   },
   capacityNegative: {
-    color: '#FF3B30',
+    color: Colors.error,
   },
   sendDispatchButton: {
     backgroundColor: '#9CA3AF',
@@ -2919,7 +2897,7 @@ const styles = StyleSheet.create({
     borderColor: BWTheme.border,
   },
   modalButtonApprove: {
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
   },
   modalButtonCancelText: {
     color: BWTheme.textPrimary,
@@ -2954,14 +2932,14 @@ const styles = StyleSheet.create({
     borderBottomColor: BWTheme.divider,
   },
   modalListItemSelected: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: Colors.primarySoft,
   },
   modalListItemText: {
     fontSize: FontSizes.small,
     color: BWTheme.textPrimary,
   },
   modalListItemTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.bold,
   },
   checkboxContainer: {
@@ -2979,8 +2957,8 @@ const styles = StyleSheet.create({
     backgroundColor: BWTheme.background,
   },
   checkboxSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   checkboxCheck: {
     color: '#fff',

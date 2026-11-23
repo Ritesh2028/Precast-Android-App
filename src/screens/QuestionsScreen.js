@@ -20,14 +20,13 @@ import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import { captureRef } from 'react-native-view-shot';
 import Svg, { Path } from 'react-native-svg';
-import { Colors } from '../styles/colors';
+import { Colors, BWTheme } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { logout, validateSession, refreshSession } from '../services/authService';
 import { handle401Error, handleApiError } from '../services/errorHandler';
-import BirdsEyeViewModal from '../components/BirdsEyeViewModal';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -48,26 +47,25 @@ const QuestionsScreen = ({ route, navigation }) => {
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState('');
   const [isDrawing, setIsDrawing] = useState(true);
-  const [strokeColor, setStrokeColor] = useState('#007AFF');
+  const [strokeColor, setStrokeColor] = useState(Colors.primary);
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const annotationViewRef = useRef(null);
   // Use refs to store current color and width so panResponder always has latest values
-  const strokeColorRef = useRef('#007AFF');
+  const strokeColorRef = useRef(Colors.primary);
   const strokeWidthRef = useRef(4);
-  const [birdsEyeViewVisible, setBirdsEyeViewVisible] = useState(false);
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewingImage, setViewingImage] = useState(null);
   
-  const statusOptions = ['Completed', 'In Progress'];
+  const statusOptions = ['Completed', 'In Progress', 'On Hold'];
   
   // Color options for annotation
   const colorOptions = [
-    '#007AFF', // Blue (Primary)
-    '#FF3B30', // Red
-    '#34C759', // Green
-    '#FF9500', // Orange
+    Colors.primary, // Blue (Primary)
+    Colors.error, // Red
+    Colors.success, // Green
+    Colors.warning, // Orange
     '#5856D6', // Purple
     '#000000', // Black
   ];
@@ -402,7 +400,7 @@ const QuestionsScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleChooseFromGallery = async (questionId = null) => {
+  const handleSelectFromGallery = async (questionId = null) => {
     try {
       // Check media library permission
       const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -442,8 +440,8 @@ const QuestionsScreen = ({ route, navigation }) => {
         setAnnotationVisible(true);
       }
     } catch (error) {
-      console.log('Error choosing photo:', error);
-      Alert.alert('Error', 'Failed to choose photo. Please try again.');
+      console.log('Error selecting photo:', error);
+      Alert.alert('Error', 'Failed to select photo. Please try again.');
     }
   };
 
@@ -814,7 +812,13 @@ const QuestionsScreen = ({ route, navigation }) => {
         }),
         status: {
           activity_id: activityId || taskId || null,
-          status: status.toLowerCase() === 'completed' ? 'completed' : (status.toLowerCase() === 'in progress' ? 'in progress' : status),
+          status: status.toLowerCase() === 'completed'
+            ? 'completed'
+            : status.toLowerCase() === 'in progress'
+              ? 'in progress'
+              : status.toLowerCase() === 'on hold'
+                ? 'Onhold'
+                : status,
         },
       };
 
@@ -938,7 +942,7 @@ const QuestionsScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Loading questions...</Text>
       </View>
     );
@@ -1129,6 +1133,11 @@ const QuestionsScreen = ({ route, navigation }) => {
               ))}
             </View>
           )}
+          {status === 'On Hold' && (
+            <Text style={styles.statusHint}>
+              On Hold sends the work back to production to recheck and correct. QC can approve after they mark it completed again.
+            </Text>
+          )}
         </View>
 
         {/* Submit Button */}
@@ -1293,7 +1302,7 @@ const QuestionsScreen = ({ route, navigation }) => {
           {showColorPicker && (
             <View style={styles.colorPickerContainer}>
               <View style={styles.colorPickerHeader}>
-                <Text style={styles.colorPickerTitle}>Choose Color</Text>
+                <Text style={styles.colorPickerTitle}>Select Color</Text>
                 <TouchableOpacity
                   onPress={() => setShowColorPicker(false)}
                   style={styles.closePickerButton}
@@ -1559,30 +1568,11 @@ const QuestionsScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {/* Bird's Eye View Modal */}
-      <BirdsEyeViewModal
-        visible={!!birdsEyeViewVisible}
-        onClose={() => setBirdsEyeViewVisible(false)}
-        projectId={projectId || null}
-      />
     </View>
   );
 };
 
 // White Background and Black Font Theme
-const BWTheme = {
-  background: '#FFFFFF',
-  card: '#FAFAFA',
-  surface: '#F5F5F5',
-  textPrimary: '#000000',
-  textSecondary: '#4A4A4A',
-  textTertiary: '#808080',
-  border: '#E0E0E0',
-  borderLight: '#D0D0D0',
-  divider: '#E0E0E0',
-  accent: '#000000',
-  shadow: 'rgba(0, 0, 0, 0.1)',
-};
 
 const styles = StyleSheet.create({
   container: {
@@ -1611,14 +1601,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: FontSizes.regular,
-    color: '#FF3B30',
+    color: Colors.error,
     marginBottom: 16,
     fontWeight: FontWeights.medium,
   },
   retryButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: {
@@ -1666,7 +1656,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
@@ -1682,7 +1672,7 @@ const styles = StyleSheet.create({
   birdsEyeViewIcon: {
     width: 20,
     height: 20,
-    tintColor: '#007AFF',
+    tintColor: Colors.primary,
   },
   questionCard: {
     backgroundColor: BWTheme.card,
@@ -1709,7 +1699,7 @@ const styles = StyleSheet.create({
     borderBottomColor: BWTheme.divider,
   },
   questionNumberBadge: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 16,
     width: 32,
     height: 32,
@@ -1761,7 +1751,7 @@ const styles = StyleSheet.create({
     borderTopColor: BWTheme.divider,
   },
   uploadButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     paddingVertical: 6,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -1805,7 +1795,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 4,
     left: 4,
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1839,7 +1829,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FF3B30',
+    backgroundColor: Colors.error,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -1885,8 +1875,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   optionButtonSelected: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#007AFF',
+    backgroundColor: Colors.primarySoft,
+    borderColor: Colors.primary,
     borderWidth: 2,
   },
   optionContent: {
@@ -1904,13 +1894,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   radioButtonSelected: {
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
   },
   radioButtonInner: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
   },
   optionText: {
     flex: 1,
@@ -1919,7 +1909,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
   },
   optionTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.semiBold,
   },
   noOptionsText: {
@@ -1938,7 +1928,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
   },
   submitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
@@ -2004,6 +1994,12 @@ const styles = StyleSheet.create({
   statusPlaceholder: {
     color: BWTheme.textSecondary,
   },
+  statusHint: {
+    marginTop: 8,
+    fontSize: FontSizes.small,
+    color: BWTheme.textSecondary,
+    lineHeight: 18,
+  },
   dropdownArrow: {
     fontSize: FontSizes.small,
     color: BWTheme.textSecondary,
@@ -2036,7 +2032,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.regular,
   },
   statusOptionTextSelected: {
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.semiBold,
   },
   paperFooter: {
@@ -2117,9 +2113,9 @@ const styles = StyleSheet.create({
   annotationDoneButton: {
     paddingVertical: 10,
     paddingHorizontal: 20,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 20,
-    shadowColor: '#007AFF',
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -2196,7 +2192,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     borderWidth: 2,
     borderColor: '#1A1A1A',
   },
@@ -2374,7 +2370,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   penSizeOptionSelected: {
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
     backgroundColor: '#1A3A5A',
     transform: [{ scale: 1.1 }],
   },
@@ -2388,7 +2384,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2487,11 +2483,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     marginRight: 8,
   },
   imageViewerStatusText: {
-    color: '#34C759',
+    color: Colors.success,
     fontSize: FontSizes.small,
     fontWeight: FontWeights.bold,
   },

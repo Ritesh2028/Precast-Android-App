@@ -1,0 +1,21 @@
+diff --git a/node_modules/react-native-gesture-handler/android/build.gradle b/node_modules/react-native-gesture-handler/android/build.gradle
+index 77dc57e..999f941 100644
+--- a/node_modules/react-native-gesture-handler/android/build.gradle
++++ b/node_modules/react-native-gesture-handler/android/build.gradle
+@@ -74,7 +74,6 @@ def shouldEnableAgpFallback() {
+ }
+ 
+ if (shouldEnableAgpFallback()) {
+-    apply plugin: 'kotlin-android'
+ }
+ 
+ if (project == rootProject) {
+@@ -150,7 +149,7 @@ repositories {
+ }
+ 
+ android {
+-    compileSdkVersion safeExtGet("compileSdkVersion", 33)
++    compileSdk safeExtGet("compileSdkVersion", 33)
+ 
+     namespace = "com.swmansion.gesturehandler"
+     buildFeatures {

@@ -1,0 +1,21 @@
+diff --git a/node_modules/react-native-screens/android/build.gradle b/node_modules/react-native-screens/android/build.gradle
+index fb16bb0..5b08adf 100644
+--- a/node_modules/react-native-screens/android/build.gradle
++++ b/node_modules/react-native-screens/android/build.gradle
+@@ -105,7 +105,6 @@ def shouldEnableAgpFallback() {
+ }
+ 
+ if (shouldEnableAgpFallback()) {
+-    apply plugin: 'kotlin-android'
+ }
+ 
+ def reactNativeArchitectures() {
+@@ -127,7 +126,7 @@ def REACT_NATIVE_VERSION = reactProperties.getProperty("VERSION_NAME")
+ def REACT_NATIVE_MINOR_VERSION = REACT_NATIVE_VERSION.startsWith("0.0.0-") ? 1000 : REACT_NATIVE_VERSION.split("\\.")[1].toInteger()
+ 
+ android {
+-    compileSdkVersion safeExtGet('compileSdkVersion', rnsDefaultCompileSdkVersion)
++    compileSdk safeExtGet('compileSdkVersion', rnsDefaultCompileSdkVersion)
+     namespace "com.swmansion.rnscreens"
+ 
+     // Used to override the NDK path/version on internal CI or by allowing

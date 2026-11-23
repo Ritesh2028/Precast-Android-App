@@ -684,43 +684,6 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation, autoProcess = f
     }
   };
 
-  // Helpers for pinch-to-zoom
-  const distanceBetweenTouches = (touches) => {
-    const [a, b] = touches;
-    const dx = a.pageX - b.pageX;
-    const dy = a.pageY - b.pageY;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
-
-  const handleGestureStart = (e) => {
-    const { touches } = e.nativeEvent;
-    if (touches.length === 2) {
-      const dist = distanceBetweenTouches(touches);
-      setInitialPinchDistance(dist);
-      setInitialZoomLevel(zoomLevel);
-    }
-  };
-
-  const handleGestureMove = (e) => {
-    const { touches } = e.nativeEvent;
-    if (touches.length === 2 && initialPinchDistance) {
-      const dist = distanceBetweenTouches(touches);
-      const scale = dist / initialPinchDistance;
-      // Smooth scaling around the initial zoom
-      let nextZoom = initialZoomLevel * scale;
-      // If initial is 0, base from scale amount
-      if (initialZoomLevel === 0) {
-        nextZoom = Math.min(1, Math.max(0, (scale - 1) * 1.2));
-      }
-      nextZoom = Math.min(1, Math.max(0, nextZoom));
-      setZoomLevel(nextZoom);
-    }
-  };
-
-  const handleGestureEnd = () => {
-    setInitialPinchDistance(null);
-  };
-
   if (!visible) return null;
 
   if (hasPermission === null) {
@@ -1021,7 +984,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
     borderBottomWidth: 0,
     borderTopLeftRadius: 14,
-    borderColor: '#FF3B30',
+    borderColor: Colors.error,
   },
   topLeftAccent: {
     top: 6,
@@ -1037,7 +1000,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderBottomWidth: 0,
     borderTopRightRadius: 14,
-    borderColor: '#FF9500',
+    borderColor: Colors.warning,
   },
   topRightAccent: {
     top: 6,
@@ -1053,7 +1016,7 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
     borderTopWidth: 0,
     borderBottomLeftRadius: 14,
-    borderColor: '#007AFF',
+    borderColor: Colors.primary,
   },
   bottomLeftAccent: {
     bottom: 6,
@@ -1069,7 +1032,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderTopWidth: 0,
     borderBottomRightRadius: 14,
-    borderColor: '#34C759',
+    borderColor: Colors.success,
   },
   bottomRightAccent: {
     bottom: 6,
@@ -1321,15 +1284,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   detailsButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     marginRight: 10,
   },
   detailsButtonDisabled: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     opacity: 0.6,
   },
   taskButton: {
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     marginLeft: 10,
   },
   taskButtonDisabled: {
@@ -1414,7 +1377,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.regular,
   },
   submitButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     padding: 15,
     minWidth: 100,

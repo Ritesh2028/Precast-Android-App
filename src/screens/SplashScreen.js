@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import Logo from '../components/Logo';
 import { Colors } from '../styles/colors';
+import { loadAccessContext, replaceAppScreen } from '../services/appAccess';
 
 const { width, height } = Dimensions.get('window');
 
@@ -119,17 +120,29 @@ const SplashScreen = ({ navigation }) => {
       useNativeDriver: false,
     }).start();
 
-    // Navigate to login after splash duration
-    const timer = setTimeout(() => {
-      navigation.replace('Login');
-    }, 3000);
+    let cancelled = false;
+    const minSplash = new Promise((resolve) => setTimeout(resolve, 1800));
+    Promise.all([minSplash, loadAccessContext()])
+      .then(([, ctx]) => {
+        if (cancelled) return;
+        if (ctx?.screen) {
+          replaceAppScreen(navigation, ctx.screen);
+        } else {
+          navigation.replace('Login');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) navigation.replace('Login');
+      });
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+    };
   }, [navigation]);
 
   const gradientInterpolate = gradientAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['#e8eff4', '#d1e7ff'],
+    outputRange: [Colors.brandNavy, Colors.brandNavyLifted],
   });
 
   const progressWidth = progressAnim.interpolate({
@@ -139,7 +152,7 @@ const SplashScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#e8eff4" />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.brandNavy} />
       
       {/* Animated Background Gradient */}
       <Animated.View style={[
@@ -216,10 +229,10 @@ const SplashScreen = ({ navigation }) => {
             },
           ]}
         >
-          <Logo size="large" />
+          <Logo size="large" variant="dark" iconOnly showName />
         </Animated.View>
 
-        {/* App Name with Glow Effect */}
+        {/* Tagline */}
         <Animated.View
           style={[
             styles.titleContainer,
@@ -276,7 +289,7 @@ const SplashScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.brandNavy,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -286,7 +299,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.brandNavy,
   },
   particle: {
     position: 'absolute',
@@ -295,17 +308,17 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   particle1: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
     top: '20%',
     left: '10%',
   },
   particle2: {
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
     top: '60%',
     right: '15%',
   },
   particle3: {
-    backgroundColor: '#FF9500',
+    backgroundColor: Colors.warning,
     top: '40%',
     left: '80%',
   },
@@ -327,9 +340,10 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: Colors.textOnNavy,
     textAlign: 'center',
     fontStyle: 'italic',
+    opacity: 0.85,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -346,24 +360,24 @@ const styles = StyleSheet.create({
     marginHorizontal: 6,
   },
   dot1: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primary,
   },
   dot2: {
-    backgroundColor: '#34C759',
+    backgroundColor: Colors.success,
   },
   dot3: {
-    backgroundColor: '#FF9500',
+    backgroundColor: Colors.warning,
   },
   progressBarContainer: {
     width: 200,
     height: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    backgroundColor: 'rgba(241, 245, 249, 0.2)',
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.primaryLight,
     borderRadius: 2,
   },
   footer: {
@@ -373,7 +387,8 @@ const styles = StyleSheet.create({
   },
   version: {
     fontSize: 12,
-    color: '#999',
+    color: Colors.textOnNavy,
+    opacity: 0.7,
     fontWeight: '300',
   },
 });

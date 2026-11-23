@@ -1,0 +1,51 @@
+diff --git a/node_modules/expo-constants/scripts/get-app-config-android.gradle b/node_modules/expo-constants/scripts/get-app-config-android.gradle
+index 7911284..df7706f 100644
+--- a/node_modules/expo-constants/scripts/get-app-config-android.gradle
++++ b/node_modules/expo-constants/scripts/get-app-config-android.gradle
+@@ -11,14 +11,16 @@ def expoConstantsDir = project.providers.exec {
+ def config = project.hasProperty("react") ? project.react : [];
+ def nodeExecutableAndArgs = config.nodeExecutableAndArgs ?: ["node"]
+ 
+-afterEvaluate {
++// Variant hooks must register during configuration: AGP 9 rejects them inside afterEvaluate.
++def configureExpoConstantsVariants = {
+   def expoGradleExtension = gradle.extensions.findByName("expoGradle")
+   def customProjectRoot = expoGradleExtension?.projectRoot
+   def projectRoot = file("${customProjectRoot ?: rootProject.projectDir}")
+ 
+-  project.android.libraryVariants.all { variant ->
++  // AGP 9 removed `libraryVariants`; `androidComponents.onVariants` is the replacement.
++  androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+     def assetsDir = file("$buildDir/generated/assets/expo-constants/${variant.name}")
+-    def configMode = variant.buildType.name == "debug" || variant.buildType.name == "debugOptimized" ? "development" : "production"
++    def configMode = variant.buildType == "debug" || variant.buildType == "debugOptimized" ? "development" : "production"
+ 
+     def createConfigTask = tasks.register("create${variant.name.capitalize()}ExpoConfig", Exec) {
+       description = 'expo-constants: Create app.config.'
+@@ -46,7 +48,7 @@ afterEvaluate {
+     }
+ 
+     // Generate app.config at preBuild
+-    variant.preBuildProvider.configure { it.dependsOn(createConfigTask) }
++    tasks.matching { it.name == "pre${variant.name.capitalize()}Build" }.configureEach { it.dependsOn(createConfigTask) }
+ 
+     // Add generated assetsDir into assets.srcDirs
+     project.android.sourceSets.maybeCreate(variant.name).assets.srcDirs += assetsDir
+@@ -75,11 +77,13 @@ afterEvaluate {
+     }
+   }
+ 
+-  project.android.libraryVariants.all { variant ->
+-    if (!variant.buildType.debuggable) {
++  androidComponents.onVariants(androidComponents.selector().all()) { variant ->
++    if (variant.buildType != "debug") {
+       return
+     }
+-    variant.preBuildProvider.configure { it.dependsOn(createFingerprintTask) }
+-    project.android.sourceSets.maybeCreate(variant.buildType.name).assets.srcDirs += fingerprintAssetsDir
++    tasks.matching { it.name == "pre${variant.name.capitalize()}Build" }.configureEach { it.dependsOn(createFingerprintTask) }
++    project.android.sourceSets.maybeCreate(variant.buildType).assets.srcDirs += fingerprintAssetsDir
+   }
+ }
++
++configureExpoConstantsVariants()

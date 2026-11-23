@@ -15,18 +15,20 @@ import {
 import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { logout, validateSession, refreshSession } from '../services/authService';
+import { useNativeAccessGuard } from '../services/appAccess';
 import { handle401Error } from '../services/errorHandler';
-import { API_BASE_URL, WEB_URL, createAuthHeaders } from '../config/apiConfig';
+import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import CameraQRScanner from '../components/CameraQRScanner';
 import BottomNavigation from '../components/BottomNavigation';
 import ProjectDropdown from '../components/ProjectDropdown';
 import DrawingFilesModal from '../components/DrawingFilesModal';
 import TowerFloorFilter from '../components/TowerFloorFilter';
-import BirdsEyeViewModal from '../components/BirdsEyeViewModal';
-import { Colors } from '../styles/colors';
+import { Colors, Theme } from '../styles/colors';
+import { Icon, SegmentedControl, StatusPill, EmptyState, SkeletonList, Tone } from '../components/ui';
 import { FontSizes, FontWeights } from '../styles/fonts';
 
 const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
+  useNativeAccessGuard(navigation, 'Dashboard');
   const [selectedFilters, setSelectedFilters] = useState(['All']);
   const [selectedProject, setSelectedProject] = useState('All Projects');
   const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -39,68 +41,6 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
   const [selectedElementId, setSelectedElementId] = useState(null);
   const [selectedElementData, setSelectedElementData] = useState(null);
   const [towerFloorFilter, setTowerFloorFilter] = useState({ tower: null, floor: null });
-  const [birdsEyeViewVisible, setBirdsEyeViewVisible] = useState(false);
-
-  // Check user role on mount - redirect if not QA/QC
-  useEffect(() => {
-    const checkUserRole = async () => {
-      try {
-        const sessionResult = await validateSession();
-        if (sessionResult && sessionResult.role_name) {
-          const userRole = sessionResult.role_name.toString().toLowerCase().trim();
-          const isQAQC = userRole === 'qa/qc' || userRole === 'qa-qc' || userRole === 'qa_qc' || userRole === 'qa qc';
-          
-          if (!isQAQC) {
-            // User is not QA/QC, redirect to appropriate screen
-            console.log('📱 [QCStatusScreen] User is not QA/QC, redirecting...');
-            console.log('📱 [QCStatusScreen] User role:', userRole);
-            
-            // Check which manager role
-            const isStockManager = 
-              userRole === 'stockmanager' || 
-              userRole === 'stock_manager' || 
-              userRole === 'stock manager' ||
-              userRole === 'stockmanger' ||
-              userRole === 'stock managaer' ||
-              userRole === 'stockmanagaer' ||
-              (userRole.includes('stock') && (userRole.includes('manager') || userRole.includes('managaer')));
-            
-            const isErectionManager = 
-              userRole === 'erectionmanager' || 
-              userRole === 'erection_manager' || 
-              userRole === 'erection manager' ||
-              userRole === 'erectionmanger' ||
-              userRole === 'erection managaer' ||
-              userRole === 'erectionmanagaer' ||
-              (userRole.includes('erection') && (userRole.includes('manager') || userRole.includes('managaer')));
-            
-            const isDispatchManager = 
-              userRole === 'dispatchmanager' || 
-              userRole === 'dispatch_manager' || 
-              userRole === 'dispatch manager' ||
-              userRole === 'dispatchmanger' ||
-              userRole === 'dispatch managaer' ||
-              userRole === 'dispatchmanagaer' ||
-              (userRole.includes('dispatch') && (userRole.includes('manager') || userRole.includes('managaer')));
-            
-            if (isStockManager) {
-              navigation.replace('StockManager');
-            } else if (isErectionManager) {
-              navigation.replace('ErectionManager');
-            } else if (isDispatchManager) {
-              navigation.replace('DispatchManager');
-            } else {
-              navigation.replace('WebView', { url: WEB_URL });
-            }
-          }
-        }
-      } catch (error) {
-        console.log('❌ [QCStatusScreen] Error checking user role:', error);
-      }
-    };
-    
-    checkUserRole();
-  }, [navigation]);
 
   // Helper function to load tasks from API
   const loadTasksFromAPI = async (token, statusParam, projectId = null) => {
@@ -626,7 +566,7 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'Pending': return '#FFB84D'; // Lighter orange
-      case 'In Progress': return '#007AFF';
+      case 'In Progress': return Colors.primary;
       case 'Completed': return '#6DD47E'; // Lighter green
      
       default: return '#8E8E93';
@@ -635,7 +575,7 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'High': return '#FF3B30';
+      case 'High': return Colors.error;
       case 'Medium': return '#FFB84D'; // Lighter orange
       case 'Low': return '#6DD47E'; // Lighter green
       default: return '#8E8E93';
@@ -795,10 +735,10 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
 
   const getFilterColor = (filter) => {
     switch (filter) {
-      case 'All': return '#007AFF';
-      case 'Pending': return '#FF9500';
-      case 'Completed': return '#34C759';
-      default: return '#007AFF';
+      case 'All': return Colors.primary;
+      case 'Pending': return Colors.warning;
+      case 'Completed': return Colors.success;
+      default: return Colors.primary;
     }
   };
 
@@ -827,730 +767,268 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
     setSelectedProjectId(projectId);
   };
 
+  const getTower = (item) =>
+    item.originalData?.tower || item.originalData?.tower_name || item.originalData?.element_type?.tower ||
+    item.originalData?.element_type?.tower_name || item.tower || item.tower_name || 'N/A';
+  const getFloor = (item) =>
+    item.originalData?.floor || item.originalData?.floor_name || item.originalData?.element_type?.floor ||
+    item.originalData?.element_type?.floor_name || item.floor || item.floor_name || 'N/A';
+
+  const openBirdsEyeView = () => {
+    const pid = selectedProjectId || jobs[0]?.originalData?.project_id || jobs[0]?.project_id || null;
+    if (!pid) {
+      Alert.alert("Bird's Eye View", 'Please select a project first.');
+      return;
+    }
+    navigation.navigate('BirdsEyeView', {
+      projectId: pid,
+      projectName: selectedProject && selectedProject !== 'All Projects' ? selectedProject : undefined,
+    });
+  };
+
+  const openDrawings = (item, e) => {
+    e?.stopPropagation?.();
+    const elementId = item.originalData?.element_id || item.originalData?.id || item.id?.replace('ELEM-', '') || item.id;
+    setSelectedElementId(elementId);
+    setSelectedElementData(item.originalData || item);
+    setDrawingFilesModalVisible(true);
+  };
+
+  const renderCard = (item, index) => {
+    const tone = statusTone(item.status);
+    const isPending = !item.fromCompleteProduction && item.status === 'Pending';
+    const hasDrawing = item.drawing === 'Available';
+    return (
+      <TouchableOpacity
+        key={`${item.id}-${index}`}
+        style={styles.card}
+        onPress={() => handleQCItemPress(item)}
+        activeOpacity={0.85}
+      >
+        <View style={[styles.cardAccent, { backgroundColor: tone.bar }]} />
+        <View style={styles.cardBody}>
+          <View style={styles.cardHead}>
+            <Text style={styles.qcId} numberOfLines={1}>{item.id}</Text>
+            <StatusPill label={item.status || 'Unknown'} tone={tone.key} />
+          </View>
+          {!!item.title && <Text style={styles.qcTitle} numberOfLines={2}>{item.title}</Text>}
+
+          <View style={styles.metaGrid}>
+            <MetaItem icon="building" label="Tower" value={getTower(item)} />
+            <MetaItem icon="layers" label="Floor" value={getFloor(item)} />
+            <MetaItem icon="list-checks" label="Stage" value={item.assignedDate || 'N/A'} />
+          </View>
+
+          <View style={styles.cardFooter}>
+            {hasDrawing && (
+              <TouchableOpacity style={styles.outlineBtn} onPress={(e) => openDrawings(item, e)} activeOpacity={0.7}>
+                <Icon name="download" size={16} color={Colors.primary} />
+                <Text style={styles.outlineBtnText}>Drawings</Text>
+              </TouchableOpacity>
+            )}
+            {isPending ? (
+              <TouchableOpacity style={styles.primaryBtn} onPress={(e) => handleInProgress(item, e)} activeOpacity={0.85}>
+                <Icon name="clipboard-check" size={16} color={Colors.primaryForeground} />
+                <Text style={styles.primaryBtnText}>QC Progress</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.detailsLink}>
+                <Text style={styles.detailsLinkText}>View details</Text>
+                <Icon name="chevron-right" size={16} color={Colors.textSecondary} />
+              </View>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.mainContainer}>
-      <ScrollView 
+      <ScrollView
         style={styles.container}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#007AFF"
-            colors={["#007AFF"]}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} colors={[Colors.primary]} />
         }
       >
-      {/* Project Dropdown Component */}
-      <View style={styles.projectDropdownWrapper}>
-      <ProjectDropdown
-          selectedProject={typeof selectedProject === 'string' ? selectedProject : (selectedProject?.name || 'All Projects')}
-          onProjectSelect={(project) => {
-            handleProjectSelect(project);
-          }}
-        navigation={navigation}
-      />
-      </View>
+        <View style={styles.projectDropdownWrapper}>
+          <ProjectDropdown
+            selectedProject={typeof selectedProject === 'string' ? selectedProject : (selectedProject?.name || 'All Projects')}
+            onProjectSelect={handleProjectSelect}
+            navigation={navigation}
+          />
+        </View>
 
-      <View style={styles.qcListSection}>
-        {/* Filter Buttons */}
-        <View style={styles.filterWrapper}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterContainer}
-            style={styles.filterScrollView}
-          >
-            {(filterOptions || []).map((filter) => {
-              const isSelected = selectedFilters.includes(filter);
-              return (
-            <TouchableOpacity
-              key={filter}
-              style={[
-                styles.filterButton,
-                    isSelected && styles.filterButtonSelected,
-                    { 
-                      backgroundColor: isSelected ? getFilterColor(filter) : '#FFFFFF',
-                      borderColor: getFilterColor(filter),
-                      borderWidth: isSelected ? 2 : 1,
-                    }
-                  ]}
-                  onPress={() => toggleFilter(filter)}
-            >
-              <Text style={[
-                    styles.filterText,
-                    { 
-                      color: isSelected ? '#FFFFFF' : getFilterColor(filter),
-                      fontWeight: isSelected ? '700' : '600'
-                    }
-                  ]}>
-                    {filter}
-              </Text>
-            </TouchableOpacity>
-              );
-            })}
-            {/* Bird's Eye View Button */}
-            <TouchableOpacity
-              style={[
-                styles.filterButton,
-                styles.birdsEyeViewButton,
-                { 
-                  backgroundColor: '#FFFFFF',
-                  borderColor: '#007AFF',
-                  borderWidth: 1,
-                }
-              ]}
-              onPress={() => {
-                setBirdsEyeViewVisible(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Image 
-                source={require('../icons/show.png')} 
-                style={styles.birdsEyeViewIcon} 
-                resizeMode="contain" 
-              />
-            </TouchableOpacity>
-          </ScrollView>
-      </View>
+        <View style={styles.content}>
+          {/* Status segmented control */}
+          <SegmentedControl
+            style={styles.segment}
+            options={filterOptions.map((f) => ({ key: f, label: f }))}
+            value={selectedFilters[0] || 'All'}
+            onChange={toggleFilter}
+          />
 
-        {/* Tower and Floor Filters */}
-        <TowerFloorFilter 
-          jobs={availableJobs}
-          onFilterChange={setTowerFloorFilter}
+          {/* Bird's Eye View entry */}
+          <TouchableOpacity style={styles.birdCard} onPress={openBirdsEyeView} activeOpacity={0.85}>
+            <View style={styles.birdIconWrap}>
+              <Icon name="eye" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.birdTitle}>Bird's Eye View</Text>
+              <Text style={styles.birdSub} numberOfLines={1}>Production progress by task and stage</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color="#8FA6D6" />
+          </TouchableOpacity>
+
+          {/* Tower and Floor Filters */}
+          <TowerFloorFilter jobs={availableJobs} onFilterChange={setTowerFloorFilter} />
+
+          {/* List header */}
+          <View style={styles.listHeader}>
+            <Text style={styles.listTitle}>Tasks</Text>
+            {!jobsLoading && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{filteredJobs.length}</Text>
+              </View>
+            )}
+          </View>
+
+          {jobsLoading ? (
+            <SkeletonList rows={4} />
+          ) : filteredJobs.length > 0 ? (
+            filteredJobs.map(renderCard)
+          ) : (
+            <EmptyState
+              icon="clipboard"
+              title="No tasks found"
+              message="Try a different project, status or tower filter."
+              actionLabel="Refresh"
+              onAction={onRefresh}
+            />
+          )}
+        </View>
+
+        <CameraQRScanner
+          visible={qrScannerVisible}
+          onClose={() => setQrScannerVisible(false)}
+          onScan={handleQRScanned}
+          navigation={navigation}
         />
 
-        {jobsLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#000000" />
-            <Text style={styles.loadingText}>Loading tasks...</Text>
-          </View>
-        ) : filteredJobs.length > 0 ? (
-          filteredJobs.map((item, index) => (
-          <TouchableOpacity
-              key={`${item.id}-${index}`}
-              style={[
-                styles.qcCard,
-                item.fromCompleteProduction && styles.qcCardCompleted,
-                !item.fromCompleteProduction && (item.status === 'Pending' || item.status === 'In Progress') && styles.qcCardPending,
-              ]}
-            onPress={() => handleQCItemPress(item)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.qcCardHeader}>
-                <View style={styles.qcCardHeaderLeft}>
-                  <View style={[
-                    styles.statusIndicator,
-                    { backgroundColor: getStatusColor(item.status) }
-                  ]} />
-              <Text style={styles.qcId}>{item.id}</Text>
-              </View>
-              <View style={styles.statusBadge}>
-                {item.status === 'Completed' ? (
-                  <Image 
-                    source={require('../icons/complete.png')} 
-                    style={styles.statusIcon} 
-                    resizeMode="contain" 
-                  />
-                ) : (
-                  <Image 
-                    source={require('../icons/pending.png')} 
-                    style={styles.statusIcon} 
-                    resizeMode="contain" 
-                  />
-                )}
-            </View>
-            </View>
-              
-            <Text style={styles.qcTitle}>{item.title}</Text>
-              
-            <View style={styles.qcDetails}>
-              <View style={styles.detailRow}>
-                <View style={styles.detailLabelContainer}>
-                  <Image 
-                    source={require('../icons/tawer.png')} 
-                    style={styles.detailLabelIconImg} 
-                    resizeMode="contain" 
-                  />
-                  <Text style={styles.detailLabel}>Tower:</Text>
-                </View>
-                <Text style={styles.detailValue}>
-                  {item.originalData?.tower || item.originalData?.tower_name || item.originalData?.element_type?.tower || item.originalData?.element_type?.tower_name || item.tower || item.tower_name || 'N/A'}
-                </Text>
-              </View>
-              <View style={styles.detailRow}>
-                <View style={styles.detailLabelContainer}>
-                  <Image 
-                    source={require('../icons/floor.png')} 
-                    style={styles.detailLabelIconImg} 
-                    resizeMode="contain" 
-                  />
-                  <Text style={styles.detailLabel}>Floor:</Text>
-                </View>
-                <Text style={styles.detailValue}>
-                  {item.originalData?.floor || item.originalData?.floor_name || item.originalData?.element_type?.floor || item.originalData?.element_type?.floor_name || item.floor || item.floor_name || 'N/A'}
-                </Text>
-              </View>
-              <View style={styles.detailRow}>
-                  <View style={styles.detailLabelContainer}>
-                    <Image 
-                      source={require('../icons/stage.png')} 
-                      style={styles.detailLabelIconImg} 
-                      resizeMode="contain" 
-                    />
-                    <Text style={styles.detailLabel}>Stage:</Text>
-              </View>
-                  <Text style={styles.detailValue}>{item.assignedDate}</Text>
-            </View>
-              <View style={styles.detailRow}>
-                  <View style={styles.detailLabelContainer}>
-                    <Image 
-                      source={require('../icons/drawing.png')} 
-                      style={styles.detailLabelIconImg} 
-                      resizeMode="contain" 
-                    />
-                    <Text style={styles.detailLabel}>Drawing:</Text>
-              </View>
-                  <View style={styles.drawingContainer}>
-                    {item.drawing === 'Available' && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          const elementId = item.originalData?.element_id || item.originalData?.id || item.id?.replace('ELEM-', '') || item.id;
-                          setSelectedElementId(elementId);
-                          setSelectedElementData(item.originalData || item);
-                          setDrawingFilesModalVisible(true);
-                        }}
-                        activeOpacity={0.7}
-                        style={styles.downloadButton}
-                      >
-                        <Image 
-                          source={require('../icons/downloads.png')} 
-                          style={styles.downloadImg} 
-                          resizeMode="contain" 
-                        />
-                      </TouchableOpacity>
-                    )}
-            </View>
-              </View>
-              {/* In Progress Button for Pending tasks */}
-              {!item.fromCompleteProduction && item.status === 'Pending' && (
-                <View style={styles.actionButtonContainer}>
-                  <TouchableOpacity
-                    style={styles.inProgressButton}
-                    onPress={(e) => handleInProgress(item, e)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.inProgressButtonText}>QC Progress</Text>
-          </TouchableOpacity>
-                </View>
-              )}
-              </View>
-          </TouchableOpacity>
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No tasks found for selected filters</Text>
-          </View>
-        )}
-      </View>
-
-      <CameraQRScanner
-        visible={qrScannerVisible}
-        onClose={() => setQrScannerVisible(false)}
-        onScan={handleQRScanned}
-        navigation={navigation}
-      />
-
-      <DrawingFilesModal
-        visible={drawingFilesModalVisible}
-        onClose={() => {
-          setDrawingFilesModalVisible(false);
-          setSelectedElementId(null);
-          setSelectedElementData(null);
-        }}
-        elementId={selectedElementId}
-        elementData={selectedElementData}
-      />
-
-      <BirdsEyeViewModal
-        visible={!!birdsEyeViewVisible}
-        onClose={() => setBirdsEyeViewVisible(false)}
-        projectId={selectedProjectId || jobs[0]?.originalData?.project_id || jobs[0]?.project_id || null}
-      />
+        <DrawingFilesModal
+          visible={drawingFilesModalVisible}
+          onClose={() => {
+            setDrawingFilesModalVisible(false);
+            setSelectedElementId(null);
+            setSelectedElementData(null);
+          }}
+          elementId={selectedElementId}
+          elementData={selectedElementData}
+        />
       </ScrollView>
 
       {!hideBottomNav && (
-        <BottomNavigation
-          activeTab={activeTab}
-          onTabPress={handleTabPress}
-          onScanPress={handleScanPress}
-        />
+        <BottomNavigation activeTab={activeTab} onTabPress={handleTabPress} onScanPress={handleScanPress} />
       )}
     </View>
   );
 };
 
-// White Background and Black Font Theme
-const BWTheme = {
-  background: '#FFFFFF',
-  card: '#FAFAFA',
-  surface: '#F5F5F5',
-  textPrimary: '#000000',
-  textSecondary: '#4A4A4A',
-  textTertiary: '#808080',
-  border: '#E0E0E0',
-  borderLight: '#D0D0D0',
-  divider: '#E0E0E0',
-  accent: '#000000',
-  shadow: 'rgba(0, 0, 0, 0.1)',
+const statusTone = (status) => {
+  const key =
+    status === 'Completed' ? 'success'
+      : status === 'Pending' ? 'warning'
+      : status === 'In Progress' ? 'info'
+      : 'neutral';
+  return { key, bar: Tone[key].solid };
+};
+
+const MetaItem = ({ icon, label, value }) => (
+  <View style={styles.metaItem}>
+    <View style={styles.metaIcon}>
+      <Icon name={icon} size={14} color={Colors.primary} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.metaLabel}>{label}</Text>
+      <Text style={styles.metaValue} numberOfLines={1}>{value}</Text>
+    </View>
+  </View>
+);
+
+const cardShadow = {
+  shadowColor: Colors.shadow,
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 1,
+  shadowRadius: 6,
+  elevation: 2,
 };
 
 const styles = StyleSheet.create({
-  mainContainer: {
-    flex: 1,
-    backgroundColor: BWTheme.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: BWTheme.background,
-  },
-  header: {
-    backgroundColor: Colors.background,
-    padding: 20,
-    marginBottom: 16,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    minHeight: 60,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  qrButton: {
-    backgroundColor: '#007AFF',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  scanIcon: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scanFrame: {
-    width: 20,
-    height: 20,
-    position: 'relative',
-  },
-  scanCorner: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderColor: '#fff',
-    borderWidth: 2,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-    top: 0,
-    left: 0,
-  },
-  topRight: {
-    top: 0,
-    right: 0,
-    left: 'auto',
-    borderTopWidth: 2,
-    borderRightWidth: 2,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
-  },
-  bottomLeft: {
-    bottom: 0,
-    left: 0,
-    top: 'auto',
-    borderBottomWidth: 2,
-    borderLeftWidth: 2,
-    borderTopWidth: 0,
-    borderRightWidth: 0,
-  },
-  bottomRight: {
-    bottom: 0,
-    right: 0,
-    top: 'auto',
-    left: 'auto',
-    borderBottomWidth: 2,
-    borderRightWidth: 2,
-    borderTopWidth: 0,
-    borderLeftWidth: 0,
-  },
-  scanLine: {
-    position: 'absolute',
-    top: '50%',
-    left: 2,
-    right: 2,
-    height: 2,
-    backgroundColor: Colors.background,
-    transform: [{ translateY: -1 }],
-  },
-  profileButton: {
-    backgroundColor: '#6DD47E', // Lighter green
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  profileButtonText: {
-    fontSize: 22,
-    color: '#fff',
-  },
-  statsSection: {
-    backgroundColor: Colors.background,
-    padding: 20,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: FontSizes.medium,
-    fontWeight: FontWeights.bold,
-    color: BWTheme.textPrimary,
-    marginBottom: 20,
-    textAlign: 'center',
-    letterSpacing: 1,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: '#ffffff',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  filterWrapper: {
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    marginBottom: 12,
-  },
-  filterScrollView: {
-    flexGrow: 0,
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
-    marginHorizontal: 6,
-    minWidth: 100,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  filterButtonSelected: {
-    transform: [{ scale: 1.05 }],
-  },
-  filterText: {
-    fontSize: FontSizes.small,
-    fontWeight: FontWeights.semiBold,
-  },
-  birdsEyeViewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 100,
-  },
-  birdsEyeViewIcon: {
-    width: 20,
-    height: 20,
-    tintColor: '#007AFF',
-  },
-  qcListSection: {
-    padding: 24,
-    backgroundColor: BWTheme.background,
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  qcCard: {
-    backgroundColor: BWTheme.card,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 2,
-    borderColor: BWTheme.border,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  qcCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: BWTheme.divider,
-  },
-  qcCardHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  statusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 12,
-  },
-  qcId: {
-    fontSize: FontSizes.medium,
-    fontWeight: FontWeights.bold,
-    color: '#007AFF', // Blue color like hyperlink
-    letterSpacing: 0.5,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusIcon: {
-    width: 20,
-    height: 20,
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: FontSizes.small,
-    fontWeight: FontWeights.bold,
-    letterSpacing: 0.5,
-  },
-  qcTitle: {
-    fontSize: FontSizes.regular,
-    color: BWTheme.textSecondary,
-    marginBottom: 10,
-    fontWeight: FontWeights.medium,
-    lineHeight: 18,
-  },
-  qcDetails: {
-    marginBottom: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: BWTheme.divider,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    paddingVertical: 4,
-  },
-  detailLabelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  detailLabelIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  detailLabelIconImg: {
-    width: 18,
-    height: 18,
-    marginRight: 8,
-    tintColor: BWTheme.textPrimary,
-  },
-  detailLabel: {
-    fontSize: FontSizes.small,
-    color: BWTheme.textSecondary,
-    fontWeight: FontWeights.medium,
-  },
-  detailValue: {
-    fontSize: FontSizes.small,
-    color: BWTheme.textPrimary,
-    fontWeight: FontWeights.semiBold,
-    flex: 1,
-    textAlign: 'right',
-  },
-  drawingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    flex: 1,
-  },
-  drawingAvailable: {
-    color: '#6DD47E', // Lighter green
-    marginRight: 8,
-    fontWeight: FontWeights.bold,
-  },
-  downloadButton: {
-    padding: 6,
-    marginLeft: 4,
-    borderRadius: 4,
-    backgroundColor: BWTheme.surface,
-  },
-  downloadImg: {
-    width: 20,
-    height: 20,
-    tintColor: BWTheme.textPrimary,
-  },
-  actionButtonContainer: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: BWTheme.divider,
-  },
-  inProgressButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  inProgressButtonText: {
-    color: '#fff',
-    fontSize: FontSizes.regular,
-    fontWeight: FontWeights.bold,
-    letterSpacing: 0.5,
-  },
-  qcFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: BWTheme.divider,
-  },
-  priorityBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  priorityText: {
-    color: '#fff',
-    fontSize: FontSizes.small,
-    fontWeight: FontWeights.bold,
-    letterSpacing: 0.5,
-  },
-  projectDropdownWrapper: {
-    marginTop: 16,
-  },
-  qcCardCompleted: {
-    borderColor: '#6DD47E', // Lighter green
-    borderWidth: 2,
-  },
-  qcCardPending: {
-    borderColor: '#FFB84D', // Lighter orange
-    borderWidth: 2,
-  },
-  loadingContainer: {
-    padding: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    marginTop: 20,
-    fontSize: FontSizes.regular,
-    color: BWTheme.textPrimary,
-    fontWeight: FontWeights.medium,
-  },
-  emptyState: {
-    padding: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyStateText: {
-    fontSize: FontSizes.regular,
-    color: BWTheme.textSecondary,
-    textAlign: 'center',
-    fontWeight: FontWeights.medium,
-  },
+  mainContainer: { flex: 1, backgroundColor: Colors.surface },
+  container: { flex: 1, backgroundColor: Colors.surface },
+  scrollContent: { paddingBottom: 24 },
+  projectDropdownWrapper: { marginTop: 12 },
+  content: { paddingHorizontal: 16, paddingTop: 4 },
+
+  // Segmented status filter
+  segment: { marginBottom: 12 },
+
+  // Bird's Eye View card
+  birdCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.brandNavy,
+    borderRadius: Theme.radiusLg, padding: 14, marginBottom: 12,
+  },
+  birdIconWrap: {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+  },
+  birdTitle: { fontSize: FontSizes.regular + 1, fontWeight: FontWeights.bold, color: Colors.textOnNavy },
+  birdSub: { fontSize: FontSizes.small, color: '#8FA6D6', marginTop: 2 },
+
+  // List header
+  listHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, marginBottom: 10 },
+  listTitle: { fontSize: FontSizes.medium, fontWeight: FontWeights.bold, color: Colors.textPrimary },
+  countBadge: { backgroundColor: Colors.primarySoft, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  countBadgeText: { fontSize: FontSizes.small, fontWeight: FontWeights.bold, color: Colors.primary },
+
+  // Task card
+  card: {
+    flexDirection: 'row', backgroundColor: Colors.background, borderRadius: Theme.radiusLg, marginBottom: 12,
+    borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', ...cardShadow,
+  },
+  cardAccent: { width: 4 },
+  cardBody: { flex: 1, padding: 14 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  qcId: { flex: 1, fontSize: FontSizes.regular + 2, fontWeight: FontWeights.bold, color: Colors.primary },
+  qcTitle: { fontSize: FontSizes.small + 1, color: Colors.textSecondary, marginTop: 4, fontWeight: FontWeights.medium },
+
+  metaGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, paddingTop: 12, rowGap: 12,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border,
+  },
+  metaItem: { width: '50%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 8 },
+  metaIcon: {
+    width: 28, height: 28, borderRadius: Theme.radiusSm, backgroundColor: Colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  metaLabel: { fontSize: FontSizes.extraSmall + 1, color: Colors.textSecondary },
+  metaValue: { fontSize: FontSizes.small + 1, color: Colors.textPrimary, fontWeight: FontWeights.semiBold, marginTop: 1 },
+
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
+  outlineBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: Theme.buttonHeight,
+    paddingHorizontal: 14, borderRadius: Theme.radius, borderWidth: 1, borderColor: Colors.borderStrong,
+    backgroundColor: Colors.primarySoft,
+  },
+  outlineBtnText: { fontSize: FontSizes.small + 1, color: Colors.primary, fontWeight: FontWeights.semiBold },
+  primaryBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    height: Theme.buttonHeight, borderRadius: Theme.radius, backgroundColor: Colors.primary,
+  },
+  primaryBtnText: { fontSize: FontSizes.button, color: Colors.primaryForeground, fontWeight: FontWeights.bold },
+  detailsLink: { flexDirection: 'row', alignItems: 'center', marginLeft: 'auto', gap: 2 },
+  detailsLinkText: { fontSize: FontSizes.small, color: Colors.textSecondary, fontWeight: FontWeights.medium },
+
 });
 
 export default QCStatusScreen;

@@ -15,7 +15,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { FontSizes, FontWeights } from '../styles/fonts';
-import { Colors } from '../styles/colors';
+import { Colors, Theme } from '../styles/colors';
 import Logo from '../components/Logo';
 
 const { width, height } = Dimensions.get('window');
@@ -167,7 +167,7 @@ const ForgotPasswordScreen = ({ navigation, onBack }) => {
               isKeyboardVisible && styles.headerKeyboard,
               { transform: [{ scale: logoScaleAnim }] }
             ]}>
-              <Logo />
+              <Logo size="medium" variant="light" iconOnly showName />
               <Text style={[
                 styles.title,
                 isKeyboardVisible && styles.titleKeyboard
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.background,
     borderWidth: 2,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.border,
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 16,
@@ -357,27 +357,29 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   sendButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 16,
-    paddingVertical: 18,
+    backgroundColor: Colors.primary,
+    borderRadius: Theme.radius,
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 16,
-    shadowColor: '#007AFF',
+    borderWidth: 1,
+    borderColor: Colors.primaryDark,
+    shadowColor: Colors.brandNavy,
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.18,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 4,
   },
   sendButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   sendButtonText: {
-    color: '#fff',
+    color: Colors.primaryForeground,
     fontSize: FontSizes.medium,
-    fontWeight: FontWeights.bold,
+    fontWeight: FontWeights.semiBold,
   },
   backToSignIn: {
     flexDirection: 'row',
@@ -388,12 +390,12 @@ const styles = StyleSheet.create({
   },
   backToSignInIcon: {
     fontSize: FontSizes.medium,
-    color: '#007AFF',
+    color: Colors.primary,
     marginRight: 8,
   },
   backToSignInText: {
     fontSize: FontSizes.regular,
-    color: '#007AFF',
+    color: Colors.primary,
     fontWeight: FontWeights.medium,
   },
 });

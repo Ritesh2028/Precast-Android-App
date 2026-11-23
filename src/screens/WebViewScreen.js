@@ -51,6 +51,100 @@ const safeJsonParse = (jsonString, fallback = null) => {
   }
 };
 
+// Bird's Eye View is a tab on the web Plan page (/project/:id/plan?tab=3).
+// Inside the app we open the native BirdsEyeView screen instead of the web tab.
+const BIRDS_EYE_BRIDGE_JS = `
+  (function() {
+    if (window.__pcBirdsEyeBridge) return;
+    window.__pcBirdsEyeBridge = true;
+
+    function projectIdFromUrl(href) {
+      var m = String(href || '').match(/\\/project\\/([^\\/?#]+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    }
+    function isBirdTabUrl(href) {
+      try {
+        var u = new URL(href, window.location.href);
+        if (/\\/project\\/[^\\/]+\\/bird-?eye-?view\\/?$/i.test(u.pathname)) return true;
+        if (!/\\/plan\\/?$/.test(u.pathname)) return false;
+        var t = u.searchParams.get('tab');
+        return t === '3' || t === 'bird' || t === 'bird-eye';
+      } catch (e) { return false; }
+    }
+    function openNative(href) {
+      var pid = projectIdFromUrl(href || window.location.href);
+      if (!pid || !window.ReactNativeWebView) return false;
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'OPEN_BIRDS_EYE_VIEW',
+        projectId: pid
+      }));
+      return true;
+    }
+
+    // Tap on the "Bird View" tab: stop the web tab from opening, go native.
+    document.addEventListener('click', function(e) {
+      var el = e.target && e.target.closest ? e.target.closest('.plan-view-tab, [role="tab"]') : null;
+      if (!el) return;
+      var label = (el.textContent || '').trim().toLowerCase();
+      if (label.indexOf('bird') === -1) return;
+      if (openNative(window.location.href)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      }
+    }, true);
+
+    // If the web Bird View tab is active (e.g. opened via ?tab=3), switch the
+    // web page back to the first tab so it never shows behind the native screen.
+    function leaveWebBirdTab(attempt) {
+      attempt = attempt || 0;
+      var tabs = document.querySelectorAll('.plan-view-tab');
+      var activeBird = null, first = null;
+      for (var i = 0; i < tabs.length; i++) {
+        var lbl = (tabs[i].textContent || '').toLowerCase();
+        if (!first && lbl.indexOf('bird') === -1) first = tabs[i];
+        if (lbl.indexOf('bird') !== -1 && (tabs[i].getAttribute('aria-selected') === 'true' || /\\bactive\\b/.test(tabs[i].className))) activeBird = tabs[i];
+      }
+      if (activeBird && first) { first.click(); return; }
+      if (!tabs.length && attempt < 20) setTimeout(function() { leaveWebBirdTab(attempt + 1); }, 250);
+    }
+
+    // Deep links / in-app links that land directly on the bird tab.
+    function checkUrl(href) {
+      if (!isBirdTabUrl(href)) return;
+      if (openNative(href)) {
+        setTimeout(leaveWebBirdTab, 0);
+        try {
+          var u = new URL(href, window.location.href);
+          if (/bird-?eye-?view\\/?$/i.test(u.pathname)) {
+            // Standalone web page: leave it so the WebView isn't stuck on it.
+            if (window.history.length > 1) window.history.back();
+            else window.location.replace(u.pathname.replace(/\\/bird-?eye-?view\\/?$/i, '/plan'));
+            return;
+          }
+          u.searchParams.delete('tab');
+          window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash);
+        } catch (e) {}
+      }
+    }
+    ['pushState', 'replaceState'].forEach(function(fn) {
+      var orig = window.history[fn];
+      window.history[fn] = function(state, title, url) {
+        var ret = orig.apply(this, arguments);
+        if (url != null) setTimeout(function() { checkUrl(String(url)); }, 0);
+        return ret;
+      };
+    });
+    window.addEventListener('popstate', function() { checkUrl(window.location.href); });
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { checkUrl(window.location.href); });
+    } else {
+      checkUrl(window.location.href);
+    }
+  })();
+  true;
+`;
+
 const WebViewScreen = ({ navigation, route }) => {
   const webViewRef = useRef(null);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -886,7 +980,7 @@ const WebViewScreen = ({ navigation, route }) => {
       }
       return true;
     },
-    [downloadFile]
+    [downloadFile, navigation]
   );
 
   const handleMessage = useCallback(
@@ -897,7 +991,11 @@ const WebViewScreen = ({ navigation, route }) => {
           return;
         }
         
-        if (data.type === 'DOWNLOAD_FILE') {
+        if (data.type === 'OPEN_BIRDS_EYE_VIEW') {
+          if (data.projectId) {
+            navigation.navigate('BirdsEyeView', { projectId: data.projectId });
+          }
+        } else if (data.type === 'DOWNLOAD_FILE') {
           const { url, fileName } = data;
           downloadFile(url, fileName);
         } else if (data.type === 'REQUEST_CAMERA_PERMISSION') {
@@ -965,7 +1063,14 @@ const WebViewScreen = ({ navigation, route }) => {
   const handleShouldStartLoadWithRequest = useCallback(
     (request) => {
       const { url } = request;
-      
+
+      // Never render the web Bird's Eye View page — open the native screen instead.
+      const birdMatch = url && url.match(/\/project\/([^/?#]+)\/bird-?eye-?view\/?(?:[?#]|$)/i);
+      if (birdMatch) {
+        navigation.navigate('BirdsEyeView', { projectId: decodeURIComponent(birdMatch[1]) });
+        return false;
+      }
+
       if (!url || url === WEB_URL || url.startsWith(WEB_URL)) {
         return true;
       }
@@ -1003,7 +1108,7 @@ const WebViewScreen = ({ navigation, route }) => {
       
       return true;
     },
-    [downloadFile]
+    [downloadFile, navigation]
   );
 
   // Auto-retry when network returns
@@ -1088,11 +1193,11 @@ const WebViewScreen = ({ navigation, route }) => {
           const refreshToken = '${escapedRefresh}';
           if (token && token.length > 0) {
             // Set cookies
-            document.cookie = 'auth_token=' + encodeURIComponent(token) + '; path=/; domain=.blueinvent.com; SameSite=None; Secure';
-            document.cookie = 'auth_token=' + encodeURIComponent(token) + '; path=/; domain=blueinvent.com; SameSite=None; Secure';
+            document.cookie = 'auth_token=' + encodeURIComponent(token) + '; path=/; domain=.precastezy.com; SameSite=None; Secure';
+            document.cookie = 'auth_token=' + encodeURIComponent(token) + '; path=/; domain=precastezy.com; SameSite=None; Secure';
             document.cookie = 'auth_token=' + encodeURIComponent(token) + '; path=/; SameSite=None; Secure';
-            document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; domain=.blueinvent.com; SameSite=None; Secure';
-            document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; domain=blueinvent.com; SameSite=None; Secure';
+            document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; domain=.precastezy.com; SameSite=None; Secure';
+            document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; domain=precastezy.com; SameSite=None; Secure';
             document.cookie = 'session_id=' + encodeURIComponent(token) + '; path=/; SameSite=None; Secure';
             
             // Store in storage (same keys as website in Chrome: accessToken, refreshToken)
@@ -1212,8 +1317,8 @@ const WebViewScreen = ({ navigation, route }) => {
 
   // Full injected JavaScript with download handling
   const fullInjectedJavaScript = useMemo(() => {
-    const baseScript = injectedJavaScript;
-    
+    const baseScript = injectedJavaScript + BIRDS_EYE_BRIDGE_JS;
+
     return baseScript + `
       (function() {
         // Track if this is the initial page load
@@ -1427,10 +1532,10 @@ const WebViewScreen = ({ navigation, route }) => {
                 if (name) {
                   // Clear for current domain
                   document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-                  // Clear for .blueinvent.com
-                  document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.blueinvent.com";
-                  // Clear for blueinvent.com
-                  document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=blueinvent.com";
+                  // Clear for .precastezy.com
+                  document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.precastezy.com";
+                  // Clear for precastezy.com
+                  document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=precastezy.com";
                 }
               }
               

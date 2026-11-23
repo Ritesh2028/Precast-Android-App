@@ -1,20 +1,22 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
+import AppButton from './AppButton';
+import Icon from './ui/Icon';
 
 export const OfflineScreen = ({ onRetry }) => {
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>📡</Text>
+      <View style={styles.iconCircle}>
+        <Icon name="wifi-off" size={34} color={Colors.warning} />
+      </View>
       <Text style={styles.title}>No Internet Connection</Text>
       <Text style={styles.message}>
         Please check your internet connection and try again.
       </Text>
       {onRetry && (
-        <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
+        <AppButton title="Retry" onPress={onRetry} style={styles.retryButton} />
       )}
     </View>
   );
@@ -28,8 +30,13 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: Colors.background,
   },
-  icon: {
-    fontSize: 64,
+  iconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.warningSoft,
     marginBottom: 20,
   },
   title: {
@@ -44,17 +51,9 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
+    paddingHorizontal: 20,
   },
   retryButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: FontSizes.regular,
-    fontWeight: FontWeights.bold,
+    minWidth: 160,
   },
 });
-

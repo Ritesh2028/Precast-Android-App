@@ -1,6 +1,9 @@
 <resources>
+  <!-- Aligned with PrecastEzy web brand (Industrial Precision) -->
   <color name="splashscreen_background">#FFFFFF</color>
-  <color name="iconBackground">#ffffff</color>
-  <color name="colorPrimary">#023c69</color>
-  <color name="colorPrimaryDark">#ffffff</color>
+  <color name="iconBackground">#F1F5FE</color>
+  <color name="colorPrimary">#2D69D2</color>
+  <color name="colorPrimaryDark">#06163A</color>
+  <color name="colorAccent">#2D69D2</color>
+  <color name="statusBar">#FFFFFF</color>
 </resources>

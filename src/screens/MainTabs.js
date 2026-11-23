@@ -18,9 +18,9 @@ const MainTabs = ({ navigation }) => {
   useEffect(() => {
     let title = 'Dashboard';
     if (activeTab === 'task') {
-      title = 'Task';
+      title = 'Tasks';
     } else if (activeTab === 'me') {
-      title = 'User details';
+      title = 'Profile';
     }
     
     navigation.setOptions({

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,88 +8,173 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  AppState,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontSizes, FontWeights } from '../styles/fonts';
-import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
+import { API_BASE_URL, WEB_URL, createAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
 import { validateSession, refreshSession } from '../services/authService';
 import BottomNavigation from '../components/BottomNavigation';
+import { Colors, BWTheme } from '../styles/colors';
+import { subscribeToIncomingPush } from '../services/pushNotifications';
+
+const KIND_META = {
+  project: { label: 'Project', icon: 'P', bg: '#E8F0FE', fg: '#1A56DB' },
+  drawing: { label: 'Drawing', icon: 'D', bg: '#F3E8FF', fg: '#7C3AED' },
+  dispatch: { label: 'Dispatch', icon: 'S', bg: '#FEF3C7', fg: '#D97706' },
+  erection: { label: 'Erection', icon: 'E', bg: '#FFEDD5', fg: '#EA580C' },
+  qc: { label: 'Quality', icon: 'Q', bg: '#D1FAE5', fg: '#059669' },
+  inventory: { label: 'Stock', icon: 'I', bg: '#CFFAFE', fg: '#0891B2' },
+  production: { label: 'Production', icon: 'W', bg: '#E0E7FF', fg: '#4F46E5' },
+  team: { label: 'Team', icon: 'T', bg: '#FCE7F3', fg: '#DB2777' },
+  chat: { label: 'Message', icon: 'M', bg: '#E0F2FE', fg: '#0284C7' },
+  general: { label: 'Update', icon: 'N', bg: '#F1F3F4', fg: '#5F6368' },
+};
+
+const TIME_GROUPS = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'week', label: 'This week' },
+  { key: 'earlier', label: 'Earlier' },
+];
+
+function classifyNotification(message, action) {
+  const hay = `${message || ''} ${action || ''}`.toLowerCase();
+  if (/drawing|revision/.test(hay)) return 'drawing';
+  if (/dispatch|shipment|truck/.test(hay)) return 'dispatch';
+  if (/erect|errect/.test(hay)) return 'erection';
+  if (/\bqc\b|quality|checklist|inspection/.test(hay)) return 'qc';
+  if (/stock|warehouse|stockyard|inventory/.test(hay)) return 'inventory';
+  if (/bom|wip|production|cast|element type/.test(hay)) return 'production';
+  if (/mention|chat|message/.test(hay)) return 'chat';
+  if (/user |people|member|role/.test(hay)) return 'team';
+  if (/project|milestone|task/.test(hay)) return 'project';
+  return 'general';
+}
+
+function getTimeGroup(date) {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+  const startOfWeek = new Date(startOfToday);
+  startOfWeek.setDate(startOfWeek.getDate() - 6);
+  if (date >= startOfToday) return 'today';
+  if (date >= startOfYesterday) return 'yesterday';
+  if (date >= startOfWeek) return 'week';
+  return 'earlier';
+}
+
+function groupByTime(items) {
+  const buckets = { today: [], yesterday: [], week: [], earlier: [] };
+  items.forEach((item) => {
+    const date = new Date(item.created_at);
+    if (Number.isNaN(date.getTime())) {
+      buckets.earlier.push(item);
+      return;
+    }
+    buckets[getTimeGroup(date)].push(item);
+  });
+  return TIME_GROUPS.filter((group) => buckets[group.key].length > 0).map((group) => ({
+    ...group,
+    items: buckets[group.key],
+  }));
+}
 
 const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
   const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState([]);
   const [filteredNotifications, setFilteredNotifications] = useState([]);
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('all'); // all | unread
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [activeBottomTab, setActiveBottomTab] = useState('home');
+  const requestId = useRef(0);
+  const hasLoaded = useRef(false);
 
-  // Fetch notifications
-  const fetchNotifications = async (showRefreshing = false) => {
+  // mode: 'initial' shows the loader, 'refresh' shows pull-to-refresh, 'silent' updates in place.
+  const fetchNotifications = useCallback(async (mode = 'initial') => {
+    const silent = mode === 'silent';
+    const id = ++requestId.current;
     try {
-      if (showRefreshing) {
+      if (mode === 'refresh') {
         setRefreshing(true);
-      } else {
+      } else if (!silent) {
         setLoading(true);
       }
-      setError(null);
+      if (!silent) setError(null);
 
       const { accessToken } = await getTokens();
       if (!accessToken) {
-        setError('Authentication required');
+        if (!silent) setError('Authentication required');
         return;
       }
 
-      // Validate session
       let currentToken = accessToken;
       try {
         const sessionResult = await validateSession();
         if (sessionResult && sessionResult.session_id) {
           currentToken = sessionResult.session_id;
         }
-      } catch (validateError) {
-        console.log('⚠️ [NotificationScreen] Session validation failed');
+      } catch {
+        // Keep the stored token and let the request fail if it is stale.
       }
 
       const apiUrl = `${API_BASE_URL}/api/notifications`;
-      console.log('📱 [NotificationScreen] Fetching notifications from:', apiUrl);
-
-      // Try with Bearer token first
       let headers = createAuthHeaders(currentToken, { useBearer: true, includeSessionId: true });
       let response = await fetch(apiUrl, { headers });
 
-      // If 401, try without Bearer prefix
       if (response.status === 401) {
         headers = createAuthHeaders(currentToken, { useBearer: false, includeSessionId: true });
         response = await fetch(apiUrl, { headers });
       }
 
+      if (id !== requestId.current) return;
+
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ [NotificationScreen] Notifications loaded:', data.length);
+        hasLoaded.current = true;
         setNotifications(Array.isArray(data) ? data : []);
-      } else {
-        const errorText = await response.text();
-        console.error('❌ [NotificationScreen] Error loading notifications:', errorText);
+        setError(null);
+      } else if (!silent) {
         setError('Failed to load notifications');
         setNotifications([]);
       }
-    } catch (error) {
-      console.error('❌ [NotificationScreen] Error fetching notifications:', error);
-      setError('Network error loading notifications');
-      setNotifications([]);
+    } catch {
+      if (id !== requestId.current) return;
+      if (!silent) {
+        setError('Network error loading notifications');
+        setNotifications([]);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (id === requestId.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications(hasLoaded.current ? 'silent' : 'initial');
+
+      const unsubscribePush = subscribeToIncomingPush(() => {
+        fetchNotifications('silent');
+      });
+      const appStateSub = AppState.addEventListener('change', (nextState) => {
+        if (nextState === 'active') fetchNotifications('silent');
+      });
+
+      return () => {
+        unsubscribePush();
+        appStateSub.remove();
+      };
+    }, [fetchNotifications]),
+  );
 
   // Calculate unread count
   useEffect(() => {
@@ -107,6 +192,8 @@ const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
 
     setFilteredNotifications(filtered);
   }, [notifications, activeTab]);
+
+  const groupedNotifications = groupByTime(filteredNotifications);
 
   // Mark all as read
   const markAllAsRead = async () => {
@@ -214,7 +301,9 @@ const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
     // Handle navigation if action exists
     if (notification.action) {
       // Remove base URL from action
-      const action = notification.action.replace(API_BASE_URL, '');
+      const action = notification.action
+        .replace(WEB_URL.replace(/\/$/, ''), '')
+        .replace(API_BASE_URL, '');
       
       if (action) {
         // Try to navigate based on action
@@ -225,59 +314,19 @@ const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
     }
   };
 
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffMs = now - date;
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffMs / 86400000);
-
-      if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      if (diffHours < 24) return `${diffHours}h ago`;
-      if (diffDays < 7) return `${diffDays}d ago`;
-
-      return date.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch (error) {
-      return dateString;
-    }
-  };
-
-  // Get status icon
-  const getStatusIcon = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return '✓';
-      case 'error':
-        return '⚠';
-      case 'warning':
-        return '⚠';
-      default:
-        return 'ℹ';
-    }
-  };
-
-  // Get status color
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return '#34C759';
-      case 'error':
-        return '#FF3B30';
-      case 'warning':
-        return '#FF9500';
-      default:
-        return '#007AFF';
-    }
+  const formatRelativeTime = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '';
+    const diffMs = Date.now() - date.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'Now';
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const handleTabPress = useCallback((tabId, screenName) => {
@@ -304,7 +353,7 @@ const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading notifications...</Text>
         </View>
         {!hideBottomNav && (
@@ -325,136 +374,123 @@ const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => fetchNotifications(true)}
-            tintColor="#007AFF"
-            colors={['#007AFF']}
+            onRefresh={() => fetchNotifications('refresh')}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
           />
         }
       >
-        {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.headerTitle}>Notifications</Text>
             {unreadCount > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>{unreadCount} new</Text>
-              </View>
+              <Text style={styles.headerSubtitle}>{unreadCount} new</Text>
             )}
           </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              style={[styles.actionButton, unreadCount === 0 && styles.actionButtonDisabled]}
-              onPress={markAllAsRead}
-              disabled={unreadCount === 0}
-              activeOpacity={0.7}
+          <TouchableOpacity
+            onPress={markAllAsRead}
+            disabled={unreadCount === 0}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.markAllText,
+                unreadCount === 0 && styles.markAllTextDisabled,
+              ]}
             >
-              <Text style={[styles.actionButtonText, unreadCount === 0 && styles.actionButtonTextDisabled]}>
-                Mark all
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={() => fetchNotifications(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.refreshButtonText}>↻</Text>
-            </TouchableOpacity>
-          </View>
+              Mark all read
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <Text style={styles.subtitle}>Stay updated with your tasks and system alerts</Text>
-
-        {/* Tabs */}
-        <View style={styles.tabsContainer}>
+        <View style={styles.chipsRow}>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'all' && styles.tabActive]}
+            style={[styles.chip, activeTab === 'all' && styles.chipActive]}
             onPress={() => setActiveTab('all')}
             activeOpacity={0.7}
           >
-            <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
-              All
+            <Text style={[styles.chipText, activeTab === 'all' && styles.chipTextActive]}>
+              All {notifications.length}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'unread' && styles.tabActive]}
+            style={[styles.chip, activeTab === 'unread' && styles.chipActive]}
             onPress={() => setActiveTab('unread')}
             activeOpacity={0.7}
           >
-            <Text style={[styles.tabText, activeTab === 'unread' && styles.tabTextActive]}>
-              Unread
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'read' && styles.tabActive]}
-            onPress={() => setActiveTab('read')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabText, activeTab === 'read' && styles.tabTextActive]}>
-              Read
+            <Text style={[styles.chipText, activeTab === 'unread' && styles.chipTextActive]}>
+              Unread {unreadCount}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Error Message */}
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
 
-        {/* Notifications List */}
         {filteredNotifications.length === 0 && !error ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🔔</Text>
-            <Text style={styles.emptyText}>No notifications found</Text>
+            <View style={styles.emptyIconWrap}>
+              <Text style={styles.emptyIcon}>🔔</Text>
+            </View>
+            <Text style={styles.emptyText}>
+              {activeTab === 'unread' && notifications.length > 0
+                ? 'No unread notifications'
+                : "You're all caught up"}
+            </Text>
             <Text style={styles.emptySubtext}>
-              We'll notify you when there's something new
+              {activeTab === 'unread' && notifications.length > 0
+                ? 'Switch to All to see earlier updates'
+                : "We'll let you know when something new happens"}
             </Text>
           </View>
         ) : (
-          <View style={styles.notificationsList}>
-            {filteredNotifications.map((notification) => {
-              const isUnread = notification.status === 'unread';
-              const statusColor = getStatusColor(notification.status);
-              const statusIcon = getStatusIcon(notification.status);
+          <View style={styles.listCard}>
+            {groupedNotifications.map((group) => (
+              <View key={group.key}>
+                <Text style={styles.groupLabel}>{group.label}</Text>
+                {group.items.map((notification) => {
+                  const isUnread = notification.status === 'unread';
+                  const kind = classifyNotification(
+                    notification.message,
+                    notification.action,
+                  );
+                  const meta = KIND_META[kind];
 
-              return (
-                <TouchableOpacity
-                  key={notification.id}
-                  style={[
-                    styles.notificationCard,
-                    isUnread && styles.notificationCardUnread,
-                  ]}
-                  onPress={() => handleNotificationClick(notification)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.notificationContent}>
-                    <View style={[styles.statusIconContainer, { backgroundColor: statusColor + '20' }]}>
-                      <Text style={[styles.statusIcon, { color: statusColor }]}>
-                        {statusIcon}
-                      </Text>
-                    </View>
-                    <View style={styles.notificationTextContainer}>
-                      <View style={styles.notificationHeader}>
-                        <Text style={[styles.notificationMessage, isUnread && styles.notificationMessageUnread]}>
+                  return (
+                    <TouchableOpacity
+                      key={notification.id}
+                      style={[styles.row, isUnread && styles.rowUnread]}
+                      onPress={() => handleNotificationClick(notification)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.kindIcon, { backgroundColor: meta.bg }]}>
+                        <Text style={[styles.kindIconText, { color: meta.fg }]}>
+                          {meta.icon}
+                        </Text>
+                      </View>
+                      <View style={styles.rowBody}>
+                        <Text
+                          style={[styles.rowMessage, isUnread && styles.rowMessageUnread]}
+                          numberOfLines={2}
+                        >
                           {notification.message}
                         </Text>
-                        <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-                          <Text style={[styles.statusBadgeText, { color: statusColor }]}>
-                            {notification.status}
-                          </Text>
-                        </View>
+                        <Text style={styles.rowKind}>{meta.label}</Text>
                       </View>
-                      <View style={styles.notificationFooter}>
-                        <Text style={styles.notificationTime}>
-                          🕐 {formatDate(notification.created_at)}
+                      <View style={styles.rowMeta}>
+                        <Text style={[styles.rowTime, isUnread && styles.rowTimeUnread]}>
+                          {formatRelativeTime(notification.created_at)}
                         </Text>
+                        {isUnread ? <View style={styles.unreadDot} /> : null}
                       </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
           </View>
         )}
       </ScrollView>
@@ -469,27 +505,15 @@ const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
   );
 };
 
-const BWTheme = {
-  background: '#FFFFFF',
-  card: '#FAFAFA',
-  surface: '#F5F5F5',
-  textPrimary: '#000000',
-  textSecondary: '#4A4A4A',
-  textTertiary: '#808080',
-  border: '#E0E0E0',
-  divider: '#E0E0E0',
-};
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BWTheme.background,
+    backgroundColor: '#F1F3F4',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 12,
     paddingBottom: 100,
   },
   loadingContainer: {
@@ -507,113 +531,69 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BWTheme.divider,
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    backgroundColor: '#FFFFFF',
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     flex: 1,
+    gap: 2,
   },
   headerTitle: {
-    fontSize: FontSizes.large,
+    fontSize: 22,
     fontWeight: FontWeights.bold,
-    color: BWTheme.textPrimary,
+    color: '#202124',
   },
-  unreadBadge: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    minWidth: 40,
-    alignItems: 'center',
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#5F6368',
   },
-  unreadBadgeText: {
-    color: '#fff',
-    fontSize: FontSizes.extraSmall,
-    fontWeight: FontWeights.bold,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: BWTheme.surface,
-    borderWidth: 1,
-    borderColor: BWTheme.border,
-    borderRadius: 8,
-  },
-  actionButtonDisabled: {
-    opacity: 0.5,
-  },
-  actionButtonText: {
-    fontSize: FontSizes.small,
-    fontWeight: FontWeights.bold,
-    color: BWTheme.textPrimary,
-  },
-  actionButtonTextDisabled: {
-    color: BWTheme.textSecondary,
-  },
-  refreshButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: BWTheme.surface,
-    borderWidth: 1,
-    borderColor: BWTheme.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  refreshButtonText: {
-    fontSize: FontSizes.medium,
-    color: BWTheme.textPrimary,
-  },
-  subtitle: {
-    fontSize: FontSizes.small,
-    color: BWTheme.textSecondary,
-    marginBottom: 12,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: BWTheme.surface,
-    borderRadius: 8,
-    padding: 4,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: BWTheme.border,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 6,
-  },
-  tabActive: {
-    backgroundColor: '#007AFF',
-  },
-  tabText: {
-    fontSize: FontSizes.small,
+  markAllText: {
+    fontSize: 13,
     fontWeight: FontWeights.medium,
-    color: BWTheme.textSecondary,
+    color: Colors.primary,
+    paddingVertical: 4,
   },
-  tabTextActive: {
-    color: '#fff',
+  markAllTextDisabled: {
+    color: '#9AA0A6',
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  chip: {
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DADCE0',
+    justifyContent: 'center',
+  },
+  chipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: FontWeights.medium,
+    color: '#5F6368',
+  },
+  chipTextActive: {
+    color: '#FFFFFF',
     fontWeight: FontWeights.bold,
   },
   errorContainer: {
-    backgroundColor: '#FFEBEE',
+    backgroundColor: Colors.errorSoft,
     padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
     borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#FFCDD2',
   },
   errorText: {
     fontSize: FontSizes.small,
@@ -623,100 +603,109 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: 72,
+    paddingHorizontal: 24,
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#E8F0FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-    opacity: 0.5,
+    fontSize: 28,
   },
   emptyText: {
-    fontSize: FontSizes.medium,
+    fontSize: 16,
     fontWeight: FontWeights.bold,
-    color: BWTheme.textPrimary,
-    marginBottom: 8,
+    color: '#202124',
+    marginBottom: 6,
   },
   emptySubtext: {
-    fontSize: FontSizes.small,
-    color: BWTheme.textSecondary,
+    fontSize: 13,
+    color: '#5F6368',
     textAlign: 'center',
+    maxWidth: 240,
   },
-  notificationsList: {
-    gap: 12,
+  listCard: {
+    backgroundColor: '#FFFFFF',
   },
-  notificationCard: {
-    backgroundColor: BWTheme.card,
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: BWTheme.border,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  notificationCardUnread: {
-    borderColor: '#007AFF',
-    borderWidth: 2,
-    backgroundColor: '#E3F2FD',
-  },
-  notificationContent: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  statusIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusIcon: {
-    fontSize: 20,
+  groupLabel: {
+    fontSize: 11,
     fontWeight: FontWeights.bold,
-  },
-  notificationTextContainer: {
-    flex: 1,
-  },
-  notificationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-    gap: 8,
-  },
-  notificationMessage: {
-    flex: 1,
-    fontSize: FontSizes.regular,
-    fontWeight: FontWeights.medium,
-    color: BWTheme.textPrimary,
-    lineHeight: 20,
-  },
-  notificationMessageUnread: {
-    fontWeight: FontWeights.bold,
-    color: '#007AFF',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusBadgeText: {
-    fontSize: FontSizes.extraSmall,
-    fontWeight: FontWeights.bold,
+    color: '#5F6368',
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
-  notificationFooter: {
+  row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E8EAED',
   },
-  notificationTime: {
-    fontSize: FontSizes.extraSmall,
-    color: BWTheme.textSecondary,
+  rowUnread: {
+    backgroundColor: '#E8F0FE',
+  },
+  kindIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  kindIconText: {
+    fontSize: 15,
+    fontWeight: FontWeights.bold,
+  },
+  rowBody: {
+    flex: 1,
+  },
+  rowMessage: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: FontWeights.medium,
+    color: '#3C4043',
+  },
+  rowMessageUnread: {
+    fontWeight: FontWeights.bold,
+    color: '#202124',
+  },
+  rowKind: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#5F6368',
+  },
+  rowMeta: {
+    alignItems: 'flex-end',
+    gap: 8,
+    paddingTop: 2,
+  },
+  rowTime: {
+    fontSize: 11,
+    color: '#5F6368',
+  },
+  rowTimeUnread: {
+    color: Colors.primary,
+    fontWeight: FontWeights.bold,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
   },
 });
 

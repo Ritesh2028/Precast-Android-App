@@ -1,4 +1,24 @@
 {
-    "java.compile.nullAnalysis.mode": "automatic",
-    "java.configuration.updateBuildConfiguration": "interactive"
+  "java.autobuild.enabled": false,
+  "java.import.gradle.enabled": false,
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "java.project.importOnFirstTimeStartup": "disabled",
+  "java.import.exclusions": [
+    "**"
+  ],
+  "java.compile.nullAnalysis.mode": "disabled",
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/android/.gradle/**": true,
+    "**/android/build/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/android/build": true,
+    "**/android/.gradle": true
+  },
+  "eslint.enable": true,
+  "eslint.quiet": true,
+  "eslint.validate": ["javascript", "javascriptreact"],
+  "eslint.workingDirectories": [{ "mode": "auto" }]
 }

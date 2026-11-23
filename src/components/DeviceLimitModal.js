@@ -12,11 +12,19 @@ import {
 } from 'react-native';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
-import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
-import { getTokens } from '../services/tokenManager';
-import { validateSession } from '../services/authService';
+import { API_BASE_URL } from '../config/apiConfig';
 
-const DeviceLimitModal = ({ visible, onClose, activeDevices, onDeviceLogout, maxDevices, currentDevices, message }) => {
+const DeviceLimitModal = ({
+  visible,
+  onClose,
+  activeDevices,
+  onDeviceLogout,
+  maxDevices,
+  currentDevices,
+  message,
+  email,
+  password,
+}) => {
   const [loggingOutDevice, setLoggingOutDevice] = useState(null);
   
   // Prevent closing dialog while logging out
@@ -47,45 +55,84 @@ const DeviceLimitModal = ({ visible, onClose, activeDevices, onDeviceLogout, max
   const handleLogoutDevice = async (sessionId, deviceIndex) => {
     try {
       setLoggingOutDevice(sessionId);
-      
-      // Note: User is not logged in yet, so we don't need access token
-      // The logout-device endpoint should work without authentication for this use case
-      const apiUrl = `${API_BASE_URL}/api/logout-device`;
-      console.log('📱 [DeviceLimitModal] Logging out device:', sessionId);
 
-      // Try without authentication first (since user is not logged in)
+      // User is not authenticated yet — backend expects login/logout-device with credentials.
+      if (!email || !password) {
+        Alert.alert('Error', 'Login credentials missing. Close this dialog and try logging in again.');
+        setLoggingOutDevice(null);
+        return;
+      }
+
+      const apiUrl = `${API_BASE_URL}/api/login/logout-device`;
+
       let response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Accept: 'application/json',
         },
-        body: JSON.stringify({ session_id: sessionId }),
+        body: JSON.stringify({
+          email,
+          password,
+          session_id: sessionId,
+        }),
       });
 
       if (response.ok) {
-        const responseData = await response.json();
-        console.log('✅ [DeviceLimitModal] Device logged out successfully');
-        
-        // Call the callback to handle the logout (e.g., retry login)
-        // The parent component will show success message
         if (onDeviceLogout) {
           onDeviceLogout(sessionId, deviceIndex);
         }
       } else {
         const errorText = await response.text();
-        console.error('❌ [DeviceLimitModal] Error logging out device:', errorText);
         let errorMessage = 'Failed to logout device. Please try again.';
         try {
           const errorData = JSON.parse(errorText);
-          errorMessage = errorData?.message || errorMessage;
-        } catch {
-          errorMessage = errorText || errorMessage;
+          errorMessage = errorData?.error || errorData?.message || errorMessage;
+        } catch (_) {
+          // keep default
         }
-        Alert.alert('Error', errorMessage);
+        Alert.alert('Logout Failed', errorMessage);
       }
     } catch (error) {
-      console.error('❌ [DeviceLimitModal] Error logging out device:', error);
-      Alert.alert('Error', 'Failed to logout device. Please try again.');
+      Alert.alert('Network Error', 'Could not reach the server. Check your connection and try again.');
+    } finally {
+      setLoggingOutDevice(null);
+    }
+  };
+
+  const handleLogoutAllDevices = async () => {
+    try {
+      setLoggingOutDevice('__all__');
+      if (!email || !password) {
+        Alert.alert('Error', 'Login credentials missing. Close this dialog and try logging in again.');
+        setLoggingOutDevice(null);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/login/logout-all-devices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (response.ok) {
+        if (onDeviceLogout) {
+          onDeviceLogout(null, -1);
+        }
+      } else {
+        const errorText = await response.text();
+        let errorMessage = 'Failed to sign out of all devices.';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData?.error || errorData?.message || errorMessage;
+        } catch (_) {}
+        Alert.alert('Logout Failed', errorMessage);
+      }
+    } catch (error) {
+      Alert.alert('Network Error', 'Could not reach the server. Check your connection and try again.');
     } finally {
       setLoggingOutDevice(null);
     }
@@ -213,6 +260,24 @@ const DeviceLimitModal = ({ visible, onClose, activeDevices, onDeviceLogout, max
               </View>
             )}
           </ScrollView>
+
+          <View style={styles.footerActions}>
+            <TouchableOpacity
+              style={[
+                styles.logoutAllButton,
+                loggingOutDevice && styles.logoutButtonDisabled,
+              ]}
+              onPress={handleLogoutAllDevices}
+              disabled={!!loggingOutDevice}
+              activeOpacity={0.8}
+            >
+              {loggingOutDevice === '__all__' ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.logoutAllButtonText}>Sign out all devices</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -246,7 +311,7 @@ const styles = StyleSheet.create({
   header: {
     padding: 24,
     paddingTop: 28,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: Colors.card,
     borderBottomWidth: 1,
     borderBottomColor: '#E8E8E8',
   },
@@ -270,7 +335,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Colors.border,
   },
   closeButtonText: {
     fontSize: 20,
@@ -295,7 +360,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
     borderColor: '#FFE0B2',
-    shadowColor: '#FF9500',
+    shadowColor: Colors.warning,
     shadowOffset: {
       width: 0,
       height: 4,
@@ -321,7 +386,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#F0F0F0',
+    borderColor: Colors.divider,
     width: '100%',
   },
   message: {
@@ -339,12 +404,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#FF9500',
+    borderLeftColor: Colors.warning,
     width: '100%',
   },
   actionText: {
     fontSize: FontSizes.regular,
-    color: '#FF9500',
+    color: Colors.warning,
     textAlign: 'center',
     fontWeight: FontWeights.semiBold,
     letterSpacing: 0.2,
@@ -385,7 +450,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: Colors.divider,
   },
   deviceIconContainer: {
     marginRight: 16,
@@ -394,11 +459,11 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#F0F7FF',
+    backgroundColor: Colors.primarySoft,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E3F2FD',
+    borderColor: Colors.primarySoft,
   },
   deviceIcon: {
     fontSize: 28,
@@ -416,7 +481,7 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E8F5E9',
+    backgroundColor: Colors.successSoft,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -426,7 +491,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4CAF50',
+    backgroundColor: Colors.success,
     marginRight: 6,
   },
   deviceStatus: {
@@ -438,12 +503,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   detailCard: {
-    backgroundColor: '#FAFAFA',
+    backgroundColor: Colors.card,
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#F0F0F0',
+    borderColor: Colors.divider,
   },
   detailRow: {
     flexDirection: 'row',
@@ -483,11 +548,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FF3B30',
+    backgroundColor: Colors.error,
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 20,
-    shadowColor: '#FF3B30',
+    shadowColor: Colors.error,
     shadowOffset: {
       width: 0,
       height: 4,
@@ -529,6 +594,25 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.regular,
     color: Colors.textSecondary,
     fontWeight: FontWeights.medium,
+  },
+  footerActions: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E8E8E8',
+  },
+  logoutAllButton: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutAllButtonText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.regular,
+    fontWeight: FontWeights.bold,
   },
 });
 

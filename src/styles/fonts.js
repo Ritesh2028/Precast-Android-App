@@ -1,3 +1,4 @@
+import { Colors } from '../styles/colors';
 // Centralized font configuration for the entire app
 // All font sizes are reduced and standardized
 
@@ -43,7 +44,7 @@ export const FontFamilies = {
 };
 
 // Helper function to get consistent font styles
-export const getFontStyle = (size, weight = 'regular', color = '#75767a') => ({
+export const getFontStyle = (size, weight = 'regular', color = Colors.textSecondary) => ({
   fontSize: FontSizes[size] || size,
   fontWeight: FontWeights[weight] || weight,
   color: color,

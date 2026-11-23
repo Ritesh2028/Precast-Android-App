@@ -34,6 +34,7 @@ import { DateFilter } from '../components/DateFilter';
 import LineChart from '../components/LineChart';
 import TowerFloorEditor from '../components/TowerFloorEditor';
 import CameraQRScanner from '../components/CameraQRScanner';
+import { themedStyles } from '../theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -272,7 +273,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
           >
             <Image
               source={require('../icons/bell.png')}
-              style={{ width: 24, height: 24, tintColor: '#333' }}
+              style={{ width: 24, height: 24, tintColor: Colors.textPrimary }}
               resizeMode="contain"
             />
           </TouchableOpacity>
@@ -285,15 +286,15 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
             accessibilityRole="button"
             accessibilityLabel="Open scanner for marking erected"
           >
-            <Image
-              source={require('../icons/qr-code.png')}
-              style={{ width: 24, height: 24, tintColor: '#333' }}
-              resizeMode="contain"
-            />
-          </TouchableOpacity>
-        </View>
-      ),
-    });
+              <Image
+                source={require('../icons/qr-code.png')}
+                style={{ width: 24, height: 24, tintColor: Colors.textPrimary }}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </View>
+        ),
+      });
   }, [navigation]);
 
   // Also handle when user navigates to Scan screen and comes back
@@ -3215,7 +3216,7 @@ const ErectionManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
 
 // White Background and Black Font Theme
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: BWTheme.background,
@@ -4497,7 +4498,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
-});
+}));
 
 export default ErectionManagerScreen;
 

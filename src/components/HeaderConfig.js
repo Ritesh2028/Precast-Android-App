@@ -1,7 +1,23 @@
 import React from 'react';
-import { TouchableOpacity, View, StyleSheet } from 'react-native';
+import { Image, TouchableOpacity, View, StyleSheet } from 'react-native';
+import { HeaderBackButton } from '@react-navigation/elements';
 import Icon from './ui/Icon';
 import { Colors } from '../styles/colors';
+import { themedStyles, pick } from '../theme';
+import { WorkspaceButton } from './WorkspaceSwitcher';
+
+const HEADER_LOGO = require('../../assets/precastezy-logo.png');
+const HEADER_LOGO_ON_DARK = require('../../assets/precastezy-logo-on-dark.png');
+
+/** Wordmark shown on the left of the navigation header when there is no back button. */
+export const HeaderBrand = () => (
+  <Image
+    source={pick(HEADER_LOGO, HEADER_LOGO_ON_DARK)}
+    style={styles.brand}
+    resizeMode="contain"
+    accessibilityLabel="PrecastEzy"
+  />
+);
 
 /*
  * Default header configuration for React Navigation
@@ -38,11 +54,8 @@ export const getDefaultHeaderOptions = (navigation) => ({
   },
   headerShadowVisible: false,
   headerTintColor: Colors.textPrimary,
-  headerTitleStyle: {
-    fontWeight: '700',
-    fontSize: 18,
-    color: Colors.textPrimary,
-  },
+  // Screen names stay out of the bar; the wordmark is the header.
+  headerTitle: () => null,
   headerTitleAlign: 'center',
   headerBackButtonDisplayMode: 'minimal',
   // Native-feeling push transition + swipe-back gesture.
@@ -53,13 +66,26 @@ export const getDefaultHeaderOptions = (navigation) => ({
     paddingHorizontal: 10,
   },
   headerLeftContainerStyle: {
-    paddingLeft: 6,
+    paddingLeft: 12,
   },
   headerRightContainerStyle: {
     paddingRight: 12,
   },
+  headerLeft: ({ canGoBack, label, tintColor }) =>
+    canGoBack ? (
+      <HeaderBackButton
+        tintColor={tintColor}
+        label={label}
+        displayMode="minimal"
+        onPress={() => navigation.goBack()}
+      />
+    ) : (
+      <HeaderBrand />
+    ),
   headerRight: () => (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+    <View style={styles.rightCluster}>
+      {/* Only shown to users who can work in more than one area */}
+      <WorkspaceButton navigation={navigation} />
       <HeaderAction icon="bell" label="Open notifications" onPress={() => navigation.navigate('Notifications')} />
       <HeaderAction icon="scan" label="Open scanner" onPress={() => navigation.navigate('Scan')} />
     </View>
@@ -101,8 +127,21 @@ export const getHeaderOptions = (navigation, customOptions = {}) => {
   };
 };
 
+const styles = themedStyles(() => ({
+  rightCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  brand: {
+    width: 168,
+    height: 40,
+  },
+}));
+
 export default {
   getDefaultHeaderOptions,
   getHeaderOptions,
+  HeaderBrand,
 };
 

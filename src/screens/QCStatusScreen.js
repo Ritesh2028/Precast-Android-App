@@ -26,6 +26,7 @@ import TowerFloorFilter from '../components/TowerFloorFilter';
 import { Colors, Theme } from '../styles/colors';
 import { Icon, SegmentedControl, StatusPill, EmptyState, SkeletonList, Tone } from '../components/ui';
 import { FontSizes, FontWeights } from '../styles/fonts';
+import { themedStyles } from '../theme';
 
 const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
   useNativeAccessGuard(navigation, 'Dashboard');
@@ -563,25 +564,6 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
     });
   }
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Pending': return '#FFB84D'; // Lighter orange
-      case 'In Progress': return Colors.primary;
-      case 'Completed': return '#6DD47E'; // Lighter green
-     
-      default: return '#8E8E93';
-    }
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'High': return Colors.error;
-      case 'Medium': return '#FFB84D'; // Lighter orange
-      case 'Low': return '#6DD47E'; // Lighter green
-      default: return '#8E8E93';
-    }
-  };
-
   const handleQCItemPress = async (qcItem) => {
     const elementId = qcItem.originalData?.element_id || qcItem.originalData?.id || qcItem.id?.replace('ELEM-', '') || qcItem.id;
 
@@ -686,14 +668,6 @@ const QCStatusScreen = ({ navigation, hideBottomNav = false }) => {
       console.log('Error navigating to questions:', error);
       Alert.alert('Network Error', `Failed to load questions: ${error.message}`);
     }
-  };
-
-  const handleProfile = () => {
-    navigation.navigate('UserProfile');
-  };
-
-  const handleQRScan = () => {
-    setQrScannerVisible(true);
   };
 
   const handleQRScanned = (data, elementData = null) => {
@@ -964,7 +938,7 @@ const cardShadow = {
   elevation: 2,
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   mainContainer: { flex: 1, backgroundColor: Colors.surface },
   container: { flex: 1, backgroundColor: Colors.surface },
   scrollContent: { paddingBottom: 24 },
@@ -1029,6 +1003,6 @@ const styles = StyleSheet.create({
   detailsLink: { flexDirection: 'row', alignItems: 'center', marginLeft: 'auto', gap: 2 },
   detailsLinkText: { fontSize: FontSizes.small, color: Colors.textSecondary, fontWeight: FontWeights.medium },
 
-});
+}));
 
 export default QCStatusScreen;

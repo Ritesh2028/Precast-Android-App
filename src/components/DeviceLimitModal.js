@@ -13,6 +13,7 @@ import {
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
 import { API_BASE_URL } from '../config/apiConfig';
+import { themedStyles } from '../theme';
 
 const DeviceLimitModal = ({
   visible,
@@ -284,7 +285,7 @@ const DeviceLimitModal = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -463,7 +464,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.primarySoft,
+    borderColor: Colors.inputBorder,
   },
   deviceIcon: {
     fontSize: 28,
@@ -614,7 +615,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.regular,
     fontWeight: FontWeights.bold,
   },
-});
+}));
 
 export default DeviceLimitModal;
 

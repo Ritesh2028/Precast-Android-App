@@ -17,6 +17,7 @@ import {
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors, Theme } from '../styles/colors';
 import Logo from '../components/Logo';
+import { themedStyles } from '../theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -167,7 +168,7 @@ const ForgotPasswordScreen = ({ navigation, onBack }) => {
               isKeyboardVisible && styles.headerKeyboard,
               { transform: [{ scale: logoScaleAnim }] }
             ]}>
-              <Logo size="medium" variant="light" iconOnly showName />
+              <Logo size="large" variant="light" />
               <Text style={[
                 styles.title,
                 isKeyboardVisible && styles.titleKeyboard
@@ -235,7 +236,7 @@ const ForgotPasswordScreen = ({ navigation, onBack }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -300,7 +301,7 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.card,
     borderRadius: 24,
     padding: 32,
     shadowColor: '#000',
@@ -398,6 +399,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: FontWeights.medium,
   },
-});
+}));
 
 export default ForgotPasswordScreen;

@@ -17,6 +17,7 @@ import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { getTokens } from '../services/tokenManager';
 import { validateSession } from '../services/authService';
 import TowerFloorSelector from './TowerFloorSelector';
+import { themedStyles } from '../theme';
 
 const TowerFloorEditor = ({ projectId, onSave }) => {
   const [data, setData] = useState(null);
@@ -805,7 +806,7 @@ const TowerFloorEditor = ({ projectId, onSave }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
   },
@@ -972,6 +973,7 @@ const styles = StyleSheet.create({
   quantityInput: {
     borderWidth: 1,
     borderColor: Colors.border,
+    color: Colors.textPrimary,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -1123,6 +1125,6 @@ const styles = StyleSheet.create({
   modalItemTextDisabled: {
     color: Colors.textSecondary,
   },
-});
+}));
 
 export default TowerFloorEditor;

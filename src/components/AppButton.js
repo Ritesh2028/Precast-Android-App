@@ -8,12 +8,13 @@ import {
 } from 'react-native';
 import { Colors, Theme } from '../styles/colors';
 import { FontWeights } from '../styles/fonts';
+import { themed, themedStyles } from '../theme';
 
 /**
  * Mobile button aligned with web `button.tsx` variants
  * (default / outline / secondary / destructive / ghost / link).
  */
-const VARIANT_STYLES = {
+const VARIANT_STYLES = themed(() => ({
   default: {
     container: {
       backgroundColor: Colors.primary,
@@ -63,7 +64,7 @@ const VARIANT_STYLES = {
     },
     text: { color: Colors.primary, textDecorationLine: 'underline' },
   },
-};
+}));
 
 const SIZE_STYLES = {
   default: {
@@ -138,7 +139,7 @@ const AppButton = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   base: {
     borderRadius: Theme.radius,
     alignItems: 'center',
@@ -162,6 +163,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     marginHorizontal: 4,
   },
-});
+}));
 
 export default AppButton;

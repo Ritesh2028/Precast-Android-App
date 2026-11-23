@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
+import { themedStyles } from '../theme';
 
 const TowerFloorSelector = ({
   data,
@@ -153,7 +154,7 @@ const TowerFloorSelector = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flexDirection: 'row',
     gap: 16,
@@ -259,6 +260,6 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.bold,
     color: Colors.primary,
   },
-});
+}));
 
 export default TowerFloorSelector;

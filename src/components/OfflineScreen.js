@@ -4,6 +4,7 @@ import { Colors } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import AppButton from './AppButton';
 import Icon from './ui/Icon';
+import { themedStyles } from '../theme';
 
 export const OfflineScreen = ({ onRetry }) => {
   return (
@@ -22,7 +23,7 @@ export const OfflineScreen = ({ onRetry }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -56,4 +57,4 @@ const styles = StyleSheet.create({
   retryButton: {
     minWidth: 160,
   },
-});
+}));

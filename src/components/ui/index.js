@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,31 +6,34 @@ import {
   StyleSheet,
   Modal,
   Animated,
+  Easing,
   ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from './Icon';
 import { Colors, Theme } from '../../styles/colors';
 import { FontSizes, FontWeights } from '../../styles/fonts';
+import { themed, themedStyles, pick } from '../../theme';
 
 export { Icon };
 
 /** Status families used across lists, pills and tiles. */
-export const Tone = {
+export const Tone = themed(() => ({
   success: { fg: '#1E7B3A', bg: '#E6F4EA', solid: '#34A853' },
   warning: { fg: '#B35C00', bg: '#FFF1E0', solid: '#F59E0B' },
   info: { fg: Colors.accentForeground, bg: Colors.primarySoft, solid: Colors.primary },
   danger: { fg: '#B42318', bg: '#FEECEB', solid: Colors.error },
   neutral: { fg: Colors.textSecondary, bg: Colors.surface, solid: '#9AA3B2' },
-};
+}), { fg: 'text', bg: 'bg', solid: 'keep' });
 
-export const elevation = {
+export const elevation = themed(() => ({
   shadowColor: Colors.shadow,
   shadowOffset: { width: 0, height: 2 },
   shadowOpacity: 1,
   shadowRadius: 6,
   elevation: 2,
-};
+}));
 
 /** Rounded surface with hairline border + soft shadow. */
 export const Card = ({ style, children, onPress, ...rest }) => {
@@ -119,30 +122,83 @@ export const EmptyState = ({ icon = 'clipboard', title, message, actionLabel, on
   );
 };
 
-/** Pulsing placeholder block for loading lists. */
-export const Skeleton = ({ width = '100%', height = 14, radius = 6, style }) => {
-  const pulse = useRef(new Animated.Value(0.5)).current;
+// One shared shimmer clock for every skeleton on screen (runs only while any are mounted).
+const shimmer = new Animated.Value(0);
+let shimmerUsers = 0;
+let shimmerLoop = null;
+const useShimmer = () => {
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 650, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.5, duration: 650, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-  return <Animated.View style={[{ width, height, borderRadius: radius, backgroundColor: Colors.input, opacity: pulse }, style]} />;
+    shimmerUsers += 1;
+    if (!shimmerLoop) {
+      shimmer.setValue(0);
+      shimmerLoop = Animated.loop(
+        Animated.timing(shimmer, { toValue: 1, duration: 1100, easing: Easing.linear, useNativeDriver: true }),
+      );
+      shimmerLoop.start();
+    }
+    return () => {
+      shimmerUsers -= 1;
+      if (shimmerUsers <= 0 && shimmerLoop) {
+        shimmerLoop.stop();
+        shimmerLoop = null;
+      }
+    };
+  }, []);
+  return shimmer;
 };
 
-export const SkeletonList = ({ rows = 4 }) => (
+/** Placeholder block with a moving shine (Zepto / Swiggy style). */
+export const Skeleton = ({ width = '100%', height = 14, radius = 6, style }) => {
+  const anim = useShimmer();
+  const [w, setW] = useState(0);
+  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [-w, w] });
+  return (
+    <View
+      onLayout={(e) => setW(e.nativeEvent.layout.width)}
+      style={[{ width, height, borderRadius: radius, backgroundColor: Colors.input, overflow: 'hidden' }, style]}
+    >
+      {w > 0 && (
+        <Animated.View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: w, transform: [{ translateX }] }}>
+          <LinearGradient
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            colors={['rgba(255,255,255,0)', pick('rgba(255,255,255,0.65)', 'rgba(255,255,255,0.08)'), 'rgba(255,255,255,0)']}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+      )}
+    </View>
+  );
+};
+
+/** Card-shaped placeholder matching the task / job cards. */
+export const SkeletonCard = ({ compact = false }) => (
+  <View style={s.skCard}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <Skeleton width="55%" height={16} />
+      <View style={{ flex: 1 }} />
+      <Skeleton width={72} height={22} radius={11} />
+    </View>
+    <Skeleton width="35%" height={12} style={{ marginTop: 10 }} />
+    {!compact && (
+      <>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 12 }}>
+          <Skeleton width={96} height={24} radius={8} />
+          <Skeleton width={84} height={24} radius={8} />
+          <Skeleton width={56} height={24} radius={8} />
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+          <Skeleton width={104} height={32} radius={16} />
+          <Skeleton width={104} height={32} radius={16} />
+        </View>
+      </>
+    )}
+  </View>
+);
+
+export const SkeletonList = ({ rows = 4, compact = false }) => (
   <View style={{ gap: 10 }}>
-    {Array.from({ length: rows }).map((_, i) => (
-      <View key={i} style={[s.card, { padding: 14, gap: 10 }]}>
-        <Skeleton width="55%" height={14} />
-        <Skeleton width="35%" height={10} />
-      </View>
-    ))}
+    {Array.from({ length: rows }).map((_, i) => <SkeletonCard key={i} compact={compact} />)}
   </View>
 );
 
@@ -202,7 +258,8 @@ export const BusyOverlay = ({ visible, label = 'Loading…' }) => (
   </Modal>
 );
 
-const s = StyleSheet.create({
+const s = themedStyles(() => ({
+  skCard: { backgroundColor: Colors.card, borderRadius: Theme.radiusLg, borderWidth: 1, borderColor: Colors.border, padding: 14 },
   card: {
     backgroundColor: Colors.card,
     borderRadius: Theme.radiusLg,
@@ -259,4 +316,4 @@ const s = StyleSheet.create({
   busyBackdrop: { flex: 1, backgroundColor: 'rgba(22,31,50,0.25)', alignItems: 'center', justifyContent: 'center' },
   busyCard: { backgroundColor: Colors.background, borderRadius: Theme.radiusLg, paddingVertical: 20, paddingHorizontal: 28, alignItems: 'center', ...elevation },
   busyText: { marginTop: 10, fontSize: FontSizes.regular, color: Colors.textSecondary },
-});
+}));

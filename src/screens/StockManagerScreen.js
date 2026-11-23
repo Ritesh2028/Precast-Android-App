@@ -35,6 +35,7 @@ import LineChart from '../components/LineChart';
 import ProjectDropdown from '../components/ProjectDropdown';
 import PieChart from '../components/PieChart';
 import CameraQRScanner from '../components/CameraQRScanner';
+import { themedStyles } from '../theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -182,7 +183,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
             >
               <Image
                 source={require('../icons/bell.png')}
-                style={{ width: 24, height: 24, tintColor: '#333' }}
+                style={{ width: 24, height: 24, tintColor: Colors.textPrimary }}
                 resizeMode="contain"
               />
             </TouchableOpacity>
@@ -201,7 +202,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
             >
               <Image
                 source={require('../icons/qr-code.png')}
-                style={{ width: 24, height: 24, tintColor: '#333' }}
+                style={{ width: 24, height: 24, tintColor: Colors.textPrimary }}
                 resizeMode="contain"
               />
             </TouchableOpacity>
@@ -2602,7 +2603,7 @@ const StockManagerScreen = ({ route, navigation, hideBottomNav = false }) => {
 
 // White Background and Black Font Theme
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: BWTheme.background,
@@ -3663,7 +3664,7 @@ const styles = StyleSheet.create({
     color: BWTheme.textPrimary,
     fontWeight: FontWeights.medium,
   },
-});
+}));
 
 export default StockManagerScreen;
 

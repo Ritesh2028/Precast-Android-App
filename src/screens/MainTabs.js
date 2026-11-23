@@ -6,27 +6,26 @@ import UserProfileScreen from './UserProfileScreen';
 import BottomNavigation from '../components/BottomNavigation';
 import { Colors } from '../styles/colors';
 import { startTokenRefreshService, stopTokenRefreshService } from '../services/tokenRefreshService';
+import { themedStyles } from '../theme';
 
-const MainTabs = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState('home');
+const TAB_IDS = ['home', 'task', 'me'];
+
+const MainTabs = ({ navigation, route }) => {
+  const [activeTab, setActiveTab] = useState(
+    TAB_IDS.includes(route?.params?.tab) ? route.params.tab : 'home',
+  );
+
+  // Screens opened on top of the tabs (e.g. Bird's Eye View) show the same bottom
+  // bar and come back here with { tab } to switch to the tapped tab.
+  const requestedTab = route?.params?.tab;
+  const requestKey = route?.params?.tabRequest;
+  useEffect(() => {
+    if (TAB_IDS.includes(requestedTab)) setActiveTab(requestedTab);
+  }, [requestedTab, requestKey]);
 
   const handleTabPress = useCallback((tabId) => {
     setActiveTab(tabId);
   }, []);
-
-  // Update header title based on active tab
-  useEffect(() => {
-    let title = 'Dashboard';
-    if (activeTab === 'task') {
-      title = 'Tasks';
-    } else if (activeTab === 'me') {
-      title = 'Profile';
-    }
-    
-    navigation.setOptions({
-      title: title,
-    });
-  }, [activeTab, navigation]);
 
   // Start token refresh service when component mounts (user is logged in)
   useEffect(() => {
@@ -59,10 +58,10 @@ const MainTabs = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { flex: 1 },
-});
+}));
 
 export default MainTabs;
 

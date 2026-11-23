@@ -1,455 +1,129 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Image,
-} from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
+import { themedStyles } from '../theme';
+import { ActionSheet, Icon } from './ui';
 
+const extractTowerFloor = (item) => {
+  const d = item?.originalData || {};
+  const tower = d.tower || d.tower_name || d.element_type?.tower || d.element_type?.tower_name || item?.tower || item?.tower_name;
+  const floor = d.floor || d.floor_name || d.element_type?.floor || d.element_type?.floor_name || item?.floor || item?.floor_name;
+  return { tower, floor };
+};
+
+const uniqueSorted = (values) => Array.from(new Set(values.filter((v) => v && v !== 'N/A'))).sort();
+
+/**
+ * Tower / Floor filter chips. Picking opens a bottom sheet; floor is enabled once
+ * a tower is chosen. Calls onFilterChange({ tower, floor }) on every change.
+ */
 const TowerFloorFilter = ({ jobs = [], onFilterChange }) => {
-  const [selectedTower, setSelectedTower] = useState(null);
-  const [selectedFloor, setSelectedFloor] = useState(null);
-  const [towerDropdownVisible, setTowerDropdownVisible] = useState(false);
-  const [floorDropdownVisible, setFloorDropdownVisible] = useState(false);
+  const [tower, setTower] = useState(null);
+  const [floor, setFloor] = useState(null);
+  const [sheet, setSheet] = useState(null); // 'tower' | 'floor' | null
 
-  // Extract unique towers and floors from jobs
-  const extractTowerFloor = (item) => {
-    const tower = item.originalData?.tower || item.originalData?.tower_name || item.originalData?.element_type?.tower || item.originalData?.element_type?.tower_name || item.tower || item.tower_name;
-    const floor = item.originalData?.floor || item.originalData?.floor_name || item.originalData?.element_type?.floor || item.originalData?.element_type?.floor_name || item.floor || item.floor_name;
-    return { tower, floor };
-  };
+  const towers = useMemo(() => uniqueSorted(jobs.map((j) => extractTowerFloor(j).tower)), [jobs]);
+  const floors = useMemo(
+    () => (tower ? uniqueSorted(jobs.filter((j) => extractTowerFloor(j).tower === tower).map((j) => extractTowerFloor(j).floor)) : []),
+    [jobs, tower],
+  );
 
-  // Get unique towers
-  const uniqueTowers = Array.from(new Set(
-    jobs
-      .map(item => extractTowerFloor(item).tower)
-      .filter(tower => tower && tower !== 'N/A')
-  )).sort();
-
-  // Clear selected tower if it's not in available towers
+  // Drop selections that no longer exist (e.g. after changing project or status filter).
   useEffect(() => {
-    if (selectedTower && !uniqueTowers.includes(selectedTower)) {
-      setSelectedTower(null);
-      setSelectedFloor(null);
+    if (tower && !towers.includes(tower)) {
+      setTower(null);
+      setFloor(null);
     }
-  }, [uniqueTowers, selectedTower]);
-
-  // Get floors for selected tower
-  const getFloorsForTower = (towerName) => {
-    if (!towerName) return [];
-    return Array.from(new Set(
-      jobs
-        .filter(item => {
-          const { tower } = extractTowerFloor(item);
-          return tower === towerName;
-        })
-        .map(item => extractTowerFloor(item).floor)
-        .filter(floor => floor && floor !== 'N/A')
-    )).sort();
-  };
-
-  const availableFloors = selectedTower ? getFloorsForTower(selectedTower) : [];
-
-  // Clear selected floor if it's not in available floors
+  }, [towers, tower]);
   useEffect(() => {
-    if (selectedFloor && selectedTower && !availableFloors.includes(selectedFloor)) {
-      setSelectedFloor(null);
-    }
-  }, [availableFloors, selectedFloor, selectedTower]);
+    if (floor && !floors.includes(floor)) setFloor(null);
+  }, [floors, floor]);
 
-  // Notify parent component when filters change
   useEffect(() => {
-    if (onFilterChange) {
-      onFilterChange({ tower: selectedTower, floor: selectedFloor });
-    }
-  }, [selectedTower, selectedFloor, onFilterChange]);
+    onFilterChange?.({ tower, floor });
+  }, [tower, floor, onFilterChange]);
+
+  if (towers.length === 0) return null;
+
+  const sheetActions =
+    sheet === 'tower'
+      ? [
+          { key: '__all', label: 'All towers', icon: 'building', hint: !tower ? 'Selected' : undefined, onPress: () => { setTower(null); setFloor(null); setSheet(null); } },
+          ...towers.map((t) => ({ key: t, label: t, icon: 'building', hint: t === tower ? 'Selected' : undefined, onPress: () => { setTower(t); setFloor(null); setSheet(null); } })),
+        ]
+      : [
+          { key: '__all', label: 'All floors', icon: 'layers', hint: !floor ? 'Selected' : undefined, onPress: () => { setFloor(null); setSheet(null); } },
+          ...floors.map((f) => ({ key: f, label: f, icon: 'layers', hint: f === floor ? 'Selected' : undefined, onPress: () => { setFloor(f); setSheet(null); } })),
+        ];
 
   return (
-    <View style={styles.towerFloorFilterWrapper}>
-      <View style={styles.towerFloorFilterContainer}>
-        {/* Tower Filter */}
-        <View style={styles.filterSelectContainer}>
-          <View style={styles.filterSelectLabelContainer}>
-            <Image 
-              source={require('../icons/tawer.png')} 
-              style={styles.filterSelectLabelIcon} 
-              resizeMode="contain" 
-            />
-            <Text style={styles.filterSelectLabel}>Tower</Text>
-          </View>
-          <TouchableOpacity
-            style={[
-              styles.filterSelectButton,
-              selectedTower && styles.filterSelectButtonActive,
-              towerDropdownVisible && styles.filterSelectButtonOpen
-            ]}
-            activeOpacity={0.7}
-            onPress={() => {
-              setTowerDropdownVisible(!towerDropdownVisible);
-              setFloorDropdownVisible(false);
-            }}
-          >
-            <View style={styles.filterSelectButtonContent}>
-              <Text style={[
-                styles.filterSelectButtonText,
-                selectedTower && styles.filterSelectButtonTextActive
-              ]} numberOfLines={1}>
-                {selectedTower || 'Select Tower'}
-              </Text>
-              <View style={[
-                styles.filterSelectArrowContainer,
-                selectedTower && styles.filterSelectArrowContainerActive
-              ]}>
-                <Text style={[
-                  styles.filterSelectArrow,
-                  selectedTower && styles.filterSelectArrowActive
-                ]}>{towerDropdownVisible ? '▲' : '▼'}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-          
-          {/* Tower Dropdown */}
-          {towerDropdownVisible && (
-            <View style={styles.dropdownContainer}>
-              <ScrollView style={styles.dropdownScrollView} nestedScrollEnabled={true}>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    !selectedTower && styles.dropdownItemSelected
-                  ]}
-                  onPress={() => {
-                    setSelectedTower(null);
-                    setSelectedFloor(null);
-                    setTowerDropdownVisible(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.dropdownItemText,
-                    !selectedTower && styles.dropdownItemTextSelected
-                  ]}>All Towers</Text>
-                </TouchableOpacity>
-                {uniqueTowers.map((tower, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      selectedTower === tower && styles.dropdownItemSelected
-                    ]}
-                    onPress={() => {
-                      setSelectedTower(tower);
-                      setSelectedFloor(null);
-                      setTowerDropdownVisible(false);
-                    }}
-                  >
-                    <Text style={[
-                      styles.dropdownItemText,
-                      selectedTower === tower && styles.dropdownItemTextSelected
-                    ]}>{tower}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-
-        {/* Floor Filter */}
-        <View style={styles.filterSelectContainer}>
-          <View style={styles.filterSelectLabelContainer}>
-            <Image 
-              source={require('../icons/floor.png')} 
-              style={styles.filterSelectLabelIcon} 
-              resizeMode="contain" 
-            />
-            <Text style={styles.filterSelectLabel}>Floor</Text>
-          </View>
-          <TouchableOpacity
-            style={[
-              styles.filterSelectButton,
-              selectedFloor && styles.filterSelectButtonActive,
-              !selectedTower && styles.filterSelectButtonDisabled,
-              floorDropdownVisible && styles.filterSelectButtonOpen
-            ]}
-            disabled={!selectedTower}
-            activeOpacity={!selectedTower ? 1 : 0.7}
-            onPress={() => {
-              if (!selectedTower) return;
-              setFloorDropdownVisible(!floorDropdownVisible);
-              setTowerDropdownVisible(false);
-            }}
-          >
-            <View style={styles.filterSelectButtonContent}>
-              <Text style={[
-                styles.filterSelectButtonText,
-                selectedFloor && styles.filterSelectButtonTextActive,
-                !selectedTower && styles.filterSelectButtonTextDisabled
-              ]} numberOfLines={1}>
-                {selectedFloor || (selectedTower ? 'Select Floor' : 'Select Tower First')}
-              </Text>
-              <View style={[
-                styles.filterSelectArrowContainer,
-                selectedFloor && styles.filterSelectArrowContainerActive,
-                !selectedTower && styles.filterSelectArrowContainerDisabled
-              ]}>
-                <Text style={[
-                  styles.filterSelectArrow,
-                  selectedFloor && styles.filterSelectArrowActive,
-                  !selectedTower && styles.filterSelectArrowDisabled
-                ]}>{floorDropdownVisible ? '▲' : '▼'}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-          
-          {/* Floor Dropdown */}
-          {floorDropdownVisible && selectedTower && (
-            <View style={styles.dropdownContainer}>
-              <ScrollView style={styles.dropdownScrollView} nestedScrollEnabled={true}>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    !selectedFloor && styles.dropdownItemSelected
-                  ]}
-                  onPress={() => {
-                    setSelectedFloor(null);
-                    setFloorDropdownVisible(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.dropdownItemText,
-                    !selectedFloor && styles.dropdownItemTextSelected
-                  ]}>All Floors</Text>
-                </TouchableOpacity>
-                {availableFloors.map((floor, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.dropdownItem,
-                      selectedFloor === floor && styles.dropdownItemSelected
-                    ]}
-                    onPress={() => {
-                      setSelectedFloor(floor);
-                      setFloorDropdownVisible(false);
-                    }}
-                  >
-                    <Text style={[
-                      styles.dropdownItemText,
-                      selectedFloor === floor && styles.dropdownItemTextSelected
-                    ]}>{floor}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-      </View>
-      {(selectedTower || selectedFloor) && (
+    <View style={styles.row}>
+      <Chip icon="building" label={tower || 'All towers'} active={!!tower} onPress={() => setSheet('tower')} />
+      <Chip
+        icon="layers"
+        label={floor || (tower ? 'All floors' : 'Floor')}
+        active={!!floor}
+        disabled={!tower}
+        onPress={() => setSheet('floor')}
+      />
+      {(tower || floor) && (
         <TouchableOpacity
-          style={styles.clearFilterButton}
+          style={styles.clear}
           onPress={() => {
-            setSelectedTower(null);
-            setSelectedFloor(null);
+            setTower(null);
+            setFloor(null);
           }}
-          activeOpacity={0.7}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Clear tower and floor filter"
         >
-          <Text style={styles.clearFilterButtonText}>Clear Filters</Text>
+          <Icon name="x-circle" size={18} color={Colors.textMuted} />
         </TouchableOpacity>
       )}
+      <ActionSheet
+        visible={!!sheet}
+        onClose={() => setSheet(null)}
+        title={sheet === 'tower' ? 'Filter by tower' : `Floors in ${tower || ''}`}
+        actions={sheetActions}
+      />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  towerFloorFilterWrapper: {
-    marginBottom: 20,
-    marginTop: 12,
-    marginHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 0.5,
-    borderColor: '#E8E8ED',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-    overflow: 'visible',
-    zIndex: 999,
-  },
-  towerFloorFilterContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 16,
-  },
-  filterSelectContainer: {
-    flex: 1,
-    position: 'relative',
-    zIndex: 1000,
-    minWidth: 0,
-    elevation: 10,
-  },
-  filterSelectLabelContainer: {
+const Chip = ({ icon, label, active, disabled, onPress }) => (
+  <TouchableOpacity
+    style={[styles.chip, active && styles.chipActive, disabled && styles.chipDisabled]}
+    onPress={onPress}
+    disabled={disabled}
+    activeOpacity={0.8}
+    accessibilityRole="button"
+  >
+    <Icon name={icon} size={15} color={active ? Colors.primary : Colors.textSecondary} />
+    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{label}</Text>
+    <Icon name="chevron-down" size={14} color={active ? Colors.primary : Colors.textMuted} />
+  </TouchableOpacity>
+);
+
+const styles = themedStyles(() => ({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chip: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
-    position: 'relative',
-  },
-  filterSelectLabelIcon: {
-    width: 17,
-    height: 17,
-    marginRight: 9,
-    tintColor: '#636366',
-    opacity: 0.8,
-  },
-  filterSelectLabel: {
-    fontSize: 13,
-    fontWeight: FontWeights.semiBold,
-    color: '#636366',
-    letterSpacing: 0.2,
-    flex: 1,
-  },
-  filterSelectButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    height: 40,
-    borderRadius: 8,
+    gap: 6,
+    height: 36,
+    paddingHorizontal: 12,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: Colors.card,
   },
-  filterSelectButtonActive: {
-    borderColor: Colors.border,
-    borderWidth: 1,
-    backgroundColor: Colors.background,
-  },
-  filterSelectButtonOpen: {
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-    borderBottomWidth: 0,
-  },
-  filterSelectButtonDisabled: {
-    backgroundColor: '#F8F8F8',
-    borderColor: Colors.border,
-    opacity: 0.7,
-  },
-  filterSelectButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  filterSelectButtonText: {
-    fontSize: FontSizes.regular,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    fontWeight: FontWeights.semiBold,
-    flex: 1,
-  },
-  filterSelectButtonTextActive: {
-    color: Colors.textPrimary,
-    fontWeight: FontWeights.semiBold,
-  },
-  filterSelectButtonTextDisabled: {
-    color: '#C7C7CC',
-  },
-  filterSelectArrowContainer: {
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  filterSelectArrowContainerActive: {
-    backgroundColor: 'transparent',
-  },
-  filterSelectArrowContainerDisabled: {
-    backgroundColor: 'transparent',
-  },
-  filterSelectArrow: {
-    fontSize: FontSizes.extraSmall,
-    color: Colors.textSecondary,
-    marginLeft: 0,
-  },
-  filterSelectArrowActive: {
-    color: Colors.textSecondary,
-  },
-  filterSelectArrowDisabled: {
-    color: '#C7C7CC',
-  },
-  clearFilterButton: {
-    marginTop: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    backgroundColor: Colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 40,
-    shadowColor: Colors.error,
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  clearFilterButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: FontWeights.bold,
-    letterSpacing: 0.3,
-  },
-  dropdownContainer: {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    right: 0,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderColor: Colors.border,
-    maxHeight: 150,
-    zIndex: 9999,
-    marginTop: -1,
-  },
-  dropdownScrollView: {
-    maxHeight: 150,
-  },
-  dropdownItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.divider,
-    backgroundColor: '#FFFFFF',
-  },
-  dropdownItemSelected: {
-    backgroundColor: Colors.surface,
-  },
-  dropdownItemText: {
-    fontSize: 11,
-    color: '#000000',
-    fontWeight: FontWeights.regular,
-  },
-  dropdownItemTextSelected: {
-    color: '#000000',
-    fontWeight: FontWeights.medium,
-  },
-});
+  chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primarySoft },
+  chipDisabled: { opacity: 0.5 },
+  chipText: { flexShrink: 1, fontSize: FontSizes.small + 1, fontWeight: FontWeights.medium, color: Colors.textSecondary },
+  chipTextActive: { color: Colors.primary, fontWeight: FontWeights.semiBold },
+  clear: { padding: 4 },
+}));
 
 export default TowerFloorFilter;
-

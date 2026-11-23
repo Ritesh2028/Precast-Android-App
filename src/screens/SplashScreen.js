@@ -10,6 +10,7 @@ import {
 import Logo from '../components/Logo';
 import { Colors } from '../styles/colors';
 import { loadAccessContext, replaceAppScreen } from '../services/appAccess';
+import { themedStyles } from '../theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -286,7 +287,7 @@ const SplashScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: Colors.brandNavy,
@@ -391,6 +392,6 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     fontWeight: '300',
   },
-});
+}));
 
 export default SplashScreen;

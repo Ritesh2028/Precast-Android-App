@@ -23,6 +23,7 @@ import { API_BASE_URL } from '../config/apiConfig';
 import { login as loginRequest, logout as logoutService, getClientIp } from '../services/authService';
 import { completeLoginAndNavigate } from '../services/appAccess';
 import { stopTokenRefreshService } from '../services/tokenRefreshService';
+import { themedStyles } from '../theme';
 
 const { width } = Dimensions.get('window');
 
@@ -389,12 +390,8 @@ const LoginScreen = ({ navigation }) => {
             <Animated.View style={{
               transform: [{ scale: logoScaleAnim }],
             }}>
-              <Logo
-                size="medium"
-                variant="light"
-                iconOnly
-                showName
-              />
+              {/* Full wordmark; Logo swaps to the white-text version in dark mode. */}
+              <Logo size="large" variant="light" />
             </Animated.View>
             
             
@@ -415,6 +412,7 @@ const LoginScreen = ({ navigation }) => {
                       value={email}
                       onChangeText={setEmail}
                       placeholder="Enter your email"
+                      placeholderTextColor="#999"
                       autoCapitalize="none"
                       autoCorrect={false}
                       keyboardType="email-address"
@@ -435,6 +433,7 @@ const LoginScreen = ({ navigation }) => {
                         value={password}
                         onChangeText={setPassword}
                         placeholder="Enter your password"
+                        placeholderTextColor="#999"
                         secureTextEntry={!showPassword}
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -588,7 +587,7 @@ const LoginScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -729,7 +728,7 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.card,
     borderRadius: 24,
     paddingHorizontal: 26,
     paddingVertical: 32,
@@ -763,7 +762,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: Colors.primarySoft,
+    borderColor: Colors.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -952,7 +951,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: Colors.primarySoft,
+    borderColor: Colors.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -1019,6 +1018,6 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.semiBold,
     letterSpacing: 0.5,
   },
-});
+}));
 
 export default LoginScreen;

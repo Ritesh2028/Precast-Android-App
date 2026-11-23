@@ -1,9 +1,14 @@
-import React from 'react';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import React, { useMemo, useRef } from 'react';
+import {
+  NavigationContainer,
+  createNavigationContainerRef,
+  DefaultTheme,
+  DarkTheme,
+} from '@react-navigation/native';
 import { setPushNavigation } from './src/services/pushNotifications';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Text } from 'react-native';
+import { View } from 'react-native';
 import { Colors } from './src/styles/colors';
 import { getDefaultHeaderOptions } from './src/components/HeaderConfig';
 
@@ -24,26 +29,60 @@ import DispatchManagerScreen from './src/screens/DispatchManagerScreen';
 import WebViewScreen from './src/screens/WebViewScreen';
 import BirdsEyeViewScreen from './src/screens/BirdsEyeViewScreen';
 import NotificationScreen from './src/screens/NotificationScreen';
+import RectificationScreen from './src/screens/RectificationScreen';
+import QCReportScreen from './src/screens/QCReportScreen';
+import WorkspacePickerScreen from './src/screens/WorkspacePickerScreen';
+import { themedStyles, ThemeProvider, useColorSchemeLive } from './src/theme';
 
 const Stack = createStackNavigator();
 const navigationRef = createNavigationContainerRef();
 
+const buildNavigationTheme = (isDark) => {
+  const base = isDark ? DarkTheme : DefaultTheme;
+  return {
+    ...base,
+    dark: isDark,
+    colors: {
+      ...base.colors,
+      primary: Colors.primary,
+      background: Colors.surface,
+      card: Colors.background,
+      text: Colors.textPrimary,
+      border: Colors.headerBorder,
+      notification: Colors.error,
+    },
+  };
+};
+
 export default function App() {
-  // Set global default text color
-  if (Text && Text.defaultProps == null) {
-    Text.defaultProps = {};
-  }
-  if (Text) {
-    const base = Text.defaultProps?.style || {};
-    Text.defaultProps.style = [base, { color: '#75767a' }];
-  }
+  return (
+    <ThemeProvider>
+      <AppNavigator />
+    </ThemeProvider>
+  );
+}
+
+function AppNavigator() {
+  const scheme = useColorSchemeLive();
+  const isDark = scheme === 'dark';
+  const navigationTheme = useMemo(() => buildNavigationTheme(isDark), [isDark]);
+  // When the device switches light/dark the navigator remounts (key={scheme}) so
+  // every screen re-reads the theme; the saved state keeps the user on the same screen.
+  const navStateRef = useRef(undefined);
+
   return (
     <NavigationContainer
+      key={scheme}
       ref={navigationRef}
+      theme={navigationTheme}
+      initialState={navStateRef.current}
+      onStateChange={(state) => {
+        navStateRef.current = state;
+      }}
       onReady={() => setPushNavigation(navigationRef)}
     >
       <View style={styles.container}>
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <Stack.Navigator 
           initialRouteName="Splash"
           screenOptions={({ navigation }) => getDefaultHeaderOptions(navigation)}
@@ -61,47 +100,39 @@ export default function App() {
           <Stack.Screen 
             name="Dashboard" 
             component={MainTabs}
-            options={{ 
-              title: 'Dashboard',
-              
-              headerTitleStyle: {
-                fontSize: 20,
-                fontWeight: 'bold',
-                color: '#333'
-              },
+            options={{
               headerBackVisible: false,
-              headerLeft: () => null
             }}
           />
           <Stack.Screen 
             name="JobDetails" 
             component={JobDetailsScreen}
-            options={{ title: 'Job Details' }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="ElementDetails" 
             component={ElementDetailsScreen}
-            options={{ title: 'Element Details', }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="QCStatus" 
             component={QCStatusScreen}
-            options={{ title: 'QC Status' }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="UserProfile" 
             component={UserProfileScreen}
-            options={{ title: 'Profile' }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="Scan" 
             component={QRScannerScreen}
-            options={{ title: 'Scan' }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="Questions" 
             component={QuestionsScreen}
-            options={{ title: 'Questions' }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="StockManager" 
@@ -121,7 +152,7 @@ export default function App() {
           <Stack.Screen 
             name="BirdsEyeView" 
             component={BirdsEyeViewScreen}
-            options={{ title: "Bird's Eye View" }}
+            options={{ title: '' }}
           />
           <Stack.Screen 
             name="WebView" 
@@ -135,7 +166,22 @@ export default function App() {
           <Stack.Screen 
             name="Notifications" 
             component={NotificationScreen}
-            options={{ title: 'Notifications' }}
+            options={{ title: '' }}
+          />
+          <Stack.Screen
+            name="Rectification"
+            component={RectificationScreen}
+            options={{ title: '' }}
+          />
+          <Stack.Screen
+            name="Workspaces"
+            component={WorkspacePickerScreen}
+            options={{ headerShown: false, gestureEnabled: false }}
+          />
+          <Stack.Screen
+            name="QCReport"
+            component={QCReportScreen}
+            options={{ title: '' }}
           />
         </Stack.Navigator>
       </View>
@@ -143,9 +189,9 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
   },
-});
+}));

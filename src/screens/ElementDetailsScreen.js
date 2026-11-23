@@ -16,11 +16,12 @@ import { logout, validateSession, refreshSession } from '../services/authService
 import { handle401Error, handleApiError } from '../services/errorHandler';
 import { validateToken } from '../services/tokenUtils';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import { downloadDrawing } from '../services/drawingDownloads';
+import ElementTimeline from '../components/qc/ElementTimeline';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors, BWTheme } from '../styles/colors';
 import DrawingFilesModal from '../components/DrawingFilesModal';
+import { themedStyles } from '../theme';
 
 // Black and White Theme Colors - White Background
 
@@ -65,10 +66,10 @@ const ElementDetailsScreen = ({ route, navigation }) => {
   const getStatusColor = (status) => {
     if (!status) return BWTheme.textTertiary;
     const statusLower = status.toLowerCase();
-    if (statusLower.includes('completed')) return '#000000';
-    if (statusLower.includes('pending')) return '#4A4A4A';
-    if (statusLower.includes('rejected')) return '#808080';
-    return '#000000';
+    if (statusLower.includes('completed')) return BWTheme.textPrimary;
+    if (statusLower.includes('pending')) return BWTheme.textSecondary;
+    if (statusLower.includes('rejected')) return BWTheme.textTertiary;
+    return BWTheme.textPrimary;
   };
 
   const fetchElementDetails = async (elementId) => {
@@ -248,69 +249,38 @@ const ElementDetailsScreen = ({ route, navigation }) => {
       Alert.alert('Error', 'File name not available');
       return;
     }
+    if (downloadingFile) return;
 
+    setDownloadingFile(fileName);
     try {
-      setDownloadingFile(fileName);
-      
       const { accessToken } = await getTokens();
       if (!accessToken) {
         Alert.alert('Error', 'Authentication required. Please login again.');
-        setDownloadingFile(null);
         return;
       }
 
       const apiUrl = `${API_BASE_URL}/api/get-file?file=${encodeURIComponent(fileName)}`;
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'User-Agent': 'PrecastApp/1.0',
-        },
-      });
 
-      if (response.ok) {
-        if (Platform.OS === 'web') {
-          const blob = await response.blob();
-          const objectUrl = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = objectUrl;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(objectUrl);
-          Alert.alert('Success', 'File downloaded successfully');
-        } else {
-          const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-          const downloadResult = await FileSystem.downloadAsync(apiUrl, fileUri, {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-            },
-          });
-
-          if (downloadResult.status === 200) {
-            const isAvailable = await Sharing.isAvailableAsync();
-            if (isAvailable) {
-              await Sharing.shareAsync(downloadResult.uri);
-              Alert.alert('Success', 'File ready to view or share');
-            } else {
-              Alert.alert('Success', 'File downloaded successfully');
-            }
-          } else {
-            throw new Error('Download failed');
-          }
-        }
-      } else {
-        const errorText = await response.text();
-        throw new Error(errorText || `Request failed with status ${response.status}`);
+      if (Platform.OS === 'web') {
+        const response = await fetch(apiUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+        if (!response.ok) throw new Error(`Server returned status ${response.status}.`);
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
+        return;
       }
+
+      // Android: saves to "PrecastEzy Drawings" and asks to open; iOS: share sheet.
+      await downloadDrawing({ url: apiUrl, fileName, accessToken: `Bearer ${accessToken}` });
     } catch (error) {
       console.error('Error downloading file:', error);
-      Alert.alert('Error', `Failed to download file: ${error.message}`);
+      Alert.alert('Download Failed', error?.message || 'Failed to download file. Please try again.');
     } finally {
       setDownloadingFile(null);
     }
@@ -504,6 +474,18 @@ const ElementDetailsScreen = ({ route, navigation }) => {
             )}
           </View>
 
+          {/* Timeline & QC (production -> erected, plus every QC check) */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLine} />
+              <Text style={styles.sectionTitle}>TIMELINE & QC</Text>
+              <View style={styles.sectionHeaderLine} />
+            </View>
+            <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 }}>
+              <ElementTimeline elementId={elementId || elementData?.id} />
+            </View>
+          </View>
+
           {/* Lifecycle Section */}
           {(() => {
             const lifecycleData = elementData?.lifecycle || elementData?.life_cycle || elementData?.lifeCycle || elementData?.life_cycle_history || [];
@@ -597,7 +579,7 @@ const DimensionCard = ({ label, value }) => (
   </View>
 );
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: BWTheme.background,
@@ -891,6 +873,6 @@ const styles = StyleSheet.create({
     color: BWTheme.textTertiary,
     textAlign: 'center',
   },
-});
+}));
 
 export default ElementDetailsScreen;

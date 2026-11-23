@@ -19,8 +19,9 @@ import { validateSession, refreshSession } from '../services/authService';
 import BottomNavigation from '../components/BottomNavigation';
 import { Colors, BWTheme } from '../styles/colors';
 import { subscribeToIncomingPush } from '../services/pushNotifications';
+import { themed, themedStyles } from '../theme';
 
-const KIND_META = {
+const KIND_META = themed(() => ({
   project: { label: 'Project', icon: 'P', bg: '#E8F0FE', fg: '#1A56DB' },
   drawing: { label: 'Drawing', icon: 'D', bg: '#F3E8FF', fg: '#7C3AED' },
   dispatch: { label: 'Dispatch', icon: 'S', bg: '#FEF3C7', fg: '#D97706' },
@@ -31,7 +32,7 @@ const KIND_META = {
   team: { label: 'Team', icon: 'T', bg: '#FCE7F3', fg: '#DB2777' },
   chat: { label: 'Message', icon: 'M', bg: '#E0F2FE', fg: '#0284C7' },
   general: { label: 'Update', icon: 'N', bg: '#F1F3F4', fg: '#5F6368' },
-};
+}), { fg: 'text', bg: 'bg' });
 
 const TIME_GROUPS = [
   { key: 'today', label: 'Today' },
@@ -505,7 +506,7 @@ const NotificationScreen = ({ navigation, route, hideBottomNav = false }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: '#F1F3F4',
@@ -707,6 +708,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.primary,
   },
-});
+}));
 
 export default NotificationScreen;

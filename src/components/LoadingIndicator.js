@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Colors } from '../styles/colors';
+import { themedStyles } from '../theme';
 
 export const LoadingIndicator = () => {
   return (
@@ -10,12 +11,12 @@ export const LoadingIndicator = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.background,
   },
-});
+}));
 

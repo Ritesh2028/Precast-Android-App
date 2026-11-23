@@ -16,6 +16,7 @@ import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { logout } from '../services/authService';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
+import { themedStyles } from '../theme';
 
 const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation, includeAllOption = true }) => {
   const [projects, setProjects] = useState([]);
@@ -259,7 +260,7 @@ const ProjectDropdown = ({ selectedProject, onProjectSelect, navigation, include
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   projectDropdownContainer: {
     marginHorizontal: 20,
     marginTop: 0,
@@ -406,6 +407,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: FontWeights.medium,
   },
-});
+}));
 
 export default ProjectDropdown;

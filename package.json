@@ -5,6 +5,7 @@
   "scripts": {
     "start": "expo start --go",
     "start:phone": "bash scripts/start-phone.sh",
+    "start:dev": "expo start --dev-client",
     "start:tunnel": "expo start --go --tunnel ngrok",
     "start:android": "expo start --clear",
     "start:emulator": "adb reverse tcp:8081 tcp:8081 2>/dev/null; REACT_NATIVE_PACKAGER_HOSTNAME=127.0.0.1 expo start --clear --localhost",
@@ -17,9 +18,9 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@react-navigation/bottom-tabs": "^7.4.7",
-    "@react-navigation/native": "^7.1.17",
-    "@react-navigation/stack": "^7.4.8",
+    "@react-navigation/bottom-tabs": "^7.22.0",
+    "@react-navigation/native": "^7.5.2",
+    "@react-navigation/stack": "^7.12.2",
     "axios": "^1.12.2",
     "expo": "^58.0.26",
     "expo-camera": "~58.0.14",
@@ -42,7 +43,9 @@
     "react-native-svg": "15.16.0",
     "react-native-vector-icons": "^10.3.0",
     "react-native-view-shot": "6.1.1",
-    "react-native-webview": "14.0.1"
+    "react-native-webview": "14.0.1",
+    "expo-intent-launcher": "~58.0.3",
+    "expo-system-ui": "~58.0.7"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",

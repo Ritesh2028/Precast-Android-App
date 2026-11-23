@@ -17,7 +17,6 @@ import { Colors, Theme } from '../styles/colors';
 import {
   Icon,
   Card,
-  SectionHeader,
   StatusPill,
   SegmentedControl,
   IconButton,
@@ -35,6 +34,9 @@ import { useNativeAccessGuard } from '../services/appAccess';
 import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { handle401Error, handleApiError } from '../services/errorHandler';
+import { themedStyles } from '../theme';
+import QualityCard from '../components/qc/QualityCard';
+import { fetchDelaysForProjects } from '../services/qcApi';
 
 const PAGE_SIZE = 25;
 
@@ -61,6 +63,9 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
   const [selectedJobForMenu, setSelectedJobForMenu] = useState(null);
   const [openingElement, setOpeningElement] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // element id -> { delayDays, ... } from the project task journey (for "late" badges).
+  const [delays, setDelays] = useState({});
+  const [qualityRefreshKey, setQualityRefreshKey] = useState(0);
 
   const formatDate = (dateString) => {
     try {
@@ -600,6 +605,23 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
 
   
 
+  useEffect(() => {
+    let alive = true;
+    const projectIds = selectedProjectId
+      ? [selectedProjectId]
+      : (jobs || []).map((j) => j.originalData?.project_id);
+    if (!projectIds.filter(Boolean).length) {
+      setDelays({});
+      return undefined;
+    }
+    fetchDelaysForProjects(projectIds)
+      .then((map) => alive && setDelays(map))
+      .catch(() => alive && setDelays({}));
+    return () => {
+      alive = false;
+    };
+  }, [jobs, selectedProjectId]);
+
   const handleJobPress = (jobId) => {
     // Find the original job data from the jobs list
     const jobData = jobs.find(job => job.id === jobId)?.originalData || null;
@@ -669,17 +691,25 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
     setQrScannerVisible(true);
   };
 
-  const FILTERS = ['All', 'Pending', 'Completed'];
+  const FILTERS = ['All', 'Pending', 'Delayed', 'Completed'];
 
   const toggleFilter = (filter) => {
     if (selectedFilters.includes(filter)) return;
     setSelectedFilters([filter]);
     setVisibleCount(PAGE_SIZE);
-    loadProductionHistory(filter === 'All' ? 'All' : filter);
+    // "Delayed" is pending work that is past its planned end date (filtered below).
+    loadProductionHistory(filter === 'Delayed' ? 'Pending' : filter);
   };
 
   const activeFilter = selectedFilters[0] || 'All';
-  const filteredJobs = jobs || [];
+  const isJobCompleted = (job) =>
+    job.fromCompleteProduction || String(job.status).toLowerCase() === 'completed';
+  const delayOf = (job) =>
+    isJobCompleted(job) ? 0 : delays[job.originalData?.element_id]?.delayDays || 0;
+  const filteredJobs =
+    activeFilter === 'Delayed'
+      ? (jobs || []).filter((j) => delayOf(j) > 0).sort((a, b) => delayOf(b) - delayOf(a))
+      : jobs || [];
   const visibleJobs = filteredJobs.slice(0, visibleCount);
 
   const pending = Number(taskCounts.pending) || 0;
@@ -687,8 +717,6 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
   const total = Math.max(Number(taskCounts.total) || 0, pending + completed);
   const completionPct = total ? Math.round((completed / total) * 100) : 0;
 
-  const isJobCompleted = (job) =>
-    job.fromCompleteProduction || String(job.status).toLowerCase() === 'completed';
 
   const handleOpenElement = async (job) => {
     if (openingElement) return;
@@ -736,8 +764,25 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
     }
   };
 
+  const openQcReport = (job) => {
+    setMenuVisible(false);
+    const d = job?.originalData || {};
+    navigation.navigate('QCReport', {
+      elementId: resolveElementId(job),
+      elementName: job?.id,
+      stageName: d.stage_name,
+    });
+  };
+
+  const openRectification = () => {
+    navigation.navigate('Rectification', selectedProjectId
+      ? { projectId: selectedProjectId, projectName: selectedProject }
+      : undefined);
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
+    setQualityRefreshKey((k) => k + 1);
     const currentFilter = selectedFilters.includes('All') ? null : selectedFilters[0];
     await Promise.all([loadProductionHistory(currentFilter), loadTaskCounts()]);
     setRefreshing(false);
@@ -800,6 +845,7 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
         <View style={styles.jobBody}>
           <View style={styles.jobTopRow}>
             <Text style={styles.jobCode} numberOfLines={1}>{job.id}</Text>
+            {delayOf(job) > 0 && <StatusPill label={`${delayOf(job)}d late`} tone="danger" />}
             <StatusPill label={done ? 'Completed' : 'Pending'} tone={done ? 'success' : 'warning'} />
           </View>
           {!!subtitle && <Text style={styles.jobSub} numberOfLines={1}>{subtitle}</Text>}
@@ -840,7 +886,9 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
             icon={activeFilter === 'Completed' ? 'check-circle' : 'clipboard'}
             tone={activeFilter === 'Completed' ? 'success' : 'info'}
             title={activeFilter === 'All' ? 'No jobs yet' : `No ${activeFilter.toLowerCase()} jobs`}
-            message="Pull down to refresh, or pick another project or filter."
+            message={activeFilter === 'Delayed'
+              ? 'Nothing is past its planned date. Great work!'
+              : 'Pull down to refresh, or pick another project or filter.'}
             actionLabel="Refresh"
             onAction={onRefresh}
           />
@@ -893,10 +941,14 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
         <View style={styles.section}>{renderOverview()}</View>
 
         <View style={styles.section}>
-          <SectionHeader
-            title="Recent jobs"
-            subtitle={jobsLoading ? 'Loading…' : `${filteredJobs.length} ${filteredJobs.length === 1 ? 'job' : 'jobs'}`}
+          <QualityCard
+            projectId={selectedProjectId}
+            refreshKey={qualityRefreshKey}
+            onOpenRectification={openRectification}
           />
+        </View>
+
+        <View style={styles.section}>
           <SegmentedControl
             options={FILTERS.map((f) => ({ key: f, label: f }))}
             value={activeFilter}
@@ -950,6 +1002,13 @@ const DashboardScreen = ({ navigation, hideBottomNav = false }) => {
             },
           },
           {
+            key: 'report',
+            label: 'View QC report',
+            icon: 'shield-check',
+            hint: menuDone ? 'Answers, photos and inspector' : 'QC of the stages already inspected',
+            onPress: () => openQcReport(menuJob),
+          },
+          {
             key: 'qc',
             label: 'Proceed with QC',
             icon: 'clipboard-check',
@@ -981,7 +1040,7 @@ const StatTile = ({ label, value, icon, color = '#FFFFFF', loading }) => (
   </View>
 );
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   mainContainer: { flex: 1, backgroundColor: Colors.surface },
   container: { flex: 1 },
   content: { paddingBottom: 24, flexGrow: 1 },
@@ -1024,6 +1083,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   showMoreText: { fontSize: FontSizes.button, color: Colors.primary, fontWeight: FontWeights.semiBold },
-});
+}));
 
 export default DashboardScreen;

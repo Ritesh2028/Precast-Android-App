@@ -29,6 +29,7 @@ import { useNativeAccessGuard } from '../services/appAccess';
 import { handle401Error, handleApiError } from '../services/errorHandler';
 import BottomNavigation from '../components/BottomNavigation';
 import ProjectDropdown from '../components/ProjectDropdown';
+import { themedStyles } from '../theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -2058,7 +2059,7 @@ const DispatchManagerScreen = ({ route, navigation, hideBottomNav = false }) => 
 
 // White Background and Black Font Theme
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: BWTheme.background,
@@ -3006,7 +3007,7 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.medium,
     color: BWTheme.textSecondary,
   },
-});
+}));
 
 export default DispatchManagerScreen;
 

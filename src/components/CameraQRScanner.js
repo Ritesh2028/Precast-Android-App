@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,12 @@ import {
   TextInput,
   Dimensions,
   Animated,
+  Easing,
   Image,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Icon from './ui/Icon';
 import { PinchGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Camera, CameraView } from 'expo-camera';
 import { FontSizes, FontWeights } from '../styles/fonts';
@@ -19,8 +23,33 @@ import { getTokens } from '../services/tokenManager';
 import { validateSession, refreshSession } from '../services/authService';
 import { API_BASE_URL, createAuthHeaders } from '../config/apiConfig';
 import { handleApiError, handle401Error } from '../services/errorHandler';
+import { themedStyles } from '../theme';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+// Scanner window. Everything is drawn relative to the box itself and the box is
+// centred by layout, so it lines up on any screen (status/nav bars included).
+const BOX = Math.round(Math.min(width * 0.72, 300));
+const BOX_RADIUS = 28;
+const BRACKET = 40; // length of each corner bracket arm
+const STROKE = 5;
+const LOGO_ON_DARK = require('../../assets/precastezy-logo-on-dark.png');
+
+// Four rounded L-shaped corner brackets, inset by half the stroke so nothing clips.
+const BRACKETS_PATH = (() => {
+  const o = STROKE / 2;
+  const b = BOX - STROKE;
+  const r = BOX_RADIUS;
+  const L = BRACKET;
+  const x = o;
+  const y = o;
+  return [
+    `M${x} ${y + L} V${y + r} Q${x} ${y} ${x + r} ${y} H${x + L}`,
+    `M${x + b - L} ${y} H${x + b - r} Q${x + b} ${y} ${x + b} ${y + r} V${y + L}`,
+    `M${x + b} ${y + b - L} V${y + b - r} Q${x + b} ${y + b} ${x + b - r} ${y + b} H${x + b - L}`,
+    `M${x + L} ${y + b} H${x + r} Q${x} ${y + b} ${x} ${y + b - r} V${y + b - L}`,
+  ].join(' ');
+})();
 
 const CameraQRScanner = ({ visible, onClose, onScan, navigation, autoProcess = false }) => {
   const [hasPermission, setHasPermission] = useState(null);
@@ -37,8 +66,8 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation, autoProcess = f
   const [hasPaperId, setHasPaperId] = useState(false);
   const [isValidQR, setIsValidQR] = useState(true);
   const baseZoomRef = React.useRef(0);
-  const [outerCornerAnim] = useState(new Animated.Value(0));
-  const [innerCornerAnim] = useState(new Animated.Value(0));
+  const scanLoopRef = useRef(null);
+  const insets = useSafeAreaInsets();
   const handlePinchEvent = (e) => {
     const scale = e.nativeEvent.scale || 1;
     // Lower sensitivity for smoother, slower zooming
@@ -80,38 +109,32 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation, autoProcess = f
       setZoomLevel(0);
       baseZoomRef.current = 0;
       startScanLineAnimation();
-      // Start pulsing animations for corners
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(outerCornerAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-          Animated.timing(outerCornerAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
-        ])
-      ).start();
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(innerCornerAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-          Animated.timing(innerCornerAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
-        ])
-      ).start();
     }
+    return () => {
+      scanLoopRef.current?.stop();
+      scanLoopRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
+  // One-way sweep from the top of the window to the bottom, then restart.
   const startScanLineAnimation = () => {
-    Animated.loop(
+    scanLoopRef.current?.stop();
+    scanLineAnimation.setValue(0);
+    scanLoopRef.current = Animated.loop(
       Animated.sequence([
         Animated.timing(scanLineAnimation, {
           toValue: 1,
-          duration: 1500,
+          duration: 2200,
+          easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
-        Animated.timing(scanLineAnimation, {
-          toValue: 0,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
+        Animated.delay(250),
       ])
-    ).start();
+    );
+    scanLoopRef.current.start();
   };
+
 
 
   const handleBarCodeScanned = ({ type, data }) => {
@@ -732,6 +755,8 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation, autoProcess = f
       transparent={false}
       visible={visible}
       onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
@@ -740,88 +765,100 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation, autoProcess = f
           onHandlerStateChange={handlePinchStateChange}
           shouldCancelWhenOutside={false}
         >
-          <View style={{ flex: 1 }}>
+          <View style={sc.fill}>
             <CameraView
-              style={styles.camera}
-              facing={'back'}
+              style={StyleSheet.absoluteFill}
+              facing="back"
               onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-              barcodeScannerSettings={{
-                barcodeTypes: ['qr'],
-              }}
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               enableTorch={flashEnabled}
               zoom={zoomLevel}
               ref={setCameraRef}
-            >
-          {/* Pinch handler wraps the camera; no overlay needed */}
-          {/* Debug Text */}
-         
-          {/* Top Header */}
-          <View style={styles.topHeader}>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>QR Scanner</Text>
-            <View style={styles.placeholder} />
-          </View>
+            />
 
-          {/* Dark Overlays */}
-          <View style={styles.topOverlay} pointerEvents="none" />
-          <View style={styles.bottomOverlay} pointerEvents="none" />
-          <View style={styles.leftOverlay} pointerEvents="none" />
-          <View style={styles.rightOverlay} pointerEvents="none" />
+            {/* Overlay: one even tone over the whole camera, laid out with flex */}
+            <View style={[sc.overlay, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 20 }]}>
+              <View style={sc.topBar}>
+                <TouchableOpacity
+                  style={sc.roundButton}
+                  onPress={onClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close scanner"
+                  hitSlop={8}
+                >
+                  <Icon name="x" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+                <Text style={sc.title}>Scan QR code</Text>
+                <TouchableOpacity
+                  style={[sc.roundButton, flashEnabled && sc.roundButtonOn]}
+                  onPress={toggleFlash}
+                  accessibilityRole="button"
+                  accessibilityLabel={flashEnabled ? 'Turn flash off' : 'Turn flash on'}
+                  hitSlop={8}
+                >
+                  <Icon name={flashEnabled ? 'zap' : 'zap-off'} size={20} color={flashEnabled ? '#111111' : '#FFFFFF'} />
+                </TouchableOpacity>
+              </View>
 
-          {/* Center Scan Area */}
-          <View style={styles.centerArea} pointerEvents="none">
-            <View style={[styles.scanBox, qrDetected && styles.scanBoxGlow]}>
-              <View style={styles.scanFrame}>
-                {/* Outer colored corners */}
-                <Animated.View style={[styles.corner, styles.topLeft, qrDetected && styles.cornerGlow, { opacity: outerCornerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }]} />
-                <Animated.View style={[styles.corner, styles.topRight, qrDetected && styles.cornerGlow, { opacity: outerCornerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }]} />
-                <Animated.View style={[styles.corner, styles.bottomLeft, qrDetected && styles.cornerGlow, { opacity: outerCornerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }]} />
-                <Animated.View style={[styles.corner, styles.bottomRight, qrDetected && styles.cornerGlow, { opacity: outerCornerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }]} />
-                {/* Inner white corners with a gap from outer */}
-                <Animated.View style={[styles.cornerAccent, styles.topLeftAccent, { opacity: innerCornerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]} />
-                <Animated.View style={[styles.cornerAccent, styles.topRightAccent, { opacity: innerCornerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]} />
-                <Animated.View style={[styles.cornerAccent, styles.bottomLeftAccent, { opacity: innerCornerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]} />
-                <Animated.View style={[styles.cornerAccent, styles.bottomRightAccent, { opacity: innerCornerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]} />
-                <Animated.View 
-                  style={[
-                    styles.scanLine,
-                    {
-                      transform: [{
-                        translateY: scanLineAnimation.interpolate({
-                          inputRange: [0, 1],
-                          // Move from inner top accent (≈6px) to inner bottom accent (scanBox 250 - 6 - lineHeight 4 = 240)
-                          outputRange: [12, 235],
-                        })
-                      }],
-                      opacity: scanLineAnimation.interpolate({
-                        inputRange: [0, 0.5, 1],
-                        outputRange: [0.2, 1, 0.2],
-                      })
-                    }
-                  ]} 
-                />
+              <View style={sc.middle} pointerEvents="none">
+                <View style={sc.box}>
+                  {!qrDetected && (
+                    <Animated.View
+                      style={[
+                        sc.sweep,
+                        {
+                          transform: [{
+                            translateY: scanLineAnimation.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [BRACKET / 2, BOX - BRACKET / 2],
+                            }),
+                          }],
+                          opacity: scanLineAnimation.interpolate({
+                            inputRange: [0, 0.1, 0.9, 1],
+                            outputRange: [0, 1, 1, 0],
+                          }),
+                        },
+                      ]}
+                    />
+                  )}
+                  <Svg width={BOX} height={BOX} style={StyleSheet.absoluteFill}>
+                    <Path
+                      d={BRACKETS_PATH}
+                      stroke={qrDetected ? '#34C759' : '#FFFFFF'}
+                      strokeWidth={STROKE}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                  </Svg>
+                </View>
+
+                <Text style={sc.hint}>
+                  {qrDetected ? 'QR code detected' : 'Point your camera at an element QR code'}
+                </Text>
+                {zoomLevel > 0.02 ? (
+                  <View style={sc.zoomChip}>
+                    <Text style={sc.zoomText}>{`${(1 + zoomLevel * 7).toFixed(1)}×`}</Text>
+                  </View>
+                ) : (
+                  <Text style={sc.subHint}>Pinch to zoom</Text>
+                )}
+              </View>
+
+              <View style={sc.bottom}>
+                <TouchableOpacity
+                  style={sc.pill}
+                  onPress={() => setShowManualInput(true)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Enter code manually"
+                >
+                  <Icon name="keyboard" size={18} color="#FFFFFF" />
+                  <Text style={sc.pillText}>Enter code</Text>
+                </TouchableOpacity>
+                <Image source={LOGO_ON_DARK} style={sc.brand} resizeMode="contain" />
               </View>
             </View>
-            
-          </View>
-
-          {/* Bottom Controls */}
-          <View style={styles.bottomControls}>
-            <TouchableOpacity style={styles.controlButton} onPress={() => setShowManualInput(true)}>
-              <View style={styles.controlIcon}>
-                <Image source={require('../icons/image (1).png')} style={{ width: 40, height: 40, tintColor: '#ffffff' }} resizeMode="contain" />
-              </View>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.controlButton} onPress={toggleFlash}>
-              <View style={[styles.controlIcon, flashEnabled && styles.controlIconActive]}>
-                <Image source={require('../icons/light.png')} style={{ width: 40, height: 40, tintColor: '#ffffff' }} resizeMode="contain" />
-              </View>
-            </TouchableOpacity>
-          </View>
-            </CameraView>
           </View>
         </PinchGestureHandler>
 
@@ -917,7 +954,7 @@ const CameraQRScanner = ({ visible, onClose, onScan, navigation, autoProcess = f
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: '#000',
@@ -1354,6 +1391,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: '#ddd',
+    color: Colors.textPrimary,
     borderRadius: 8,
     padding: 15,
     width: '100%',
@@ -1388,6 +1426,85 @@ const styles = StyleSheet.create({
     fontWeight: FontWeights.bold,
     fontSize: FontSizes.regular,
   },
+}));
+
+// Camera UI is always dark (it sits on the live camera feed), so these styles are
+// static and intentionally NOT theme-converted.
+const TEXT_SHADOW = {
+  textShadowColor: 'rgba(0, 0, 0, 0.6)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 4,
+};
+
+const sc = StyleSheet.create({
+  fill: { flex: 1, backgroundColor: '#000' },
+  overlay: {
+    // RN 0.88 removed StyleSheet.absoluteFillObject; spell the fill out.
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'space-between',
+    // One light, even scrim over the whole feed: text stays readable, no tone seams.
+    backgroundColor: 'rgba(0, 0, 0, 0.18)',
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
+  roundButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  roundButtonOn: { backgroundColor: 'rgba(255, 255, 255, 0.95)' },
+  title: { color: '#FFFFFF', fontSize: 18, fontWeight: FontWeights.semiBold, letterSpacing: 0.2, ...TEXT_SHADOW },
+  middle: { alignItems: 'center', paddingHorizontal: 24 },
+  box: { width: BOX, height: BOX, marginBottom: 28 },
+  sweep: {
+    position: 'absolute',
+    left: BRACKET / 2,
+    right: BRACKET / 2,
+    top: 0,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(160, 196, 255, 0.95)',
+    shadowColor: '#7AAAF8',
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  hint: { color: '#FFFFFF', fontSize: 16, fontWeight: FontWeights.medium, textAlign: 'center', ...TEXT_SHADOW },
+  subHint: { color: 'rgba(255, 255, 255, 0.75)', fontSize: 13, marginTop: 6, ...TEXT_SHADOW },
+  zoomChip: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  zoomText: { color: '#FFFFFF', fontSize: 13, fontWeight: FontWeights.semiBold },
+  bottom: { alignItems: 'center' },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 48,
+    paddingHorizontal: 22,
+    borderRadius: 24,
+    marginBottom: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  pillText: { color: '#FFFFFF', fontSize: 15, fontWeight: FontWeights.semiBold },
+  brand: { width: 120, height: 31, opacity: 0.9 },
 });
 
 export default CameraQRScanner;

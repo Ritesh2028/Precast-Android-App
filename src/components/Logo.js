@@ -2,6 +2,10 @@ import React from 'react';
 import { Image, Text, View, StyleSheet } from 'react-native';
 import { Colors } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
+import { themedStyles, isDarkScheme } from '../theme';
+
+// Navy wordmark on light surfaces; near-white on dark surfaces.
+const pickNameColor = () => (isDarkScheme() ? Colors.textPrimary : Colors.brandNavy);
 
 const SIZE_PRESETS = {
   small: { width: 140, height: 40, icon: 36, nameSize: FontSizes.medium },
@@ -12,7 +16,8 @@ const SIZE_PRESETS = {
 
 /**
  * PrecastEzy brand mark.
- * - variant "light": logo for light backgrounds (login, forms)
+ * - variant "light": logo for light backgrounds (login, forms); switches to the
+ *   on-dark asset automatically when the device is in dark mode
  * - variant "dark": logo for navy/dark backgrounds (splash)
  * - showName: renders "PrecastEzy" text under/beside the mark when needed
  * - iconOnly: uses square icon asset instead of full wordmark
@@ -29,7 +34,7 @@ const Logo = ({
 
   const source = iconOnly
     ? require('../../assets/precastezy-icon.png')
-    : variant === 'dark'
+    : variant === 'dark' || isDarkScheme()
       ? require('../../assets/precastezy-logo-on-dark.png')
       : require('../../assets/precastezy-logo.png');
 
@@ -46,7 +51,7 @@ const Logo = ({
             styles.name,
             {
               fontSize: preset.nameSize,
-              color: variant === 'dark' ? Colors.textOnNavy : Colors.brandNavy,
+              color: variant === 'dark' ? Colors.textOnNavy : pickNameColor(),
             },
             nameStyle,
           ]}
@@ -58,7 +63,7 @@ const Logo = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   wrap: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -69,6 +74,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     textAlign: 'center',
   },
-});
+}));
 
 export default Logo;

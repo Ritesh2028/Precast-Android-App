@@ -8,6 +8,7 @@ import {
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
 import Svg, { G, Circle } from 'react-native-svg';
+import { themedStyles } from '../theme';
 
 const { width } = Dimensions.get('window');
 
@@ -191,7 +192,7 @@ const PieChart = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     backgroundColor: Colors.card,
     borderRadius: 20,
@@ -305,6 +306,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: FontWeights.medium,
   },
-});
+}));
 
 export default PieChart;

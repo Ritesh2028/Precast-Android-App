@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import Svg, { G, Line, Circle, Text as SvgText, Polyline, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
+import { themedStyles } from '../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -199,7 +200,7 @@ const LineChart = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -230,7 +231,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.small,
     color: Colors.textSecondary,
   },
-});
+}));
 
 export default LineChart;
 

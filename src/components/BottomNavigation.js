@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from './ui/Icon';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
+import { themedStyles } from '../theme';
 
 const TABS = [
   { id: 'home', label: 'Home', icon: 'home', screen: 'Dashboard' },
@@ -58,7 +59,7 @@ const BottomNavigation = ({ activeTab, onTabPress }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flexDirection: 'row',
     backgroundColor: Colors.background,
@@ -94,6 +95,6 @@ const styles = StyleSheet.create({
   tabLabelActive: {
     fontWeight: FontWeights.bold,
   },
-});
+}));
 
 export default React.memo(BottomNavigation);

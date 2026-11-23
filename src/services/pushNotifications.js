@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { isRunningInExpoGo } from 'expo';
 import * as Notifications from 'expo-notifications';
 import api from './apiClient';
 import { getTokens } from './tokenManager';
@@ -12,7 +13,12 @@ const ANDROID_CHANNEL_ID = 'default';
 
 // Expo Go removed remote push on Android from SDK 53. Skip native push there so
 // the app still boots; use a development build for real FCM.
-const isExpoGo = Constants.appOwnership === 'expo';
+// isRunningInExpoGo() checks for Expo Go's native module, so it is reliable on
+// every SDK; the Constants checks are fallbacks only.
+const isExpoGo =
+  isRunningInExpoGo() ||
+  Constants.executionEnvironment === 'storeClient' ||
+  Constants.appOwnership === 'expo';
 
 let initPromise = null;
 let tokenSubscription = null;
@@ -102,12 +108,17 @@ export const openNotificationTarget = (data) => {
 
 const ensureAndroidChannel = async () => {
   if (Platform.OS !== 'android') return;
-  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-    name: 'PrecastEzy',
-    importance: Notifications.AndroidImportance.HIGH,
-    sound: 'default',
-    vibrationPattern: [0, 250, 250, 250],
-  });
+  // A channel failure must not block permission/token registration: the backend
+  // channel id falls back to the plugin's "default" channel from app.json.
+  try {
+    await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+      name: 'PrecastEzy',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+    });
+  } catch (error) {
+    console.warn('Could not create Android notification channel:', error?.message);
+  }
 };
 
 export const initPushNotifications = async () => {

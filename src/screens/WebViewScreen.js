@@ -28,6 +28,7 @@ import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { validateSession, refreshSession, logout } from '../services/authService';
 import { WEB_URL } from '../config/apiConfig';
+import { themedStyles, pick } from '../theme';
 
 const RETRY_DELAY = 2000;
 
@@ -1634,7 +1635,7 @@ const WebViewScreen = ({ navigation, route }) => {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <StatusBar
-          barStyle="dark-content"
+          barStyle={pick('dark-content', 'light-content')}
           backgroundColor={Colors.background}
         />
         <OfflineScreen onRetry={handleRetry} />
@@ -1645,7 +1646,7 @@ const WebViewScreen = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar
-        barStyle="dark-content"
+        barStyle={pick('dark-content', 'light-content')}
         backgroundColor={Colors.background}
         translucent={false}
       />
@@ -1740,7 +1741,7 @@ const WebViewScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -1783,7 +1784,7 @@ const styles = StyleSheet.create({
     height: 28,
     tintColor: Colors.textPrimary || '#000',
   },
-});
+}));
 
 export default WebViewScreen;
 

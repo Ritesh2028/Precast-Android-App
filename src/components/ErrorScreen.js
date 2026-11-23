@@ -4,6 +4,7 @@ import { Colors } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import AppButton from './AppButton';
 import Icon from './ui/Icon';
+import { themedStyles } from '../theme';
 
 export const ErrorScreen = ({ onReload, errorMessage }) => {
   return (
@@ -20,7 +21,7 @@ export const ErrorScreen = ({ onReload, errorMessage }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -54,4 +55,4 @@ const styles = StyleSheet.create({
   reloadButton: {
     minWidth: 160,
   },
-});
+}));

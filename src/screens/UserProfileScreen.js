@@ -21,6 +21,13 @@ import { logout } from '../services/authService';
 import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { handle401Error } from '../services/errorHandler';
+import { themedStyles, useColorSchemeLive } from '../theme';
+import Constants from 'expo-constants';
+import { Card, Icon } from '../components/ui';
+import { AuthImage } from '../components/qc/qcShared';
+import { WorkspaceSheet, WORKSPACE_META, currentWorkspace } from '../components/WorkspaceSwitcher';
+import { hasMultipleWorkspaces } from '../services/appAccess';
+import { getAccessSnapshot } from '../services/authService';
 
 const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
   const [userInfo, setUserInfo] = useState({
@@ -53,7 +60,9 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [changeEmail, setChangeEmail] = useState('');
+  const [workspaceSheetVisible, setWorkspaceSheetVisible] = useState(false);
   const insets = useSafeAreaInsets();
+  const scheme = useColorSchemeLive();
 
   useEffect(() => {
     // In a real app, you'd fetch user data from API using stored token
@@ -242,181 +251,148 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
     );
   };
 
+  const fullName = [userInfo.first_name, userInfo.last_name].filter(Boolean).join(' ') || 'User';
+  const initials = `${userInfo.first_name?.[0] || ''}${userInfo.last_name?.[0] || ''}`.toUpperCase() || 'U';
+  const joined =
+    userInfo.created_at && !String(userInfo.created_at).startsWith('0001-')
+      ? new Date(userInfo.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : null;
+  const ctx = getAccessSnapshot();
+  const multiWorkspace = hasMultipleWorkspaces(ctx);
+  const workspaceLabel = WORKSPACE_META[currentWorkspace(navigation)]?.label;
+  const appVersion = Constants.expoConfig?.version || '1.0.0';
+
+  const details = [
+    { icon: 'phone', label: 'Phone', value: [userInfo.phone_code_name, userInfo.phone_no].filter(Boolean).join(' ') },
+    { icon: 'map-pin', label: 'Address', value: [userInfo.address, userInfo.city].filter(Boolean).join(', ') },
+    { icon: 'building', label: 'Region', value: [userInfo.state, userInfo.country].filter(Boolean).join(', ') },
+    { icon: 'hash', label: 'Zip code', value: userInfo.zip_code },
+    { icon: 'calendar', label: 'Member since', value: joined },
+  ];
+
   if (loading) {
     return (
       <View style={[styles.mainContainer, styles.loadingContainer, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading user data...</Text>
+        <Text style={styles.loadingText}>Loading your profile…</Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.mainContainer, { paddingTop: insets.top }]}>
-      <ScrollView 
+    <View style={styles.mainContainer}>
+      <ScrollView
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: 20, flexGrow: 1 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary}
-            colors={[Colors.primary]}
-          />
-        }
-        alwaysBounceVertical
-        bounces
-        overScrollMode="always"
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} colors={[Colors.primary]} />}
+        keyboardShouldPersistTaps="handled"
       >
-      <View style={styles.megaCard}>
-      <View style={styles.header}>
-        <View style={styles.headerBackground} />
-        <View style={styles.profileImageContainer}>
-          <View style={styles.profileImage}>
+        {/* Identity */}
+        <View style={styles.hero}>
+          <View style={styles.avatarRing}>
             {userInfo.profile_picture && !imageError ? (
-              <Image 
-                source={{ uri: `${API_BASE_URL}/api/get-file?file=${userInfo.profile_picture}` }}
-                style={styles.profileImageSource}
-                resizeMode="cover"
-                onError={() => {
-                  console.log('Profile image failed to load, showing initials');
-                  setImageError(true);
-                }}
-              />
+              <AuthImage fileName={userInfo.profile_picture} style={styles.avatar} onError={() => setImageError(true)} />
             ) : (
-              <Text style={styles.profileInitials}>
-                {userInfo.first_name ? userInfo.first_name[0] : ''}{userInfo.last_name ? userInfo.last_name[0] : ''}
-              </Text>
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <Text style={styles.initials}>{initials}</Text>
+              </View>
             )}
           </View>
-          <View style={styles.onlineIndicator} />
+          <Text style={styles.name} numberOfLines={1}>{fullName}</Text>
+          {!!userInfo.email && (
+            <View style={styles.emailRow}>
+              <Icon name="mail" size={14} color="#AFC3EA" />
+              <Text style={styles.email} numberOfLines={1}>{userInfo.email}</Text>
+            </View>
+          )}
+          <View style={styles.heroChips}>
+            {!!userInfo.role_name && (
+              <View style={styles.roleChip}>
+                <Icon name="shield-check" size={13} color="#FFFFFF" />
+                <Text style={styles.roleChipText}>{userInfo.role_name}</Text>
+              </View>
+            )}
+            {!!userInfo.employee_id && (
+              <View style={styles.heroChipMuted}>
+                <Text style={styles.heroChipMutedText}>ID {userInfo.employee_id}</Text>
+              </View>
+            )}
+          </View>
         </View>
-        <View style={styles.userInfoContainer}>
-          <Text style={styles.userName}>{userInfo.first_name} {userInfo.last_name}</Text>
-          <Text style={styles.userRole}>{userInfo.role_name}</Text>
-          <Text style={styles.userEmail}>{userInfo.email}</Text>
-        </View>
-      </View>
 
-      <View style={styles.infoSection}>
-        <View style={styles.sectionHeaderRow}>
-          <Image source={require('../icons/businessman.png')} style={styles.sectionIcon} resizeMode="contain" />
-          <Text style={styles.sectionTitle}>Personal Information</Text>
-        </View>
-          <View style={styles.infoCard}>
-          <View style={[styles.infoRow, { borderTopWidth: 0 }]}>
-            <View style={styles.infoIconContainer}>
-              <Text style={styles.infoIcon}>📞</Text>
+        {/* Contact & details */}
+        <Text style={styles.sectionLabel}>Details</Text>
+        <Card style={styles.listCard}>
+          {details.map((row, i) => (
+            <View key={row.label} style={[styles.row, i > 0 && styles.rowBorder]}>
+              <View style={styles.rowIcon}>
+                <Icon name={row.icon} size={17} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>{row.label}</Text>
+                <Text style={[styles.rowValue, !row.value && styles.rowValueEmpty]} numberOfLines={2}>
+                  {row.value || 'Not added'}
+                </Text>
+              </View>
             </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Phone</Text>
-              <Text style={styles.infoValue}>
-                {[userInfo.phone_code_name, userInfo.phone_no].filter(Boolean).join(' ') || '—'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconContainer}>
-              <Image source={require('../icons/location.png')} style={styles.iconImg} resizeMode="contain" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Address</Text>
-              <Text style={styles.infoValue}>
-                {[userInfo.address, userInfo.city].filter(Boolean).join(', ') || '—'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconContainer}>
-              <Image source={require('../icons/map.png')} style={styles.iconImg} resizeMode="contain" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Location</Text>
-              <Text style={styles.infoValue}>
-                {[userInfo.state, userInfo.country].filter(Boolean).join(', ') || '—'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconContainer}>
-              <Image source={require('../icons/zip-code.png')} style={styles.iconImg} resizeMode="contain" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Zip Code</Text>
-              <Text style={styles.infoValue}>{userInfo.zip_code || '—'}</Text>
-            </View>
-          </View>
-          <View style={styles.infoRow}>
-            <View style={styles.infoIconContainer}>
-              <Image source={require('../icons/calendar.png')} style={styles.iconImg} resizeMode="contain" />
-            </View>
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Join Date</Text>
-              <Text style={styles.infoValue}>
-                {userInfo.created_at && !String(userInfo.created_at).startsWith('0001-')
-                  ? new Date(userInfo.created_at).toLocaleDateString()
-                  : 'N/A'}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </View>
+          ))}
+        </Card>
 
-      <View style={styles.actionsSection}>
-        <View style={styles.sectionHeaderRow}>
-          <Image source={require('../icons/password (1).png')} style={styles.sectionIcon} resizeMode="contain" />
-          <Text style={styles.sectionTitle}>Account Actions</Text>
-        </View>
-        
-        <TouchableOpacity style={styles.actionButton} onPress={handleChangePassword}>
-          <View style={styles.actionIconContainer}>
-            <Image source={require('../icons/password.png')} style={styles.actionIconImg} resizeMode="contain" />
-          </View>
-          <View style={styles.actionContent}>
-            <Text style={styles.actionButtonText}>Change Password</Text>
-            <Text style={styles.actionSubtext}>Update your account security</Text>
-          </View>
-          <Text style={styles.actionArrow}>›</Text>
-        </TouchableOpacity>
-        {showChangePassword && (
-          <View style={styles.inlineForm}>
-            <Text style={styles.inlineLabel}>Email Address</Text>
-            <View style={styles.inlineInputWrapper}>
+        {/* Account */}
+        <Text style={styles.sectionLabel}>Account</Text>
+        <Card style={styles.listCard}>
+          <ActionRow
+            icon="lock"
+            title="Change password"
+            subtitle="We'll email you a secure reset link"
+            onPress={handleChangePassword}
+            expanded={showChangePassword}
+          />
+          {showChangePassword && (
+            <View style={styles.inlineForm}>
               <TextInput
                 style={styles.inlineInput}
                 placeholder="you@example.com"
+                placeholderTextColor={Colors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={changeEmail}
                 onChangeText={setChangeEmail}
-                returnKeyType="done"
+                returnKeyType="send"
+                onSubmitEditing={handleSendResetLink}
               />
+              <TouchableOpacity style={styles.inlineButton} onPress={handleSendResetLink} activeOpacity={0.85}>
+                <Text style={styles.inlineButtonText}>Send link</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.inlinePrimaryButton} onPress={handleSendResetLink}>
-              <Text style={styles.inlinePrimaryText}>Send Reset Link</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        
-        <TouchableOpacity style={styles.actionButton} onPress={handleSettings}>
-          <View style={styles.actionIconContainer}>
-            <Image source={require('../icons/work-process.png')} style={styles.actionIconImg} resizeMode="contain" />
-          </View>
-          <View style={styles.actionContent}>
-            <Text style={styles.actionButtonText}>Settings</Text>
-            <Text style={styles.actionSubtext}>App preferences and configuration</Text>
-          </View>
-          <Text style={styles.actionArrow}>›</Text>
-        </TouchableOpacity>
-      </View>
+          )}
+          {multiWorkspace && (
+            <ActionRow
+              icon="arrow-left-right"
+              title="Switch workspace"
+              subtitle={workspaceLabel ? `Now in ${workspaceLabel}` : 'Open another area you work in'}
+              onPress={() => setWorkspaceSheetVisible(true)}
+              border
+            />
+          )}
+          <ActionRow
+            icon="moon"
+            title="Appearance"
+            subtitle={`Follows your phone · ${scheme === 'dark' ? 'Dark' : 'Light'} now`}
+            border
+          />
+          <ActionRow icon="settings" title="Settings" subtitle="App preferences" onPress={handleSettings} border />
+        </Card>
 
-      <View style={styles.logoutSection}>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
+        <TouchableOpacity style={styles.logout} onPress={handleLogout} activeOpacity={0.85} accessibilityRole="button">
+          <Icon name="log-out" size={18} color={Colors.destructive} />
+          <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
-      </View>
-      </View>
+
+        <Text style={styles.version}>PrecastEzy · v{appVersion}</Text>
       </ScrollView>
+
+      <WorkspaceSheet visible={workspaceSheetVisible} onClose={() => setWorkspaceSheetVisible(false)} navigation={navigation} />
 
       <CameraQRScanner
         visible={qrScannerVisible}
@@ -425,371 +401,134 @@ const UserProfileScreen = ({ navigation, hideBottomNav = false }) => {
         navigation={navigation}
       />
 
-      {!hideBottomNav && (
-        <BottomNavigation
-          activeTab={activeTab}
-          onTabPress={handleTabPress}
-        />
-      )}
+      {!hideBottomNav && <BottomNavigation activeTab={activeTab} onTabPress={handleTabPress} />}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  mainContainer: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    backgroundColor: 'transparent',
-    padding: 0,
-    marginBottom: 0,
-    borderRadius: 0,
-    marginHorizontal: 0,
-    shadowColor: 'transparent',
-    shadowOffset: {
-      width: 0,
-      height: 0,
-    },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-    overflow: 'hidden',
-  },
-  headerBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 120,
-    backgroundColor: '#666',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  profileImageContainer: {
+/** One tappable account row (no chevron when there is no action). */
+const ActionRow = ({ icon, title, subtitle, onPress, border, expanded }) => (
+  <TouchableOpacity
+    style={[styles.row, border && styles.rowBorder]}
+    onPress={onPress}
+    disabled={!onPress}
+    activeOpacity={0.7}
+    accessibilityRole={onPress ? 'button' : undefined}
+  >
+    <View style={styles.rowIcon}>
+      <Icon name={icon} size={17} color={Colors.primary} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.rowTitle}>{title}</Text>
+      {!!subtitle && <Text style={styles.rowLabel}>{subtitle}</Text>}
+    </View>
+    {!!onPress && <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={18} color={Colors.textMuted} />}
+  </TouchableOpacity>
+);
+
+const styles = themedStyles(() => ({
+  mainContainer: { flex: 1, backgroundColor: Colors.surface },
+  container: { flex: 1 },
+  content: { padding: 16, paddingBottom: 32 },
+  loadingContainer: { alignItems: 'center', justifyContent: 'center' },
+  loadingText: { marginTop: 12, fontSize: FontSizes.regular, color: Colors.textSecondary },
+  hero: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 20,
-    position: 'relative',
+    backgroundColor: Colors.brandNavy,
+    borderRadius: Theme.radiusLg,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
   },
-  onlineIndicator: {
-    display: 'none',
+  avatarRing: {
+    padding: 3,
+    borderRadius: 48,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
-  userInfoContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  badgeContainer: {
+  avatar: { width: 84, height: 84, borderRadius: 42 },
+  avatarFallback: { backgroundColor: Colors.brandBlue, alignItems: 'center', justifyContent: 'center' },
+  initials: { fontSize: 30, fontWeight: FontWeights.bold, color: '#FFFFFF', letterSpacing: 1 },
+  name: { marginTop: 12, fontSize: FontSizes.large + 2, fontWeight: FontWeights.bold, color: Colors.textOnNavy },
+  emailRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, maxWidth: '100%' },
+  email: { fontSize: FontSizes.regular, color: '#AFC3EA', flexShrink: 1 },
+  heroChips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 14 },
+  roleChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    gap: 8,
-  },
-  adminBadge: {
-    backgroundColor: Colors.warning,
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 14,
+    backgroundColor: Colors.brandBlue,
   },
-  adminText: {
-    color: Colors.textWhite,
-    fontSize: 12,
-    fontWeight: 'bold',
+  roleChipText: { fontSize: FontSizes.small + 1, fontWeight: FontWeights.semiBold, color: '#FFFFFF' },
+  heroChipMuted: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#666',
-    padding: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#666',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  profileInitials: {
-    fontSize: FontSizes.extraLarge,
-    fontWeight: FontWeights.bold,
-    color: Colors.textWhite,
-  },
-  profileImageSource: {
-    width: 94,
-    height: 94,
-    borderRadius: 47,
-  },
-  userName: {
-    fontSize: FontSizes.large,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
+  heroChipMutedText: { fontSize: FontSizes.small + 1, fontWeight: FontWeights.medium, color: '#D5E1F7' },
+  sectionLabel: {
+    marginTop: 22,
     marginBottom: 8,
-    textAlign: 'center',
-  },
-  userRole: {
-    fontSize: FontSizes.regular,
-    color: Colors.textPrimary,
-    marginBottom: 8,
-    textAlign: 'center',
-    fontWeight: FontWeights.medium,
-  },
-  userEmail: {
-    fontSize: FontSizes.regular,
-    color: Colors.textPrimary,
-    marginBottom: 16,
-    textAlign: 'center',
-    fontWeight: FontWeights.medium,
-  },
-  statusBadge: {
-    backgroundColor: Colors.success,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  statusText: {
-    color: Colors.textWhite,
+    marginLeft: 4,
     fontSize: FontSizes.small,
     fontWeight: FontWeights.bold,
-  },
-  sectionHeader: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 16,
-  },
-  sectionHeaderRow: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontSize: FontSizes.medium,
-    fontWeight: FontWeights.bold,
-    color: Colors.textPrimary,
-    textAlign: 'left',
-  },
-  sectionIcon: {
-    width: 22,
-    height: 22,
-    tintColor: '#000',
-    marginRight: 8,
-  },
-  infoSection: {
-    backgroundColor: 'transparent',
-    padding: 0,
-    marginBottom: 0,
-    borderRadius: 0,
-    marginHorizontal: 0,
-    shadowColor: 'transparent',
-    elevation: 0,
-  },
-  infoCard: {
-    backgroundColor: 'transparent',
-    padding: 0,
-    borderRadius: 0,
-    borderWidth: 0,
-    borderColor: 'transparent',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  infoIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  infoIcon: {
-    fontSize: FontSizes.icon,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: FontSizes.small,
-    color: Colors.textPrimary,
-    fontWeight: FontWeights.medium,
-    marginBottom: 4,
-  },
-  infoValue: {
-    fontSize: FontSizes.regular,
-    color: Colors.textPrimary,
-    fontWeight: FontWeights.semiBold,
-  },
-  actionsSection: {
-    backgroundColor: 'transparent',
-    padding: 16,
-    marginBottom: 0,
-    borderRadius: 0,
-    marginHorizontal: 0,
-    shadowColor: 'transparent',
-    elevation: 0,
-  },
-  actionButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 0,
-    marginBottom: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  actionIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  actionIcon: {
-    fontSize: FontSizes.icon,
-    color: Colors.textWhite,
-  },
-  iconImg: {
-    width: 22,
-    height: 22,
-    tintColor: '#000',
-  },
-  actionIconImg: {
-    width: 22,
-    height: 22,
-    tintColor: '#000',
-  },
-  actionContent: {
-    flex: 1,
-  },
-  actionButtonText: {
-    fontSize: FontSizes.regular,
-    color: Colors.textPrimary,
-    fontWeight: FontWeights.semiBold,
-    marginBottom: 4,
-  },
-  actionSubtext: {
-    fontSize: FontSizes.small,
-    color: Colors.textPrimary,
-    fontWeight: FontWeights.regular,
-  },
-  actionArrow: {
-    fontSize: FontSizes.large,
-    color: '#ccc',
-    fontWeight: FontWeights.bold,
-  },
-  inlineForm: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: 'transparent',
-  },
-  inlineLabel: {
-    fontSize: 12,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
     color: Colors.textSecondary,
-    marginTop: 8,
-    marginBottom: 6,
   },
-  inlineInputWrapper: {
-    backgroundColor: '#fff',
+  listCard: { paddingHorizontal: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+  rowBorder: { borderTopWidth: 1, borderTopColor: Colors.divider },
+  rowIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowLabel: { fontSize: FontSizes.small, color: Colors.textSecondary },
+  rowValue: { fontSize: FontSizes.regular + 1, color: Colors.textPrimary, fontWeight: FontWeights.medium, marginTop: 1 },
+  rowValueEmpty: { color: Colors.textMuted, fontWeight: FontWeights.regular },
+  rowTitle: { fontSize: FontSizes.regular + 1, color: Colors.textPrimary, fontWeight: FontWeights.semiBold },
+  inlineForm: { flexDirection: 'row', gap: 8, paddingBottom: 14, paddingLeft: 48 },
+  inlineInput: {
+    flex: 1,
+    height: 42,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
-  },
-  inlineInput: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: Colors.textDark,
-  },
-  inlinePrimaryButton: {
-    marginTop: 12,
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  inlinePrimaryText: {
-    color: Colors.textWhite,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  logoutSection: {
-    backgroundColor: 'transparent',
-    padding: 16,
-    marginBottom: 0,
-    borderRadius: 0,
-    marginHorizontal: 0,
-    shadowColor: 'transparent',
-    elevation: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  megaCard: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    marginHorizontal: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
-    overflow: 'hidden',
-  },
-  sectionDivider: {
-    height: 1,
-    backgroundColor: Colors.background,
-    marginHorizontal: 16,
-  },
-  logoutButton: {
-    backgroundColor: Colors.destructive,
-    paddingVertical: 16,
     borderRadius: Theme.radius,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.destructive,
-    shadowColor: Colors.brandNavy,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  logoutButtonText: {
-    color: Colors.primaryForeground,
-    fontSize: FontSizes.medium,
-    fontWeight: FontWeights.semiBold,
-  },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
+    paddingHorizontal: 12,
     fontSize: FontSizes.regular,
     color: Colors.textPrimary,
-    fontWeight: FontWeights.medium,
+    backgroundColor: Colors.background,
   },
-});
+  inlineButton: {
+    height: 42,
+    paddingHorizontal: 14,
+    borderRadius: Theme.radius,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineButtonText: { fontSize: FontSizes.button, fontWeight: FontWeights.bold, color: Colors.primaryForeground },
+  logout: {
+    marginTop: 24,
+    height: 50,
+    borderRadius: Theme.radius,
+    borderWidth: 1.5,
+    borderColor: Colors.destructive,
+    backgroundColor: Colors.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  logoutText: { fontSize: FontSizes.button + 1, fontWeight: FontWeights.bold, color: Colors.destructive },
+  version: { marginTop: 16, textAlign: 'center', fontSize: FontSizes.small, color: Colors.textMuted },
+}));
 
 export default UserProfileScreen;

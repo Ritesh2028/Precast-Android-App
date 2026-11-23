@@ -15,6 +15,7 @@ import {
   LayoutAnimation,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BottomNavigation from '../components/BottomNavigation';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Icon } from '../components/ui';
@@ -23,14 +24,15 @@ import { getTokens } from '../services/tokenManager';
 import { API_BASE_URL } from '../config/apiConfig';
 import { Colors, Theme } from '../styles/colors';
 import { FontSizes, FontWeights } from '../styles/fonts';
+import { themed, themedStyles } from '../theme';
 
 // ---------- Stage logic (ported 1:1 from web Plan/BirdEyeView.tsx + planHelpers.tsx) ----------
 
-const STAGE = {
+const STAGE = themed(() => ({
   done: { label: 'Completed', fg: '#1E7B3A', bg: '#E6F4EA', bar: '#34A853' },
   progress: { label: 'In Progress', fg: '#B35C00', bg: '#FFF1E0', bar: '#FF9F40' },
   pending: { label: 'Not Started', fg: Colors.textSecondary, bg: Colors.surface, bar: Colors.border },
-};
+}), { fg: 'text', bg: 'bg', bar: 'keep' });
 
 const norm = (v) => (v ?? '').toString().toLowerCase().replace(/[\s_-]+/g, '');
 
@@ -196,13 +198,6 @@ const BirdsEyeViewScreen = ({ navigation, route }) => {
 
   const towerLabel = useMemo(() => towers.map((t) => t.name).filter(Boolean).join(', '), [towers]);
   const totalFloors = useMemo(() => towers.reduce((n, t) => n + (Number(t.child_count) || 0), 0), [towers]);
-
-  useEffect(() => {
-    navigation.setOptions({
-      title: "Bird's Eye View",
-      headerTitleStyle: { fontSize: FontSizes.medium, fontWeight: FontWeights.bold, color: Colors.textPrimary },
-    });
-  }, [navigation]);
 
   const load = useCallback(async (isRefresh = false) => {
     if (!projectId) {
@@ -549,8 +544,22 @@ const BirdsEyeViewScreen = ({ navigation, route }) => {
     </View>
   );
 
+  // Same bottom bar as the main tabs; a tap returns to them on that tab.
+  // popTo returns to the existing tabs screen (navigate would stack a second copy in v7).
+  const goToTab = (tabId) => {
+    const params = { tab: tabId, tabRequest: Date.now() };
+    if (typeof navigation.popTo === 'function') navigation.popTo('Dashboard', params);
+    else navigation.navigate('Dashboard', params);
+  };
+  const withBottomNav = (content) => (
+    <View style={styles.page}>
+      <View style={{ flex: 1 }}>{content}</View>
+      <BottomNavigation activeTab="task" onTabPress={goToTab} />
+    </View>
+  );
+
   if (loading) {
-    return (
+    return withBottomNav(
       <View style={styles.center}>
         <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.centerText}>Loading tasks…</Text>
@@ -559,7 +568,7 @@ const BirdsEyeViewScreen = ({ navigation, route }) => {
   }
 
   if (error) {
-    return (
+    return withBottomNav(
       <View style={styles.center}>
         <Icon name="alert-circle" size={44} color={Colors.error} />
         <Text style={styles.emptyTitle}>Couldn't load view</Text>
@@ -574,7 +583,7 @@ const BirdsEyeViewScreen = ({ navigation, route }) => {
     );
   }
 
-  return (
+  return withBottomNav(
     <View style={styles.container}>
       <FlatList
         data={sections}
@@ -582,7 +591,7 @@ const BirdsEyeViewScreen = ({ navigation, route }) => {
         renderItem={renderSection}
         ListHeaderComponent={renderHeader()}
         ListEmptyComponent={renderEmpty}
-        contentContainerStyle={[styles.listContent, { paddingBottom: 24 + insets.bottom }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 24 }]}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} colors={[Colors.primary]} tintColor={Colors.primary} />
@@ -682,15 +691,16 @@ const Spec = ({ label, value, unit, chip, full }) => (
   </View>
 );
 
-const cardShadow = {
+const cardShadow = themed(() => ({
   shadowColor: Colors.shadow,
   shadowOffset: { width: 0, height: 2 },
   shadowOpacity: 1,
   shadowRadius: 6,
   elevation: 2,
-};
+}));
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
+  page: { flex: 1, backgroundColor: Colors.surface },
   container: { flex: 1, backgroundColor: Colors.surface },
   listContent: { padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: Colors.surface },
@@ -833,6 +843,6 @@ const styles = StyleSheet.create({
   unassignedText: { fontSize: FontSizes.small, color: '#B35C00', fontWeight: FontWeights.semiBold },
   sheetFooter: { flexDirection: 'row', gap: 10, paddingTop: 12 },
   footerPrimary: { flex: 1.4, marginTop: 0 },
-});
+}));
 
 export default BirdsEyeViewScreen;

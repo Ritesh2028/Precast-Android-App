@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Colors } from '../styles/colors';
+import { themedStyles } from '../theme';
 
 const ChangePasswordScreen = () => {
   const [email, setEmail] = useState('');
@@ -51,7 +52,7 @@ const ChangePasswordScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: 24 },
   title: { fontSize: 20, fontWeight: 'bold', color: Colors.textDark, textAlign: 'center', marginBottom: 8 },
@@ -61,7 +62,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, fontSize: 14, color: Colors.textDark },
   primaryButton: { backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginTop: 8 },
   primaryButtonText: { color: Colors.textWhite, fontSize: 16, fontWeight: '600' },
-});
+}));
 
 export default ChangePasswordScreen;
 

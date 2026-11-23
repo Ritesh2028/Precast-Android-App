@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import CameraQRScanner from '../components/CameraQRScanner';
 import { Colors } from '../styles/colors';
+import { themedStyles } from '../theme';
 
 const JobDetailsScreen = ({ route, navigation }) => {
   const { jobId, jobData } = route.params || {};
@@ -279,7 +280,7 @@ const JobDetailsScreen = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -499,6 +500,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-});
+}));
 
 export default JobDetailsScreen;

@@ -14,10 +14,10 @@ import {
 import { getTokens } from '../services/tokenManager';
 import { logout } from '../services/authService';
 import { API_BASE_URL } from '../config/apiConfig';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import { downloadDrawing } from '../services/drawingDownloads';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
+import { themedStyles } from '../theme';
 
 const DrawingFilesModal = ({ visible, onClose, elementId, elementData }) => {
   const [drawingFiles, setDrawingFiles] = useState([]);
@@ -117,124 +117,38 @@ const DrawingFilesModal = ({ visible, onClose, elementId, elementData }) => {
       Alert.alert('Error', 'File name not available');
       return;
     }
+    if (downloadingFile) return;
 
+    setDownloadingFile(file.fileName);
     try {
-      setDownloadingFile(file.fileName);
-      
-      // Get auth token
       const { accessToken } = await getTokens();
       if (!accessToken) {
         Alert.alert('Error', 'Authentication required. Please login again.');
         return;
       }
 
-      // Build API URL
       const apiUrl = `${API_BASE_URL}/api/get-file?file=${encodeURIComponent(file.fileName)}`;
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': accessToken,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'User-Agent': 'PrecastApp/1.0',
-        },
-      });
 
-      if (response.ok) {
-        // Download file automatically for all platforms
-        if (Platform.OS === 'web') {
-          // For web, use blob download
-          const blob = await response.blob();
-          const objectUrl = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = objectUrl;
-          link.download = file.fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(objectUrl);
-          
-          Alert.alert(
-            'Download Successful',
-            `File "${file.fileName}" has been downloaded successfully.`,
-            [{ text: 'OK' }]
-          );
-        } else {
-          // For mobile (iOS/Android), download file directly to device
-          try {
-            // Get the file extension to determine file type
-            const fileExtension = file.fileName.split('.').pop() || 'jpg';
-            const fileUri = FileSystem.documentDirectory + file.fileName;
-            
-            // Show alert that download is starting
-            Alert.alert(
-              'Download Started',
-              `Downloading "${file.fileName}"...`,
-              [{ text: 'OK' }]
-            );
-            
-            // Download the file using FileSystem
-            const downloadResult = await FileSystem.downloadAsync(apiUrl, fileUri, {
-              headers: {
-                'Authorization': accessToken,
-              },
-            });
-            
-            if (downloadResult.status === 200) {
-              // File downloaded successfully
-              // Try to save automatically using Sharing
-              try {
-                const isAvailable = await Sharing.isAvailableAsync();
-                
-                if (isAvailable) {
-                  // Use sharing to save the file - opens native share/save dialog
-                  await Sharing.shareAsync(downloadResult.uri, {
-                    mimeType: `image/${fileExtension}`,
-                    dialogTitle: `Save ${file.fileName}`,
-                    UTI: `public.${fileExtension}`,
-                  });
-                }
-              } catch (shareError) {
-                console.log('Sharing not available:', shareError);
-              }
-              
-              // Show success alert
-              Alert.alert(
-                'Download Successful',
-                `File "${file.fileName}" has been downloaded and saved to your device.`,
-                [{ text: 'OK' }]
-              );
-            } else {
-              throw new Error(`Download failed with status: ${downloadResult.status}`);
-            }
-          } catch (error) {
-            console.log('Error downloading file:', error);
-            
-            Alert.alert(
-              'Download Error',
-              `Failed to download file: ${error.message}`,
-              [{ text: 'OK' }]
-            );
-          }
-        }
-      } else {
-        const errorText = await response.text();
-        console.log('File download error:', errorText);
-        Alert.alert(
-          'Download Failed',
-          `Failed to download file. Status: ${response.status}`,
-          [{ text: 'OK' }]
-        );
+      if (Platform.OS === 'web') {
+        const response = await fetch(apiUrl, { headers: { Authorization: accessToken } });
+        if (!response.ok) throw new Error(`Server returned status ${response.status}.`);
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = file.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
+        return;
       }
+
+      // Android: saves to "PrecastEzy Drawings" and asks to open; iOS: share sheet.
+      await downloadDrawing({ url: apiUrl, fileName: file.fileName, accessToken });
     } catch (error) {
       console.log('File download error:', error);
-      Alert.alert(
-        'Download Error',
-        `Failed to download file: ${error.message}`,
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Download Failed', error?.message || 'Failed to download file. Please try again.');
     } finally {
       setDownloadingFile(null);
     }
@@ -338,7 +252,7 @@ const DrawingFilesModal = ({ visible, onClose, elementId, elementData }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -528,7 +442,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.regular,
     color: Colors.textSecondary,
   },
-});
+}));
 
 export default DrawingFilesModal;
 

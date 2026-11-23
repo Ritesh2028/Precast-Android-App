@@ -27,6 +27,7 @@ import { getTokens } from '../services/tokenManager';
 import { validateToken } from '../services/tokenUtils';
 import { logout, validateSession, refreshSession } from '../services/authService';
 import { handle401Error, handleApiError } from '../services/errorHandler';
+import { themedStyles } from '../theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -1574,7 +1575,7 @@ const QuestionsScreen = ({ route, navigation }) => {
 
 // White Background and Black Font Theme
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: BWTheme.background,
@@ -2538,7 +2539,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-});
+}));
 
 export default QuestionsScreen;
 

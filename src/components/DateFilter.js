@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView } from 'react-native';
 import { FontSizes, FontWeights } from '../styles/fonts';
 import { Colors } from '../styles/colors';
+import { themedStyles } from '../theme';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -280,7 +281,7 @@ export const DateFilter = ({ onChange, startDate }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -407,5 +408,5 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: FontWeights.bold,
   },
-});
+}));
 
